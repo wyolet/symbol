@@ -13,7 +13,7 @@ from rich.text import Text
 import ca_tools.frameworks  # noqa: F401 — registers framework hooks
 from ca_tools.shared.findings import SEVERITY_STYLE, Report, Severity
 from ca_tools.shared.project_config import load_project_config
-from ca_tools.shared.spec import load_spec
+from ca_tools.shared.spec import Spec, load_spec
 
 from .config import detect_config_files
 from .entrypoints import EntryPoint, detect_entrypoints
@@ -91,6 +91,64 @@ def _print_summary(report: Report) -> None:
 
 
 # ── Compact vs verbose printers ──────────────────────────────────────
+
+
+# Categories that represent the core architecture — shown in compact mode
+_PRIMARY_CATEGORIES = {"web", "orm", "database_driver", "task_queue", "llm", "migration"}
+
+
+def _collapse_packages(packages: list[str]) -> list[str]:
+    """Collapse package variants into their base: langchain-openai → langchain."""
+    bases: dict[str, str] = {}
+    for pkg in packages:
+        # Find the base name (before first hyphen)
+        base = pkg.split("-")[0]
+        # Keep the shortest name as representative
+        if base not in bases or len(pkg) < len(bases[base]):
+            bases[base] = pkg
+    return list(bases.values())
+
+
+def _print_stack_compact(stack: dict[str, list[str]], spec: Spec) -> None:
+    """Show primary categories, collapse the rest into one line."""
+    order = list(spec.categories.keys())
+    shown = []
+    others: list[str] = []
+
+    for cat in order:
+        if cat not in stack:
+            continue
+        label = spec.categories.get(cat, cat)
+        pkgs = _collapse_packages(stack[cat])
+        if cat in _PRIMARY_CATEGORIES:
+            shown.append((label, pkgs))
+        else:
+            others.extend(pkgs)
+
+    for cat in sorted(stack):
+        if cat not in spec.categories:
+            others.extend(_collapse_packages(stack[cat]))
+
+    for label, pkgs in shown:
+        console.print(f"    [bold]{label + ':':<20s}[/bold] [cyan]{', '.join(pkgs)}[/cyan]")
+
+    if others:
+        console.print(f"    [dim]also:[/dim] [dim]{', '.join(sorted(set(others)))}[/dim]")
+
+
+def _print_stack_verbose(stack: dict[str, list[str]], spec: Spec) -> None:
+    """Show all categories with all packages."""
+    order = list(spec.categories.keys())
+    for cat in order:
+        if cat not in stack:
+            continue
+        label = spec.categories.get(cat, cat)
+        pkgs = ", ".join(stack[cat])
+        console.print(f"    [bold]{label + ':':<20s}[/bold] [cyan]{pkgs}[/cyan]")
+    for cat in sorted(stack):
+        if cat not in spec.categories:
+            pkgs = ", ".join(stack[cat])
+            console.print(f"    [bold]{cat + ':':<20s}[/bold] [cyan]{pkgs}[/cyan]")
 
 
 def _print_entrypoints_compact(entrypoints: list[EntryPoint], project_root: Path) -> None:
@@ -279,17 +337,10 @@ def audit_cmd(
     # Stack
     _section_header(f"STACK \u2014 {project_name}/", None, None)
     if stack:
-        order = list(spec.categories.keys())
-        for cat in order:
-            if cat not in stack:
-                continue
-            label = spec.categories.get(cat, cat)
-            pkgs = ", ".join(stack[cat])
-            console.print(f"    [bold]{label + ':':<20s}[/bold] [cyan]{pkgs}[/cyan]")
-        for cat in sorted(stack):
-            if cat not in spec.categories:
-                pkgs = ", ".join(stack[cat])
-                console.print(f"    [bold]{cat + ':':<20s}[/bold] [cyan]{pkgs}[/cyan]")
+        if verbose:
+            _print_stack_verbose(stack, spec)
+        else:
+            _print_stack_compact(stack, spec)
     else:
         console.print("    [dim](no recognized dependencies)[/dim]")
 
