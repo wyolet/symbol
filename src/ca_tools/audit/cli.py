@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 import ca_tools.frameworks  # noqa: F401 — registers framework hooks
+from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.findings import SEVERITY_STYLE, Report, Severity
 from ca_tools.shared.project_config import load_project_config
 from ca_tools.shared.spec import Spec, load_spec
@@ -247,11 +248,14 @@ def audit_cmd(
     inc = include or config.include or None
     exc = exclude or config.exclude or None
 
+    # Parse all files once, share ASTs across detectors
+    cache = ASTCache(project_root, inc, exc)
+
     # Gather all data
     stack = detect_stack(project_root, spec)
-    entrypoints = detect_entrypoints(project_root, inc, exc)
+    entrypoints = detect_entrypoints(project_root, inc, exc, cache)
     entry_point_files = {ep.filepath for ep in entrypoints}
-    graph = build_import_graph(project_root, inc, exc)
+    graph = build_import_graph(project_root, inc, exc, cache)
 
     # Track ignored counts
     ignored = {"orphans": 0, "side_effects": 0, "deps": 0}
@@ -267,7 +271,7 @@ def audit_cmd(
     else:
         orphans = orphans_raw
 
-    sideeffects_raw = detect_sideeffects(project_root, spec, inc, exc)
+    sideeffects_raw = detect_sideeffects(project_root, spec, inc, exc, cache)
     if config.ignore_side_effects:
         sideeffects = [
             se

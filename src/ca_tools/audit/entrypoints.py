@@ -4,6 +4,7 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
+from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.files import collect_py_files
 
 
@@ -19,17 +20,28 @@ def detect_entrypoints(
     project_root: Path,
     include: list[str] | None = None,
     exclude: list[str] | None = None,
+    cache: ASTCache | None = None,
 ) -> list[EntryPoint]:
     """Find all entry points in a Python project."""
     results: list[EntryPoint] = []
 
-    for py_file in collect_py_files(project_root, include, exclude):
-        try:
-            source = py_file.read_text()
-            tree = ast.parse(source, filename=str(py_file))
-        except (SyntaxError, UnicodeDecodeError, OSError):
-            continue
+    if cache:
+        files = cache.files
+    else:
+        files = collect_py_files(project_root, include, exclude)
 
+    for py_file in files:
+        if cache:
+            tree = cache.get_ast(py_file)
+        else:
+            try:
+                source = py_file.read_text()
+                tree = ast.parse(source, filename=str(py_file))
+            except (SyntaxError, UnicodeDecodeError, OSError):
+                tree = None
+
+        if tree is None:
+            continue
         results.extend(_find_entrypoints_in_file(tree, py_file))
 
     return results

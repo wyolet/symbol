@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import ca_tools.frameworks  # noqa: F401 — registers framework hooks
+from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.files import collect_py_files
 from ca_tools.shared.pipeline import SKIP_ORPHAN, make_context, run_pipeline
 
@@ -27,18 +28,29 @@ def build_import_graph(
     project_root: Path,
     include: list[str] | None = None,
     exclude: list[str] | None = None,
+    cache: ASTCache | None = None,
 ) -> ImportGraph:
     graph = ImportGraph()
-    py_files = collect_py_files(project_root, include, exclude)
+
+    if cache:
+        py_files = cache.files
+    else:
+        py_files = collect_py_files(project_root, include, exclude)
     graph.files = py_files
 
     module_to_file = _build_module_map(project_root, py_files)
 
     for py_file in py_files:
-        try:
-            source = py_file.read_text()
-            tree = ast.parse(source, filename=str(py_file))
-        except (SyntaxError, UnicodeDecodeError, OSError):
+        if cache:
+            tree = cache.get_ast(py_file)
+        else:
+            try:
+                source = py_file.read_text()
+                tree = ast.parse(source, filename=str(py_file))
+            except (SyntaxError, UnicodeDecodeError, OSError):
+                tree = None
+
+        if tree is None:
             continue
 
         imports = _extract_imports(tree, py_file, project_root)
