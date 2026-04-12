@@ -193,25 +193,42 @@ def audit_cmd(
     entrypoints = detect_entrypoints(project_root, inc, exc)
     entry_point_files = {ep.filepath for ep in entrypoints}
     graph = build_import_graph(project_root, inc, exc)
-    orphans = detect_orphans(project_root, graph, entry_point_files)
+
+    # Track ignored counts
+    ignored = {"orphans": 0, "side_effects": 0, "deps": 0}
+
+    orphans_raw = detect_orphans(project_root, graph, entry_point_files)
     if config.ignore_orphans:
         orphans = [
             o
-            for o in orphans
+            for o in orphans_raw
             if not any(fnmatch.fnmatch(str(o.filepath.relative_to(project_root)), pat) for pat in config.ignore_orphans)
         ]
-    sideeffects = detect_sideeffects(project_root, spec, inc, exc)
+        ignored["orphans"] = len(orphans_raw) - len(orphans)
+    else:
+        orphans = orphans_raw
+
+    sideeffects_raw = detect_sideeffects(project_root, spec, inc, exc)
     if config.ignore_side_effects:
         sideeffects = [
             se
-            for se in sideeffects
+            for se in sideeffects_raw
             if not any(fnmatch.fnmatch(se.call_text, pat) for pat in config.ignore_side_effects)
         ]
+        ignored["side_effects"] = len(sideeffects_raw) - len(sideeffects)
+    else:
+        sideeffects = sideeffects_raw
+
     configs = detect_config_files(project_root, spec)
     deps = detect_deps(project_root)
-    unused = detect_unused_deps(project_root, deps, spec, inc, exc)
+    unused_raw = detect_unused_deps(project_root, deps, spec, inc, exc)
     if config.ignore_deps:
-        unused = [d for d in unused if d not in config.ignore_deps]
+        unused = [d for d in unused_raw if d not in config.ignore_deps]
+        ignored["deps"] = len(unused_raw) - len(unused)
+    else:
+        unused = unused_raw
+
+    total_ignored = sum(ignored.values())
     stats = graph_summary(graph, len(orphans))
 
     # Populate report for orphans
@@ -232,13 +249,31 @@ def audit_cmd(
         report.add("unused_deps", dep, "in pyproject.toml, 0 imports found", sev, dep)
 
     if format == "json":
-        _print_json(project_root, stack, entrypoints, orphans, sideeffects, configs, unused, stats, report)
+        _print_json(project_root, stack, entrypoints, orphans, sideeffects, configs, unused, stats, report, ignored)
         sys.exit(report.exit_code)
         return
 
     # Rich output
     console.print()
     console.print(Panel(Text(f"  ca audit \u2014 {project_name}/", style="bold"), style="dim", expand=False))
+
+    # Scan summary
+    console.print()
+    scan_parts = [f"[dim]{stats['total']} files analyzed[/dim]"]
+    if len(entrypoints) > 0:
+        scan_parts.append(f"[dim]{len(entrypoints)} entry points[/dim]")
+    if len(deps) > 0:
+        scan_parts.append(f"[dim]{len(deps)} deps declared[/dim]")
+    if total_ignored > 0:
+        ign_parts = []
+        if ignored["orphans"]:
+            ign_parts.append(f"{ignored['orphans']} orphans")
+        if ignored["side_effects"]:
+            ign_parts.append(f"{ignored['side_effects']} side effects")
+        if ignored["deps"]:
+            ign_parts.append(f"{ignored['deps']} deps")
+        scan_parts.append(f"[dim]{', '.join(ign_parts)} ignored by config[/dim]")
+    console.print("  " + "  \u2022  ".join(scan_parts))
 
     # Stack
     _section_header(f"STACK \u2014 {project_name}/", None, None)
@@ -336,9 +371,14 @@ def _print_json(
     unused: list[str],
     graph_stats: dict,
     report: Report,
+    ignored: dict[str, int] | None = None,
 ) -> None:
     """Print audit results as JSON."""
     data = {
+        "scan": {
+            "files_analyzed": graph_stats["total"],
+            "ignored": ignored or {},
+        },
         "stack": {cat: list(pkgs) for cat, pkgs in stack.items()},
         "entrypoints": [
             {
