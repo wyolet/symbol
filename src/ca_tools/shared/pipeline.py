@@ -8,6 +8,7 @@ from pathlib import Path
 DEPS = "deps"
 IMPORTS = "imports"
 ENTRYPOINTS = "entrypoints"
+SKIP_ORPHAN = "skip_orphan"  # hooks that decide if a file should be excluded from orphan detection
 
 # Registry: pipeline name → list of (priority, function)
 _registry: dict[str, list[tuple[int, Callable]]] = defaultdict(list)
@@ -51,3 +52,22 @@ def get_hooks(pipeline: str) -> list[Callable]:
 def clear_pipeline(pipeline: str) -> None:
     """Clear all hooks for a pipeline (useful in tests)."""
     _registry[pipeline].clear()
+
+
+def make_context(project_root: Path) -> dict:
+    """Create a fresh pipeline context with shared utilities."""
+    file_cache: dict[Path, str | None] = {}
+
+    def read_file(path: Path) -> str | None:
+        """Read a file with caching — returns None if unreadable."""
+        if path not in file_cache:
+            try:
+                file_cache[path] = path.read_text()
+            except OSError:
+                file_cache[path] = None
+        return file_cache[path]
+
+    return {
+        "project_root": project_root,
+        "read_file": read_file,
+    }

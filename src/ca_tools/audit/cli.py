@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+import ca_tools.frameworks  # noqa: F401 — registers framework hooks
 from ca_tools.shared.findings import SEVERITY_STYLE, Report, Severity
 from ca_tools.shared.project_config import load_project_config
 from ca_tools.shared.spec import load_spec

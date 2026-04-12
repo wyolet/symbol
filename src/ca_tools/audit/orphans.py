@@ -1,10 +1,13 @@
 """Import graph construction and orphan file detection."""
 
 import ast
+import fnmatch
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import ca_tools.frameworks  # noqa: F401 — registers framework hooks
 from ca_tools.shared.files import collect_py_files
+from ca_tools.shared.pipeline import SKIP_ORPHAN, make_context, run_pipeline
 
 
 @dataclass
@@ -177,6 +180,10 @@ def detect_orphans(
     for targets in graph.resolved_edges.values():
         imported_files.update(targets)
 
+    # Collect skip patterns from framework hooks
+    context = make_context(project_root)
+    skip_patterns = run_pipeline(SKIP_ORPHAN, project_root, context)
+
     orphans: list[OrphanFile] = []
     for py_file in graph.files:
         if py_file in imported_files:
@@ -184,31 +191,47 @@ def detect_orphans(
 
         rel = py_file.relative_to(project_root)
         name = rel.name
+        rel_str = str(rel)
 
-        if name == "__init__.py":
-            continue
-        if name == "__main__.py":
-            continue
-        if name == "conftest.py" or name.startswith("test_") or name.endswith("_test.py"):
+        # Check against skip patterns from framework hooks
+        if _matches_skip(name, rel_str, skip_patterns):
             continue
 
         # Skip files already detected as entry points
         if entry_point_files and py_file in entry_point_files:
             continue
 
-        rel_str = str(rel)
+        # Classify the orphan
         if "script" in rel_str or "scripts" in rel_str:
             reason = "likely one-off script"
         elif "test" in rel_str or "tests" in rel_str:
             reason = "likely test file"
-        elif name in ("manage.py", "setup.py"):
-            reason = "project tool"
         else:
             reason = "likely dead code"
 
         orphans.append(OrphanFile(filepath=py_file, reason=reason))
 
     return orphans
+
+
+def _matches_skip(name: str, rel_str: str, patterns: list[str]) -> bool:
+    """Check if a file matches any skip pattern.
+
+    Patterns can be:
+    - Exact filenames: "conftest.py", "__init__.py"
+    - Glob patterns: "test_*.py", "alembic/versions/*.py"
+    """
+    for pattern in patterns:
+        # Exact filename match
+        if name == pattern:
+            return True
+        # Glob against filename
+        if fnmatch.fnmatch(name, pattern):
+            return True
+        # Glob against relative path
+        if fnmatch.fnmatch(rel_str, pattern):
+            return True
+    return False
 
 
 def graph_summary(graph: ImportGraph, orphan_count: int) -> dict[str, int]:
