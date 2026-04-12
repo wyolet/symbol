@@ -1,0 +1,495 @@
+# ca-tools spec — all detection patterns in one place.
+# Community contributions: edit this file, not Python code.
+#
+# Format modeled after GitHub's linguist languages.yml.
+# Each section defines patterns for a specific detection module.
+
+# ── Categories ────────────────────────────────────────────────────────
+# Maps internal category keys to display-friendly labels.
+# Every package must reference a category defined here.
+
+[categories]
+web = "Web framework"
+orm = "ORM"
+database_driver = "Database"
+task_queue = "Task queue"
+llm = "LLM / AI"
+migration = "Migrations"
+testing = "Testing"
+http_client = "HTTP client"
+validation = "Validation"
+serialization = "Serialization"
+cli = "CLI"
+monitoring = "Monitoring"
+auth = "Auth"
+data_science = "Data science"
+config = "Config"
+templating = "Templating"
+file_handling = "File handling"
+cloud = "Cloud"
+utility = "Utility"
+async = "Async"
+caching = "Caching"
+graphql = "GraphQL"
+websocket = "WebSocket"
+email = "Email"
+scheduling = "Scheduling"
+feature_flags = "Feature flags"
+i18n = "i18n"
+rate_limiting = "Rate limiting"
+admin = "Admin"
+payment = "Payment"
+search = "Search"
+grpc = "gRPC"
+orchestration = "Orchestration"
+
+# ── Packages ──────────────────────────────────────────────────────────
+# PyPI package name → { category (required), import_name (optional) }.
+# import_name is only needed when `import X` differs from the package name
+# after standard normalization (hyphens → underscores).
+
+[packages]
+# Web frameworks
+django = { category = "web" }
+flask = { category = "web" }
+fastapi = { category = "web" }
+starlette = { category = "web" }
+tornado = { category = "web" }
+sanic = { category = "web" }
+bottle = { category = "web" }
+falcon = { category = "web" }
+quart = { category = "web" }
+litestar = { category = "web" }
+hug = { category = "web" }
+cherrypy = { category = "web" }
+pyramid = { category = "web" }
+uvicorn = { category = "web" }
+gunicorn = { category = "web" }
+hypercorn = { category = "web" }
+daphne = { category = "web" }
+waitress = { category = "web" }
+granian = { category = "web" }
+
+# ORM / database toolkit
+sqlalchemy = { category = "orm" }
+django-orm = { category = "orm" }
+tortoise-orm = { category = "orm" }
+peewee = { category = "orm" }
+sqlmodel = { category = "orm" }
+pony = { category = "orm" }
+mongoengine = { category = "orm" }
+odmantic = { category = "orm" }
+beanie = { category = "orm" }
+
+# Database drivers
+psycopg2 = { category = "database_driver" }
+psycopg2-binary = { category = "database_driver", import_name = "psycopg2" }
+psycopg = { category = "database_driver" }
+asyncpg = { category = "database_driver" }
+mysqlclient = { category = "database_driver" }
+pymysql = { category = "database_driver" }
+aiomysql = { category = "database_driver" }
+sqlite3 = { category = "database_driver" }
+aiosqlite = { category = "database_driver" }
+redis = { category = "database_driver" }
+aioredis = { category = "database_driver" }
+pymongo = { category = "database_driver" }
+motor = { category = "database_driver" }
+cassandra-driver = { category = "database_driver" }
+elasticsearch = { category = "database_driver" }
+opensearch-py = { category = "database_driver" }
+clickhouse-driver = { category = "database_driver" }
+neo4j = { category = "database_driver" }
+cx-oracle = { category = "database_driver", import_name = "cx_Oracle" }
+oracledb = { category = "database_driver" }
+pyodbc = { category = "database_driver" }
+
+# Task queues
+celery = { category = "task_queue" }
+rq = { category = "task_queue" }
+dramatiq = { category = "task_queue" }
+huey = { category = "task_queue" }
+arq = { category = "task_queue" }
+taskiq = { category = "task_queue" }
+
+# LLM / AI
+openai = { category = "llm" }
+anthropic = { category = "llm" }
+langchain = { category = "llm" }
+langchain-core = { category = "llm" }
+langchain-community = { category = "llm" }
+langchain-openai = { category = "llm" }
+langchain-anthropic = { category = "llm" }
+llama-index = { category = "llm" }
+transformers = { category = "llm" }
+huggingface-hub = { category = "llm" }
+cohere = { category = "llm" }
+google-generativeai = { category = "llm", import_name = "google.generativeai" }
+litellm = { category = "llm" }
+vllm = { category = "llm" }
+ollama = { category = "llm" }
+instructor = { category = "llm" }
+
+# Migrations
+alembic = { category = "migration" }
+django-migrations = { category = "migration" }
+yoyo-migrations = { category = "migration" }
+
+# Testing
+pytest = { category = "testing" }
+pytest-cov = { category = "testing" }
+pytest-asyncio = { category = "testing" }
+pytest-mock = { category = "testing" }
+pytest-xdist = { category = "testing" }
+pytest-django = { category = "testing" }
+unittest = { category = "testing" }
+hypothesis = { category = "testing" }
+factory-boy = { category = "testing", import_name = "factory" }
+faker = { category = "testing" }
+coverage = { category = "testing" }
+tox = { category = "testing" }
+nox = { category = "testing" }
+responses = { category = "testing" }
+respx = { category = "testing" }
+vcrpy = { category = "testing" }
+freezegun = { category = "testing" }
+time-machine = { category = "testing" }
+polyfactory = { category = "testing" }
+
+# HTTP clients
+requests = { category = "http_client" }
+httpx = { category = "http_client" }
+urllib3 = { category = "http_client" }
+aiohttp = { category = "http_client" }
+httplib2 = { category = "http_client" }
+treq = { category = "http_client" }
+
+# Validation
+pydantic = { category = "validation" }
+pydantic-settings = { category = "validation" }
+marshmallow = { category = "validation" }
+cerberus = { category = "validation" }
+attrs = { category = "validation" }
+
+# Serialization
+cattrs = { category = "serialization" }
+msgpack = { category = "serialization" }
+orjson = { category = "serialization" }
+ujson = { category = "serialization" }
+protobuf = { category = "serialization" }
+avro-python3 = { category = "serialization" }
+msgspec = { category = "serialization" }
+
+# CLI
+click = { category = "cli" }
+typer = { category = "cli" }
+argparse = { category = "cli" }
+fire = { category = "cli" }
+rich = { category = "cli" }
+textual = { category = "cli" }
+
+# Monitoring / observability
+sentry-sdk = { category = "monitoring" }
+prometheus-client = { category = "monitoring" }
+opentelemetry-api = { category = "monitoring" }
+opentelemetry-sdk = { category = "monitoring" }
+structlog = { category = "monitoring" }
+loguru = { category = "monitoring" }
+datadog = { category = "monitoring" }
+newrelic = { category = "monitoring" }
+statsd = { category = "monitoring" }
+
+# Auth
+pyjwt = { category = "auth", import_name = "jwt" }
+python-jose = { category = "auth", import_name = "jose" }
+authlib = { category = "auth" }
+passlib = { category = "auth" }
+bcrypt = { category = "auth" }
+python-multipart = { category = "auth", import_name = "multipart" }
+
+# Data science / ML
+numpy = { category = "data_science" }
+pandas = { category = "data_science" }
+scipy = { category = "data_science" }
+scikit-learn = { category = "data_science", import_name = "sklearn" }
+matplotlib = { category = "data_science" }
+seaborn = { category = "data_science" }
+plotly = { category = "data_science" }
+polars = { category = "data_science" }
+dask = { category = "data_science" }
+torch = { category = "data_science" }
+tensorflow = { category = "data_science" }
+keras = { category = "data_science" }
+xgboost = { category = "data_science" }
+lightgbm = { category = "data_science" }
+
+# Config / env
+python-dotenv = { category = "config", import_name = "dotenv" }
+environs = { category = "config" }
+dynaconf = { category = "config" }
+python-decouple = { category = "config", import_name = "decouple" }
+
+# Templating
+jinja2 = { category = "templating" }
+mako = { category = "templating" }
+
+# File handling
+pillow = { category = "file_handling", import_name = "PIL" }
+openpyxl = { category = "file_handling" }
+python-docx = { category = "file_handling" }
+reportlab = { category = "file_handling" }
+
+# Cloud
+boto3 = { category = "cloud" }
+google-cloud-storage = { category = "cloud", import_name = "google.cloud.storage" }
+azure-storage-blob = { category = "cloud", import_name = "azure.storage.blob" }
+
+# Misc / utility with import_name overrides
+python-dateutil = { category = "utility", import_name = "dateutil" }
+pyyaml = { category = "serialization", import_name = "yaml" }
+beautifulsoup4 = { category = "web", import_name = "bs4" }
+toml = { category = "serialization" }
+tomli = { category = "serialization" }
+
+# Async
+anyio = { category = "async" }
+trio = { category = "async" }
+asyncio = { category = "async" }
+uvloop = { category = "async" }
+greenlet = { category = "async" }
+
+# Caching
+cachetools = { category = "caching" }
+aiocache = { category = "caching" }
+diskcache = { category = "caching" }
+django-redis = { category = "caching" }
+
+# GraphQL
+graphene = { category = "graphql" }
+strawberry-graphql = { category = "graphql", import_name = "strawberry" }
+ariadne = { category = "graphql" }
+
+# WebSockets
+websockets = { category = "websocket" }
+channels = { category = "websocket" }
+socketio = { category = "websocket" }
+python-socketio = { category = "websocket", import_name = "socketio" }
+
+# Email
+sendgrid = { category = "email" }
+python-postmark = { category = "email", import_name = "postmarker" }
+
+# Background / scheduling
+apscheduler = { category = "scheduling" }
+schedule = { category = "scheduling" }
+django-celery-beat = { category = "scheduling" }
+
+# PDF / docs
+weasyprint = { category = "file_handling" }
+pypdf = { category = "file_handling" }
+pypdf2 = { category = "file_handling", import_name = "PyPDF2" }
+pdfplumber = { category = "file_handling" }
+
+# Image
+opencv-python = { category = "file_handling", import_name = "cv2" }
+imageio = { category = "file_handling" }
+
+# Crypto
+cryptography = { category = "auth" }
+paramiko = { category = "auth" }
+
+# Feature flags
+launchdarkly-server-sdk = { category = "feature_flags", import_name = "ldclient" }
+flagsmith = { category = "feature_flags" }
+
+# i18n
+babel = { category = "i18n" }
+django-modeltranslation = { category = "i18n" }
+
+# Rate limiting
+ratelimit = { category = "rate_limiting" }
+slowapi = { category = "rate_limiting" }
+
+# Admin
+django-admin = { category = "admin" }
+flask-admin = { category = "admin" }
+sqladmin = { category = "admin" }
+
+# Payment
+stripe = { category = "payment" }
+braintree = { category = "payment" }
+
+# Search
+whoosh = { category = "search" }
+django-haystack = { category = "search" }
+meilisearch = { category = "search" }
+typesense = { category = "search" }
+
+# gRPC
+grpcio = { category = "grpc", import_name = "grpc" }
+grpcio-tools = { category = "grpc", import_name = "grpc_tools" }
+betterproto = { category = "grpc" }
+
+# AWS
+botocore = { category = "cloud" }
+aiobotocore = { category = "cloud" }
+s3fs = { category = "cloud" }
+
+# Workflow / orchestration
+prefect = { category = "orchestration" }
+airflow = { category = "orchestration" }
+dagster = { category = "orchestration" }
+luigi = { category = "orchestration" }
+temporal-sdk = { category = "orchestration", import_name = "temporalio" }
+
+# LLM extras
+chromadb = { category = "llm" }
+pinecone-client = { category = "llm", import_name = "pinecone" }
+weaviate-client = { category = "llm", import_name = "weaviate" }
+qdrant-client = { category = "llm", import_name = "qdrant_client" }
+tiktoken = { category = "llm" }
+tokenizers = { category = "llm" }
+sentence-transformers = { category = "llm", import_name = "sentence_transformers" }
+guidance = { category = "llm" }
+dspy-ai = { category = "llm", import_name = "dspy" }
+langgraph = { category = "llm" }
+crewai = { category = "llm" }
+autogen = { category = "llm" }
+
+# ── Config files ──────────────────────────────────────────────────────
+# Filename → description. Checked at project root.
+
+[config_files]
+Dockerfile = "containerized"
+dockerfile = "containerized"
+Containerfile = "containerized"
+"docker-compose.yml" = "multi-service"
+"docker-compose.yaml" = "multi-service"
+"compose.yml" = "multi-service"
+"compose.yaml" = "multi-service"
+Makefile = "build automation"
+Justfile = "build automation"
+"Taskfile.yml" = "build automation"
+"alembic.ini" = "managed migrations"
+"alembic.cfg" = "managed migrations"
+".env" = "environment vars"
+".env.example" = "environment template"
+".env.sample" = "environment template"
+Procfile = "process manager"
+Aptfile = "system deps"
+"runtime.txt" = "runtime spec"
+"nixpacks.toml" = "nixpacks config"
+"fly.toml" = "Fly.io deploy"
+"render.yaml" = "Render deploy"
+"railway.json" = "Railway deploy"
+"vercel.json" = "Vercel deploy"
+"netlify.toml" = "Netlify deploy"
+"app.yaml" = "App Engine deploy"
+"app.yml" = "App Engine deploy"
+"serverless.yml" = "Serverless deploy"
+"serverless.yaml" = "Serverless deploy"
+"terraform.tf" = "infrastructure as code"
+Vagrantfile = "VM provisioning"
+"ansible.cfg" = "Ansible config"
+"tox.ini" = "test runner"
+"noxfile.py" = "test runner"
+"pytest.ini" = "test config"
+"setup.cfg" = "package config"
+"mypy.ini" = "type checking"
+".mypy.ini" = "type checking"
+"pyrightconfig.json" = "type checking"
+".pre-commit-config.yaml" = "pre-commit hooks"
+".flake8" = "linting"
+".pylintrc" = "linting"
+"ruff.toml" = "linting"
+".ruff.toml" = "linting"
+".isort.cfg" = "import sorting"
+".editorconfig" = "editor config"
+"pyproject.toml" = "project config"
+"setup.py" = "legacy packaging"
+
+# ── Config dirs ───────────────────────────────────────────────────────
+# Directory or file path → description. Checked at project root.
+
+[config_dirs]
+".github/workflows" = "CI/CD"
+".gitlab-ci.yml" = "CI/CD"
+".circleci" = "CI/CD"
+".buildkite" = "CI/CD"
+k8s = "Kubernetes"
+kubernetes = "Kubernetes"
+helm = "Helm charts"
+deploy = "deployment"
+infra = "infrastructure"
+terraform = "infrastructure as code"
+".terraform" = "infrastructure as code"
+
+# ── Side effects ──────────────────────────────────────────────────────
+# Controls what gets flagged as a module-level side effect.
+
+[side_effects]
+# Function names that are safe / expected at module level — never flagged.
+safe_calls = [
+    "getLogger",
+    "basicConfig",
+    "TypeVar",
+    "NewType",
+    "ParamSpec",
+    "TypeVarTuple",
+    "namedtuple",
+    "Path",
+    "PurePath",
+    "Enum",
+    "IntEnum",
+    "StrEnum",
+    "FastAPI",
+    "Flask",
+    "Celery",
+    "APIRouter",
+    "Router",
+    "Blueprint",
+    "Namespace",
+]
+
+# Function names known to have real side effects — always flagged.
+known_effects = [
+    "load_dotenv",
+    "create_engine",
+    "configure",
+    "setup",
+    "init",
+    "register",
+    "connect",
+    "patch",
+    "monkey_patch",
+    "monkey.patch_all",
+    "eventlet.monkey_patch",
+    "gevent.monkey.patch_all",
+]
+
+# ── Entry points ──────────────────────────────────────────────────────
+# Patterns for detecting application entry points.
+
+[entrypoints]
+# Full dotted call paths that mark an entry point (e.g. inside if __name__ guard).
+starters = [
+    "uvicorn.run",
+    "uvicorn.main",
+    "gunicorn.run",
+    "celery.start",
+    "celery.worker_main",
+    "flask.run",
+    "app.run",
+    "tornado.ioloop.IOLoop.current().start",
+    "asyncio.run",
+    "typer.run",
+]
+
+# Bare function names that typically indicate entry points.
+starter_names = [
+    "run",
+    "start",
+    "main",
+    "worker_main",
+    "serve",
+]
