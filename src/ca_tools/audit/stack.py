@@ -22,25 +22,28 @@ def _extract_package_name(dep_spec: str) -> str | None:
     return normalize_package_name(name) if name else None
 
 
-def _read_pyproject(project_root: Path) -> dict:
-    """Read and cache pyproject.toml."""
-    pyproject = project_root / "pyproject.toml"
-    if not pyproject.exists():
-        return {}
-    try:
-        with open(pyproject, "rb") as f:
-            return tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
+def _get_pyproject(project_root: Path, context: dict) -> dict:
+    """Get pyproject.toml data — reads once, caches in context."""
+    if "pyproject" not in context:
+        pyproject = project_root / "pyproject.toml"
+        if not pyproject.exists():
+            context["pyproject"] = {}
+        else:
+            try:
+                with open(pyproject, "rb") as f:
+                    context["pyproject"] = tomllib.load(f)
+            except (OSError, tomllib.TOMLDecodeError):
+                context["pyproject"] = {}
+    return context["pyproject"]
 
 
 # ── Dep parser hooks ─────────────────────────────────────────────────
 
 
 @hook(DEPS, priority=10)
-def parse_pep621(project_root: Path, _context: dict) -> list[str]:
+def parse_pep621(project_root: Path, context: dict) -> list[str]:
     """Parse [project.dependencies] — PEP 621."""
-    data = _read_pyproject(project_root)
+    data = _get_pyproject(project_root, context)
     deps: list[str] = []
     for dep in data.get("project", {}).get("dependencies", []):
         name = _extract_package_name(dep)
@@ -50,9 +53,9 @@ def parse_pep621(project_root: Path, _context: dict) -> list[str]:
 
 
 @hook(DEPS, priority=20)
-def parse_optional_deps(project_root: Path, _context: dict) -> list[str]:
+def parse_optional_deps(project_root: Path, context: dict) -> list[str]:
     """Parse [project.optional-dependencies] — PEP 621."""
-    data = _read_pyproject(project_root)
+    data = _get_pyproject(project_root, context)
     deps: list[str] = []
     for group_deps in data.get("project", {}).get("optional-dependencies", {}).values():
         for dep in group_deps:
@@ -63,9 +66,9 @@ def parse_optional_deps(project_root: Path, _context: dict) -> list[str]:
 
 
 @hook(DEPS, priority=30)
-def parse_pep735(project_root: Path, _context: dict) -> list[str]:
+def parse_pep735(project_root: Path, context: dict) -> list[str]:
     """Parse [dependency-groups] — PEP 735."""
-    data = _read_pyproject(project_root)
+    data = _get_pyproject(project_root, context)
     deps: list[str] = []
     for group_deps in data.get("dependency-groups", {}).values():
         for dep in group_deps:
@@ -77,9 +80,9 @@ def parse_pep735(project_root: Path, _context: dict) -> list[str]:
 
 
 @hook(DEPS, priority=40)
-def parse_poetry(project_root: Path, _context: dict) -> list[str]:
+def parse_poetry(project_root: Path, context: dict) -> list[str]:
     """Parse [tool.poetry.dependencies] and [tool.poetry.group.*.dependencies]."""
-    data = _read_pyproject(project_root)
+    data = _get_pyproject(project_root, context)
     poetry = data.get("tool", {}).get("poetry", {})
     if not poetry:
         return []
