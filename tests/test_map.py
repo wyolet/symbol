@@ -147,3 +147,69 @@ def test_empty_project(tmp_path: Path):
     assert result.total_edges == 0
     assert result.cycles == []
     assert result.hotspots == []
+
+
+def test_init_reexport_not_a_cycle(tmp_path: Path):
+    """__init__.py importing from submodules is a re-export, not a cycle."""
+    _make_project(
+        tmp_path,
+        {
+            "pkg/__init__.py": "from pkg.models import Model\nfrom pkg.utils import helper",
+            "pkg/models.py": "from pkg import utils\nModel = 'model'",
+            "pkg/utils.py": "helper = 'helper'",
+        },
+    )
+    result = analyze_map(tmp_path)
+    assert len(result.cycles) == 0
+
+
+def test_real_cross_package_cycle_detected(tmp_path: Path):
+    """Cycles between different packages are real and should be reported."""
+    _make_project(
+        tmp_path,
+        {
+            "pkg_a/__init__.py": "from pkg_b import x",
+            "pkg_b/__init__.py": "from pkg_a import y\nx = 1",
+        },
+    )
+    result = analyze_map(tmp_path)
+    assert len(result.cycles) >= 1
+
+
+def test_init_self_reference_suppressed(tmp_path: Path):
+    """__init__.py referencing itself is noise, not a cycle."""
+    _make_project(
+        tmp_path,
+        {
+            "pkg/__init__.py": "from pkg import sub\nval = 1",
+            "pkg/sub.py": "x = 1",
+        },
+    )
+    result = analyze_map(tmp_path)
+    # No self-referencing cycles should appear
+    for cycle in result.cycles:
+        nodes = cycle.path[:-1]
+        assert not (len(nodes) == 1 and nodes[0].endswith("__init__.py"))
+
+
+def test_hotspots_resolve_through_init(tmp_path: Path):
+    """__init__.py facades should resolve to the actual modules behind them."""
+    _make_project(
+        tmp_path,
+        {
+            "core/__init__.py": "from core.models import M\nfrom core.utils import U",
+            "core/models.py": "M = 'model'",
+            "core/utils.py": "U = 'util'",
+            "a.py": "from core import M",
+            "b.py": "from core import M",
+            "c.py": "from core import M",
+            "d.py": "from core import M",
+            "e.py": "from core import M",
+        },
+    )
+    result = analyze_map(tmp_path, min_fan_in=3)
+    hotspot_modules = [h.module for h in result.hotspots]
+    # __init__.py should NOT be a hotspot
+    assert not any("__init__.py" in m for m in hotspot_modules)
+    # The actual modules behind __init__.py should be hotspots
+    assert any("models.py" in m for m in hotspot_modules)

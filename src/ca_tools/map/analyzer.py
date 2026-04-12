@@ -143,6 +143,40 @@ def _match_target(target: str, all_files: list[str]) -> str | None:
     return matches[0] if matches else None
 
 
+def _is_init(path: str) -> bool:
+    """Check if a path is an __init__.py file."""
+    return path.endswith("__init__.py")
+
+
+def _same_package(a: str, b: str) -> bool:
+    """Check if two paths are in the same package (same parent directory)."""
+    return a.rsplit("/", 1)[0] == b.rsplit("/", 1)[0] if "/" in a and "/" in b else False
+
+
+def _is_init_reexport_cycle(cycle_path: list[str]) -> bool:
+    """Check if a cycle is just __init__.py ↔ submodule in the same package.
+
+    These are normal Python package re-export patterns, not real circular deps.
+    """
+    nodes = cycle_path[:-1]  # last element repeats the first
+
+    # Self-reference: __init__.py → __init__.py (noise)
+    if len(nodes) == 1 and _is_init(nodes[0]):
+        return True
+
+    # Two-node cycle: __init__.py ↔ submodule in same package
+    if len(nodes) == 2:
+        a, b = nodes
+        if (_is_init(a) or _is_init(b)) and _same_package(a, b):
+            return True
+
+    # Multi-node: all nodes in same package and one is __init__.py
+    if any(_is_init(n) for n in nodes) and len({n.rsplit("/", 1)[0] for n in nodes if "/" in n}) == 1:
+        return True
+
+    return False
+
+
 def _relativize(graph: ImportGraph, project_root: Path) -> dict[str, set[str]]:
     """Convert absolute Path edges to relative string edges."""
     edges: dict[str, set[str]] = {}
@@ -188,17 +222,40 @@ def _find_cycles(edges: dict[str, set[str]]) -> list[Cycle]:
         if node not in visited:
             dfs(node)
 
-    return cycles
+    # Filter out __init__.py re-export patterns — they're not real cycles
+    return [c for c in cycles if not _is_init_reexport_cycle(c.path)]
 
 
 def _find_hotspots(edges: dict[str, set[str]], min_fan_in: int) -> list[Hotspot]:
-    """Find modules with high fan-in (imported by many)."""
+    """Find modules with high fan-in (imported by many).
+
+    __init__.py files are facades — resolve through them to report
+    the actual modules that contain the code.
+    """
     fan_in: dict[str, int] = {}
     for targets in edges.values():
         for target in targets:
             fan_in[target] = fan_in.get(target, 0) + 1
 
-    hotspots = [Hotspot(module=mod, fan_in=count) for mod, count in fan_in.items() if count >= min_fan_in]
+    # For __init__.py hotspots, redistribute their fan-in to the modules they re-export.
+    # If __init__.py imports A, B, C from its package, those are the real hotspots.
+    resolved: dict[str, int] = {}
+    for mod, count in fan_in.items():
+        if _is_init(mod) and count >= min_fan_in:
+            # Find submodules that __init__.py imports (same package)
+            submodules = [t for t in edges.get(mod, set()) if _same_package(mod, t)]
+            if submodules:
+                # Distribute the fan-in to submodules
+                for sub in submodules:
+                    resolved[sub] = resolved.get(sub, fan_in.get(sub, 0)) + count
+                continue
+        resolved[mod] = resolved.get(mod, 0) + count
+
+    hotspots = [
+        Hotspot(module=mod, fan_in=count)
+        for mod, count in resolved.items()
+        if count >= min_fan_in and not _is_init(mod)
+    ]
     hotspots.sort(key=lambda h: h.fan_in, reverse=True)
     return hotspots
 
