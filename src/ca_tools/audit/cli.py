@@ -191,8 +191,9 @@ def audit_cmd(
     # Gather all data
     stack = detect_stack(project_root, spec)
     entrypoints = detect_entrypoints(project_root, inc, exc)
+    entry_point_files = {ep.filepath for ep in entrypoints}
     graph = build_import_graph(project_root, inc, exc)
-    orphans = detect_orphans(project_root, graph)
+    orphans = detect_orphans(project_root, graph, entry_point_files)
     if config.ignore_orphans:
         orphans = [
             o

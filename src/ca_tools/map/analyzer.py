@@ -182,7 +182,8 @@ def _relativize(graph: ImportGraph, project_root: Path) -> dict[str, set[str]]:
     edges: dict[str, set[str]] = {}
     for src, targets in graph.resolved_edges.items():
         src_rel = str(src.relative_to(project_root))
-        edges[src_rel] = {str(t.relative_to(project_root)) for t in targets}
+        # Remove self-references
+        edges[src_rel] = {str(t.relative_to(project_root)) for t in targets if t != src}
     # Ensure all files exist as keys even if they import nothing
     for f in graph.files:
         rel = str(f.relative_to(project_root))
