@@ -8,7 +8,7 @@ from pathlib import Path
 import ca_tools.frameworks  # noqa: F401 — registers framework hooks
 from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.files import collect_py_files
-from ca_tools.shared.pipeline import SKIP_ORPHAN, make_context, run_pipeline
+from ca_tools.shared.pipeline import ENTRYPOINTS, SKIP_ORPHAN, make_context, run_pipeline
 
 
 @dataclass
@@ -195,6 +195,18 @@ def detect_orphans(
     # Collect skip patterns from framework hooks
     context = make_context(project_root)
     skip_patterns = run_pipeline(SKIP_ORPHAN, project_root, context)
+
+    # Collect framework-detected entry points (uvicorn strings, [project.scripts], etc.)
+    extra_entry_modules = run_pipeline(ENTRYPOINTS, project_root, context)
+    if extra_entry_modules:
+        module_to_file = _build_module_map(project_root, graph.files)
+        if entry_point_files is None:
+            entry_point_files = set()
+        for mod in extra_entry_modules:
+            # Resolve dotted module to file path
+            normalized = mod.replace("/", ".").removesuffix(".py")
+            if normalized in module_to_file:
+                entry_point_files.add(module_to_file[normalized])
 
     orphans: list[OrphanFile] = []
     for py_file in graph.files:

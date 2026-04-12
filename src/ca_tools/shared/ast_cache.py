@@ -1,13 +1,23 @@
 """Shared AST cache — parse each file once, share across all detectors."""
 
 import ast
+import sys
 from pathlib import Path
 
 from .files import collect_py_files
 
+# Don't cache source text for files larger than this (they're rare and eat memory)
+MAX_CACHED_FILE_SIZE = 512 * 1024  # 512KB
+
 
 class ASTCache:
-    """Lazily parses and caches ASTs for all Python files in a project."""
+    """Lazily parses and caches ASTs for all Python files in a project.
+
+    Memory management:
+    - Source text is dropped after parsing (only AST kept)
+    - Files over 512KB are parsed but source is not cached
+    - call clear() when done to free all ASTs
+    """
 
     def __init__(
         self,
@@ -18,7 +28,6 @@ class ASTCache:
         self.project_root = project_root
         self._files = collect_py_files(project_root, include, exclude)
         self._cache: dict[Path, ast.Module | None] = {}
-        self._sources: dict[Path, str] = {}
 
     @property
     def files(self) -> list[Path]:
@@ -30,24 +39,20 @@ class ASTCache:
             self._parse(filepath)
         return self._cache.get(filepath)
 
-    def get_source(self, filepath: Path) -> str | None:
-        """Get the source text for a file."""
-        if filepath not in self._sources:
-            self._parse(filepath)
-        return self._sources.get(filepath)
+    def clear(self) -> None:
+        """Free all cached ASTs to release memory."""
+        self._cache.clear()
 
-    def parse_all(self) -> None:
-        """Pre-parse all files (useful for benchmarking)."""
-        for f in self._files:
-            if f not in self._cache:
-                self._parse(f)
+    @property
+    def memory_mb(self) -> float:
+        """Approximate memory usage of cached ASTs in MB."""
+        total = sum(sys.getsizeof(tree) for tree in self._cache.values() if tree is not None)
+        return total / (1024 * 1024)
 
     def _parse(self, filepath: Path) -> None:
         try:
             source = filepath.read_text()
             tree = ast.parse(source, filename=str(filepath))
             self._cache[filepath] = tree
-            self._sources[filepath] = source
         except (SyntaxError, UnicodeDecodeError, OSError):
             self._cache[filepath] = None
-            self._sources[filepath] = ""

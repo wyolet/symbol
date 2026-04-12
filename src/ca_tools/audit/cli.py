@@ -284,7 +284,7 @@ def audit_cmd(
 
     configs = detect_config_files(project_root, spec)
     deps = detect_deps(project_root)
-    unused_raw = detect_unused_deps(project_root, deps, spec, inc, exc)
+    unused_raw = detect_unused_deps(project_root, deps, spec, inc, exc, cache)
     if config.ignore_deps:
         unused = [d for d in unused_raw if d not in config.ignore_deps]
         ignored["deps"] = len(unused_raw) - len(unused)
@@ -293,6 +293,9 @@ def audit_cmd(
 
     total_ignored = sum(ignored.values())
     stats = graph_summary(graph, len(orphans))
+
+    # Free AST cache — all detection is done
+    cache.clear()
 
     # Populate report for orphans
     sev = config.severity_orphans

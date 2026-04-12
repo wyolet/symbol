@@ -3,6 +3,7 @@
 import ast
 from pathlib import Path
 
+from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.files import collect_py_files
 from ca_tools.shared.spec import Spec
 
@@ -13,14 +14,26 @@ def _collect_all_imports(
     project_root: Path,
     include: list[str] | None = None,
     exclude: list[str] | None = None,
+    cache: ASTCache | None = None,
 ) -> set[str]:
     all_imports: set[str] = set()
 
-    for py_file in collect_py_files(project_root, include, exclude):
-        try:
-            source = py_file.read_text()
-            tree = ast.parse(source, filename=str(py_file))
-        except (SyntaxError, UnicodeDecodeError, OSError):
+    if cache:
+        files = cache.files
+    else:
+        files = collect_py_files(project_root, include, exclude)
+
+    for py_file in files:
+        if cache:
+            tree = cache.get_ast(py_file)
+        else:
+            try:
+                source = py_file.read_text()
+                tree = ast.parse(source, filename=str(py_file))
+            except (SyntaxError, UnicodeDecodeError, OSError):
+                tree = None
+
+        if tree is None:
             continue
 
         for node in ast.walk(tree):
@@ -48,8 +61,9 @@ def detect_unused_deps(
     spec: Spec,
     include: list[str] | None = None,
     exclude: list[str] | None = None,
+    cache: ASTCache | None = None,
 ) -> list[str]:
-    all_imports = _collect_all_imports(project_root, include, exclude)
+    all_imports = _collect_all_imports(project_root, include, exclude, cache)
     unused: list[str] = []
 
     for dep in deps:
