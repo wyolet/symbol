@@ -28,6 +28,7 @@ class ASTCache:
         self.project_root = project_root
         self._files = collect_py_files(project_root, include, exclude, skip_defaults=True)
         self._cache: dict[Path, ast.Module | None] = {}
+        self.failed: list[tuple[Path, str]] = []  # (filepath, error message)
 
     @property
     def files(self) -> list[Path]:
@@ -54,5 +55,12 @@ class ASTCache:
             source = filepath.read_text()
             tree = ast.parse(source, filename=str(filepath))
             self._cache[filepath] = tree
-        except (SyntaxError, UnicodeDecodeError, OSError):
+        except SyntaxError as e:
             self._cache[filepath] = None
+            self.failed.append((filepath, f"SyntaxError: {e.msg} (line {e.lineno})"))
+        except UnicodeDecodeError:
+            self._cache[filepath] = None
+            self.failed.append((filepath, "UnicodeDecodeError: not valid text"))
+        except OSError as e:
+            self._cache[filepath] = None
+            self.failed.append((filepath, f"OSError: {e.strerror}"))

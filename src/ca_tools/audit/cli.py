@@ -91,6 +91,9 @@ def audit_cmd(
     else:
         unused = unused_raw
 
+    # Save parse failures before clearing cache
+    parse_failures = list(cache.failed)
+
     # Free AST cache
     cache.clear()
 
@@ -109,7 +112,7 @@ def audit_cmd(
         report.add("unused_deps", dep, "in pyproject.toml, 0 imports found", sev, dep)
 
     if format == "json":
-        _print_json(project_root, loc_stats, code_structure, stack, entrypoints, sideeffects, todos, deps, unused, report)
+        _print_json(project_root, loc_stats, code_structure, stack, entrypoints, sideeffects, todos, deps, unused, parse_failures, report)
         sys.exit(report.exit_code)
         return
 
@@ -117,6 +120,10 @@ def audit_cmd(
 
     console.print()
     console.print(Panel(Text(f"{I1}ca audit \u2014 {project_name}/", style="bold"), style="dim", expand=False))
+
+    # Parse failures
+    if parse_failures:
+        _print_parse_failures(parse_failures, project_root)
 
     # Project shape
     _print_shape(loc_stats, code_structure)
@@ -364,6 +371,21 @@ def _print_todos(todos: list[TodoItem], project_root: Path) -> None:
         console.print(f"{I2}[dim]... and {len(todos) - 10} more[/dim]")
 
 
+def _print_parse_failures(failures: list[tuple[Path, str]], project_root: Path) -> None:
+    console.print()
+    console.print(Text(f"{I1}\u26a0\ufe0f  PARSE ERRORS ({len(failures)})", style="bold red"))
+    console.print(f"{I2}[dim]These files could not be parsed — merge conflicts, syntax errors, or encoding issues[/dim]")
+    console.print()
+    for filepath, error in failures[:10]:
+        try:
+            rel = str(filepath.relative_to(project_root))
+        except ValueError:
+            rel = str(filepath)
+        console.print(f"{I2}[red]\u2717[/red] [bold]{rel}[/bold]  [dim]{error}[/dim]")
+    if len(failures) > 10:
+        console.print(f"{I2}[dim]... and {len(failures) - 10} more[/dim]")
+
+
 def _print_deps_summary(deps: list[str], unused: list[str]) -> None:
     console.print()
     if not deps:
@@ -405,9 +427,14 @@ def _print_json(
     todos: list[TodoItem],
     deps: list[str],
     unused: list[str],
+    parse_failures: list[tuple[Path, str]],
     report: Report,
 ) -> None:
     data = {
+        "parse_errors": [
+            {"file": str(f.relative_to(project_root)), "error": err}
+            for f, err in parse_failures
+        ],
         "shape": {
             "sloc": sum(s["sloc"] for s in loc_stats),
             "loc": sum(s["loc"] for s in loc_stats),
