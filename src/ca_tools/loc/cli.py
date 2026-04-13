@@ -50,7 +50,27 @@ def loc_cmd(path: str, format: str = "rich") -> None:
     stats = linguist.detect_directory(str(project_root))
 
     if format == "json":
-        print(json.dumps(stats, indent=2))
+        # Enrich JSON with summary and biggest files
+        all_files = linguist.all_files()
+        code_files = []
+        for lang_stat in linguist.statistics.values():
+            if lang_stat.type == "programming":
+                for f in lang_stat.file_stats:
+                    code_files.append({"path": f.path, "lines": f.lines, "sloc": f.sloc, "size": f.size, "language": lang_stat.name})
+        biggest = sorted(code_files, key=lambda x: x["lines"], reverse=True)[:10]
+        data = {
+            "summary": {
+                "sloc": sum(s["sloc"] for s in stats),
+                "loc": sum(s["loc"] for s in stats),
+                "files": sum(s["files"] for s in stats),
+                "size": sum(s["size"] for s in stats),
+                "languages": len(stats),
+                "code_languages": sum(1 for s in stats if s.get("type") == "programming"),
+            },
+            "languages": stats,
+            "biggest_files": biggest,
+        }
+        print(json.dumps(data, indent=2))
         return
 
     console.print()

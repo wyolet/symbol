@@ -2,11 +2,13 @@
 
 import os
 import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.console import Console
 
+from .analyze.cli import analyze_cmd
 from .audit.cli import audit_cmd
 from .init.cli import init_cmd
 from .loc.cli import loc_cmd
@@ -24,6 +26,7 @@ state = {"verbose": False}
 def _maybe_default_audit() -> None:
     """If the first arg looks like a path (not a subcommand), inject 'audit'."""
     known = {
+        "analyze",
         "audit",
         "init",
         "loc",
@@ -55,6 +58,22 @@ def main(
         raise typer.BadParameter(f"Invalid format '{format}'. Choose from: rich, json")
     state["verbose"] = verbose
     state["format"] = format
+
+
+@app.command()
+def analyze(
+    file: Annotated[str, typer.Argument(help="Path to the file to analyze")],
+) -> None:
+    """Analyze a single file — exports, imports, per-name blast radius."""
+    file_path = Path(file).resolve()
+    # Walk up to find the project root (directory with pyproject.toml or .git)
+    project_root = file_path.parent
+    while project_root != project_root.parent:
+        if (project_root / "pyproject.toml").exists() or (project_root / ".git").exists():
+            break
+        project_root = project_root.parent
+    target = str(file_path.relative_to(project_root))
+    analyze_cmd(str(project_root), target, format=state.get("format", "rich"))
 
 
 @app.command()
