@@ -21,6 +21,7 @@ from .codestructure import CodeStructure, detect_code_structure
 from .entrypoints import EntryPoint, detect_entrypoints
 from .sideeffects import SideEffect, detect_sideeffects
 from .stack import detect_deps, detect_stack
+from .swallowed import SwallowedException, detect_swallowed
 from .todos import TodoItem, detect_todos
 from .unused_deps import detect_unused_deps
 
@@ -91,6 +92,8 @@ def audit_cmd(
     else:
         unused = unused_raw
 
+    swallowed = detect_swallowed(project_root, cache)
+
     # Save parse failures before clearing cache
     parse_failures = list(cache.failed)
 
@@ -111,8 +114,13 @@ def audit_cmd(
     for dep in unused:
         report.add("unused_deps", dep, "in pyproject.toml, 0 imports found", sev, dep)
 
+    # Swallowed exceptions are errors
+    for sw in swallowed:
+        rel = str(sw.filepath.relative_to(project_root))
+        report.add("swallowed", f"except {sw.exception_type}: pass", "", Severity.ERROR, f"{rel}:{sw.line}")
+
     if format == "json":
-        _print_json(project_root, loc_stats, code_structure, stack, entrypoints, sideeffects, todos, deps, unused, parse_failures, report)
+        _print_json(project_root, loc_stats, code_structure, stack, entrypoints, sideeffects, swallowed, todos, deps, unused, parse_failures, report)
         sys.exit(report.exit_code)
         return
 
@@ -139,6 +147,9 @@ def audit_cmd(
 
     # Side effects
     _print_sideeffects(sideeffects, project_root, config.severity_side_effects, verbose)
+
+    # Swallowed exceptions
+    _print_swallowed(swallowed, project_root)
 
     # TODOs
     _print_todos(todos, project_root)
@@ -347,6 +358,22 @@ def _print_sideeffects(
             console.print(f"{I2}[dim]... and {len(items) - cap} more files[/dim]")
 
 
+def _print_swallowed(swallowed: list[SwallowedException], project_root: Path) -> None:
+    if not swallowed:
+        return
+    console.print()
+    console.print(Text(f"{I1}\U0001f635 SWALLOWED EXCEPTIONS ({len(swallowed)})", style="bold red"))
+    console.print(f"{I2}[dim]except blocks that silently ignore errors — bugs hide here[/dim]")
+    console.print()
+    cap = 10
+    for item in swallowed[:cap]:
+        rel = item.filepath.relative_to(project_root)
+        loc = f"{rel}:{item.line}"
+        console.print(f"{I2}[red]\u2717[/red] [bold]{loc:<40s}[/bold] [red]{item.exception_type}[/red] [dim]in {item.context}[/dim]")
+    if len(swallowed) > cap:
+        console.print(f"{I2}[dim]... and {len(swallowed) - cap} more[/dim]")
+
+
 def _print_todos(todos: list[TodoItem], project_root: Path) -> None:
     if not todos:
         return
@@ -424,6 +451,7 @@ def _print_json(
     stack: dict,
     entrypoints: list[EntryPoint],
     sideeffects: list[SideEffect],
+    swallowed: list[SwallowedException],
     todos: list[TodoItem],
     deps: list[str],
     unused: list[str],
@@ -470,6 +498,15 @@ def _print_json(
                 "call_text": se.call_text,
             }
             for se in sideeffects
+        ],
+        "swallowed_exceptions": [
+            {
+                "file": str(sw.filepath.relative_to(project_root)),
+                "line": sw.line,
+                "exception_type": sw.exception_type,
+                "context": sw.context,
+            }
+            for sw in swallowed
         ],
         "todos": [
             {
