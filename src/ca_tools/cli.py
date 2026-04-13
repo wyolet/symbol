@@ -8,7 +8,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from .analyze.cli import analyze_cmd
+from .analyze.cli import analyze_cmd, analyze_dump
 from .audit.cli import audit_cmd
 from .init.cli import init_cmd
 from .loc.cli import loc_cmd
@@ -28,6 +28,7 @@ def _maybe_default_audit() -> None:
     known = {
         "analyze",
         "audit",
+        "dump",
         "init",
         "loc",
         "map",
@@ -74,6 +75,15 @@ def analyze(
         project_root = project_root.parent
     target = str(file_path.relative_to(project_root))
     analyze_cmd(str(project_root), target, format=state.get("format", "rich"))
+
+
+@app.command()
+def dump(
+    path: Annotated[str, typer.Argument(help="Path to the project directory")],
+    output: Annotated[str, typer.Option("-o", "--output", help="Output JSON file path")] = "ca-analysis.json",
+) -> None:
+    """Dump per-file analysis of all Python files to JSON."""
+    analyze_dump(path, output)
 
 
 @app.command()

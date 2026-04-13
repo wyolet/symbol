@@ -4,7 +4,7 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ca_tools.audit.orphans import ImportEdge, ImportScope, build_import_graph
+from ca_tools.audit.orphans import ImportEdge, ImportGraph, ImportScope, build_import_graph
 
 
 @dataclass
@@ -63,9 +63,18 @@ class FileAnalysis:
     transitive_importers: int = 0  # files that transitively depend on this file
 
 
-def analyze_file(project_root: Path, target: str) -> FileAnalysis | None:
-    """Analyze a single file within a project."""
-    graph = build_import_graph(project_root, skip_defaults=False, propagate_init=False)
+def analyze_file(
+    project_root: Path,
+    target: str,
+    graph: ImportGraph | None = None,
+) -> FileAnalysis | None:
+    """Analyze a single file within a project.
+
+    If graph is provided, uses it directly (avoids rebuilding for batch analysis).
+    If not, builds the import graph from scratch.
+    """
+    if graph is None:
+        graph = build_import_graph(project_root, skip_defaults=False, propagate_init=False)
 
     # Resolve target to a file
     target_path = _resolve_target(project_root, target, graph.files)
@@ -145,6 +154,18 @@ def analyze_file(project_root: Path, target: str) -> FileAnalysis | None:
         direct_importers=direct_importers,
         transitive_importers=transitive_importers,
     )
+
+
+def analyze_all(project_root: Path) -> list[FileAnalysis]:
+    """Analyze all Python files in a project. Builds the graph once."""
+    graph = build_import_graph(project_root, skip_defaults=False, propagate_init=False)
+    results: list[FileAnalysis] = []
+    for py_file in graph.files:
+        rel = str(py_file.relative_to(project_root))
+        result = analyze_file(project_root, rel, graph=graph)
+        if result:
+            results.append(result)
+    return results
 
 
 def _resolve_target(project_root: Path, target: str, files: list[Path]) -> Path | None:

@@ -9,9 +9,59 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .analyzer import FileAnalysis, analyze_file
+from .analyzer import FileAnalysis, analyze_all, analyze_file
 
 console = Console()
+
+
+def analyze_dump(path: str, output: str) -> None:
+    """Dump full per-file analysis of all Python files to JSON."""
+    project_root = Path(path)
+    results = analyze_all(project_root)
+    abs_root = str(project_root.resolve())
+
+    data = {
+        "project": project_root.name,
+        "files": [_file_to_dict(r) for r in results],
+    }
+
+    out_path = Path(output)
+    out_path.write_text(json.dumps(data, indent=2))
+    console.print(f"  [green]\u2713[/green] {len(results)} files analyzed \u2192 [bold]{output}[/bold]")
+
+
+def _file_to_dict(r: FileAnalysis) -> dict:
+    return {
+        "path": r.path,
+        "lines": r.lines,
+        "sloc": r.sloc,
+        "classes": r.classes,
+        "functions": r.functions,
+        "typed_pct": round(r.typed_pct, 1),
+        "total_complexity": r.total_complexity,
+        "max_depth": r.max_depth,
+        "blast_radius": {
+            "direct": r.direct_importers,
+            "transitive": r.transitive_importers,
+            "total": r.direct_importers + r.transitive_importers,
+        },
+        "exports": [
+            {
+                "name": e.name, "kind": e.kind, "line": e.line, "lines": e.lines,
+                "complexity": e.complexity, "max_depth": e.max_depth,
+                "internal_refs": e.internal_refs, "used_by": e.used_by,
+                "methods": [
+                    {"name": m.name, "line": m.line, "lines": m.lines, "complexity": m.complexity, "max_depth": m.max_depth, "is_async": m.is_async}
+                    for m in e.methods
+                ] if e.methods else [],
+            }
+            for e in r.exports
+        ],
+        "imports": [
+            {"name": i.name, "source_module": i.source_module, "source_file": i.source_file, "scope": i.scope}
+            for i in r.imports
+        ],
+    }
 
 
 def analyze_cmd(path: str, target: str, format: str = "rich") -> None:
@@ -239,35 +289,4 @@ def _render_caveat() -> Padding:
 
 
 def _print_json(r: FileAnalysis) -> None:
-    data = {
-        "path": r.path,
-        "lines": r.lines,
-        "sloc": r.sloc,
-        "classes": r.classes,
-        "functions": r.functions,
-        "typed_pct": round(r.typed_pct, 1),
-        "total_complexity": r.total_complexity,
-        "max_depth": r.max_depth,
-        "blast_radius": {
-            "direct": r.direct_importers,
-            "transitive": r.transitive_importers,
-            "total": r.direct_importers + r.transitive_importers,
-        },
-        "exports": [
-            {
-                "name": e.name, "kind": e.kind, "line": e.line, "lines": e.lines,
-                "complexity": e.complexity, "max_depth": e.max_depth,
-                "internal_refs": e.internal_refs, "used_by": e.used_by,
-                "methods": [
-                    {"name": m.name, "line": m.line, "lines": m.lines, "complexity": m.complexity, "max_depth": m.max_depth, "is_async": m.is_async}
-                    for m in e.methods
-                ] if e.methods else [],
-            }
-            for e in r.exports
-        ],
-        "imports": [
-            {"name": i.name, "source_module": i.source_module, "source_file": i.source_file, "scope": i.scope}
-            for i in r.imports
-        ],
-    }
-    print(json.dumps(data, indent=2))
+    print(json.dumps(_file_to_dict(r), indent=2))
