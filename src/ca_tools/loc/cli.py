@@ -41,24 +41,6 @@ def _language_bar(sorted_langs: list[dict], total_lines: int) -> Text:
     return bar
 
 
-def _language_legend(sorted_langs: list[dict]) -> Text:
-    """Render colored dots with language names and percentages under the bar."""
-    legend = Text()
-    shown = 0
-    for ls in sorted_langs:
-        pct = ls.get("percentage_lines", 0)
-        if not ls.get("is_counted") or pct == 0:
-            continue
-        if shown > 0:
-            legend.append("   ")
-        color = ls.get("color") or "#888888"
-        legend.append("● ", style=color)
-        legend.append(f"{ls['name']} ", style="bold")
-        legend.append(f"{pct:.1f}%", style="dim")
-        shown += 1
-    return legend
-
-
 def loc_cmd(path: str, format: str = "rich") -> None:
     """Run the LOC counter."""
     project_root = Path(path)
@@ -80,49 +62,77 @@ def loc_cmd(path: str, format: str = "rich") -> None:
         console.print()
         return
 
-    sorted_langs = sorted(stats, key=lambda s: s["lines"], reverse=True)
-    total_lines = sum(s["lines"] for s in stats)
+    sorted_langs = sorted(stats, key=lambda s: s["sloc"], reverse=True)
+    total_sloc = sum(s["sloc"] for s in stats)
+    total_loc = sum(s["loc"] for s in stats)
     total_files = sum(s["files"] for s in stats)
     total_size = sum(s["size"] for s in stats)
+    lang_count = len(sorted_langs)
+    code_langs = sum(1 for s in stats if s.get("type") == "programming")
+    avg_file = total_loc // total_files if total_files else 0
+    blank_lines = total_loc - total_sloc
 
     # GitHub-style language bar
     console.print()
     console.print("  ", end="")
-    console.print(_language_bar(sorted_langs, total_lines))
-    console.print("  ", end="")
-    console.print(_language_legend(sorted_langs))
+    console.print(_language_bar(sorted_langs, total_sloc))
+
+    # Summary metrics
+    console.print()
+    console.print(f"  [bold]{total_sloc:,}[/bold] [dim]sloc[/dim]  "
+                  f"[bold]{total_loc:,}[/bold] [dim]lines[/dim]  "
+                  f"[bold]{blank_lines:,}[/bold] [dim]blank[/dim]  "
+                  f"[bold]{total_files:,}[/bold] [dim]files[/dim]  "
+                  f"[bold]{avg_file}[/bold] [dim]avg lines/file[/dim]  "
+                  f"[bold]{code_langs}[/bold][dim]/{lang_count} langs[/dim]")
 
     # Detail table
     console.print()
-    max_lines = sorted_langs[0]["lines"] if sorted_langs else 1
 
     table = Table(box=None, padding=(0, 2, 0, 2), show_edge=False)
-    table.add_column("Language", style="bold", min_width=18)
+    table.add_column("Language", min_width=22)
     table.add_column("Type", style="dim", min_width=12)
     table.add_column("Files", justify="right", style="cyan")
-    table.add_column("Lines", justify="right", style="green")
+    table.add_column("SLOC", justify="right", style="green")
+    table.add_column("Lines", justify="right", style="dim")
     table.add_column("Size", justify="right", style="dim")
     table.add_column("%", justify="right", style="yellow")
-    table.add_column("", min_width=25)
 
     for ls in sorted_langs:
-        bar_width = int((ls["lines"] / max_lines) * 25) if max_lines else 0
         color = ls.get("color") or "#888888"
-        bar = f"[{color}]{'█' * bar_width}[/{color}][dim]{'░' * (25 - bar_width)}[/dim]"
         pct = f"{ls['percentage_lines']:.1f}%" if ls.get("is_counted") and ls["percentage_lines"] else ""
         size_kb = f"{ls['size'] / 1024:.0f}K"
-        table.add_row(ls["name"], ls.get("type", ""), str(ls["files"]), str(ls["lines"]), size_kb, pct, bar)
+        name = Text()
+        name.append("● ", style=color)
+        name.append(ls["name"], style="bold")
+        table.add_row(name, ls.get("type", ""), str(ls["files"]), str(ls["sloc"]), str(ls["loc"]), size_kb, pct)
 
     table.add_section()
     table.add_row(
-        "[bold]Total[/bold]",
+        Text("  Total", style="bold"),
         "",
         f"[bold]{total_files}[/bold]",
-        f"[bold green]{total_lines}[/bold green]",
+        f"[bold green]{total_sloc:,}[/bold green]",
+        f"[bold]{total_loc:,}[/bold]",
         f"[bold dim]{total_size / 1024:.0f}K[/bold dim]",
-        "",
         "",
     )
 
+    # Biggest files — only programming languages
     console.print(table)
+    code_files = []
+    for lang_stat in linguist.statistics.values():
+        if lang_stat.type == "programming":
+            for f in lang_stat.file_stats:
+                code_files.append((f, lang_stat.name, lang_stat.color))
+    if code_files:
+        biggest = sorted(code_files, key=lambda x: x[0].lines, reverse=True)[:5]
+        console.print()
+        console.print(Text("  📄 BIGGEST FILES", style="bold"))
+        console.print()
+        abs_root = str(project_root.resolve())
+        for f, lang_name, color in biggest:
+            rel = f.path.removeprefix(abs_root).lstrip("/")
+            console.print(f"    [bold]{rel:<50s}[/bold] [green]{f.lines:,}[/green] [dim]lines[/dim]  [{color or '#888'}]●[/{color or '#888'}] [dim]{lang_name}[/dim]")
+
     console.print()

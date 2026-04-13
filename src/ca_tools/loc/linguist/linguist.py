@@ -121,6 +121,15 @@ class Linguist:
             lang.percentage_lines = (lang.lines / total_lines * 100) if total_lines else 0
             lang.percentage_bytes = (lang.size / total_size * 100) if total_size else 0
 
+    def all_files(self) -> list:
+        """Return all FileInfo objects across all languages, for top-N analysis."""
+        from .language_stats import FileInfo
+
+        files: list[FileInfo] = []
+        for lang_stat in self.statistics.values():
+            files.extend(lang_stat.file_stats)
+        return files
+
     def to_dict(self):
         return [lang.dict() for lang in self.statistics.values()]
 
