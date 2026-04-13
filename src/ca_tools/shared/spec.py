@@ -24,6 +24,15 @@ class EntrypointSpec:
 
 
 @dataclass(frozen=True)
+class FrameworkSpec:
+    name: str
+    detect_deps: frozenset[str] = frozenset()
+    detect_config_files: frozenset[str] = frozenset()
+    skip_orphan_patterns: tuple[str, ...] = ()
+    safe_calls: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
 class Spec:
     categories: dict[str, str]
     packages: dict[str, PackageInfo]
@@ -31,6 +40,11 @@ class Spec:
     config_dirs: dict[str, str]
     side_effects: SideEffectSpec
     entrypoints: EntrypointSpec
+    frameworks: dict[str, FrameworkSpec] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.frameworks is None:
+            object.__setattr__(self, "frameworks", {})
 
 
 def load_spec() -> Spec:
@@ -57,6 +71,18 @@ def _parse_spec(raw: dict) -> Spec:
     se = raw["side_effects"]
     ep = raw["entrypoints"]
 
+    # Parse frameworks (optional section)
+    frameworks: dict[str, FrameworkSpec] = {}
+    for fw_name, fw_data in raw.get("frameworks", {}).items():
+        detect = fw_data.get("detect", {})
+        frameworks[fw_name] = FrameworkSpec(
+            name=fw_name,
+            detect_deps=frozenset(detect.get("deps", [])),
+            detect_config_files=frozenset(detect.get("config_files", [])),
+            skip_orphan_patterns=tuple(fw_data.get("skip_orphan_patterns", [])),
+            safe_calls=frozenset(fw_data.get("safe_calls", [])),
+        )
+
     return Spec(
         categories=categories,
         packages=packages,
@@ -70,4 +96,5 @@ def _parse_spec(raw: dict) -> Spec:
             starters=frozenset(ep["starters"]),
             starter_names=frozenset(ep["starter_names"]),
         ),
+        frameworks=frameworks,
     )

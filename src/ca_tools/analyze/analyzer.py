@@ -67,14 +67,16 @@ def analyze_file(
     project_root: Path,
     target: str,
     graph: ImportGraph | None = None,
+    cache: "ASTCache | None" = None,
 ) -> FileAnalysis | None:
     """Analyze a single file within a project.
 
     If graph is provided, uses it directly (avoids rebuilding for batch analysis).
     If not, builds the import graph from scratch.
+    If cache is provided, uses it for AST parsing (avoids re-parsing).
     """
     if graph is None:
-        graph = build_import_graph(project_root, skip_defaults=False, propagate_init=False)
+        graph = build_import_graph(project_root, cache=cache, skip_defaults=False, propagate_init=False)
 
     # Resolve target to a file
     target_path = _resolve_target(project_root, target, graph.files)
@@ -83,12 +85,21 @@ def analyze_file(
 
     rel = str(target_path.relative_to(project_root))
 
-    # Read and parse the target file
-    try:
-        source = target_path.read_text()
-        tree = ast.parse(source, filename=str(target_path))
-    except (SyntaxError, UnicodeDecodeError, OSError):
-        return None
+    # Read and parse the target file (use cache if available)
+    if cache:
+        tree = cache.get_ast(target_path)
+        if tree is None:
+            return None
+        try:
+            source = target_path.read_text()
+        except OSError:
+            return None
+    else:
+        try:
+            source = target_path.read_text()
+            tree = ast.parse(source, filename=str(target_path))
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            return None
 
     lines = len(source.splitlines())
     sloc = sum(1 for line in source.splitlines() if line.strip())
@@ -156,13 +167,16 @@ def analyze_file(
     )
 
 
-def analyze_all(project_root: Path) -> list[FileAnalysis]:
+def analyze_all(
+    project_root: Path,
+    cache: "ASTCache | None" = None,
+) -> list[FileAnalysis]:
     """Analyze all Python files in a project. Builds the graph once."""
-    graph = build_import_graph(project_root, skip_defaults=False, propagate_init=False)
+    graph = build_import_graph(project_root, cache=cache, skip_defaults=False, propagate_init=False)
     results: list[FileAnalysis] = []
     for py_file in graph.files:
         rel = str(py_file.relative_to(project_root))
-        result = analyze_file(project_root, rel, graph=graph)
+        result = analyze_file(project_root, rel, graph=graph, cache=cache)
         if result:
             results.append(result)
     return results

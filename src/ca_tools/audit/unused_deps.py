@@ -7,7 +7,7 @@ from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.files import collect_py_files
 from ca_tools.shared.spec import Spec
 
-from .registry import normalize_package_name
+from .pkg_registry import normalize_package_name
 
 
 def _collect_all_imports(

@@ -72,6 +72,8 @@ class ProjectConfig:
     ignore_orphans: list[str] = field(default_factory=list)
     ignore_side_effects: list[str] = field(default_factory=list)
 
+    disabled_checkers: list[str] = field(default_factory=list)
+
     map_thresholds: MapThresholds = field(default_factory=MapThresholds)
     map_severity: MapSeverityFilter = field(default_factory=MapSeverityFilter)
     map_limit: int = 10
@@ -97,6 +99,7 @@ def load_project_config(project_root: Path) -> ProjectConfig:
 
     config.include = ca.get("include", [])
     config.exclude = ca.get("exclude", [])
+    config.disabled_checkers = ca.get("disable", [])
 
     severity = ca.get("severity", {})
     if "orphans" in severity:

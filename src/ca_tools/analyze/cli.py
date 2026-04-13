@@ -14,10 +14,10 @@ from .analyzer import FileAnalysis, analyze_all, analyze_file
 console = Console()
 
 
-def analyze_dump(path: str, output: str) -> None:
+def analyze_dump(path: str, output: str, cache=None) -> None:
     """Dump full per-file analysis of all Python files to JSON."""
     project_root = Path(path)
-    results = analyze_all(project_root)
+    results = analyze_all(project_root, cache=cache)
     abs_root = str(project_root.resolve())
 
     data = {

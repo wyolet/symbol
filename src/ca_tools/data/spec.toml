@@ -493,3 +493,34 @@ starter_names = [
     "worker_main",
     "serve",
 ]
+
+# ── Frameworks ───────────────────────────────────────────────────────
+# Framework-specific rules: skip patterns, safe calls, detection criteria.
+# Detectors use these to adjust behavior per-framework.
+# detect.deps: activate when any of these packages are in declared deps.
+# detect.config_files: activate when any of these files exist at project root.
+
+[frameworks.django]
+detect = { deps = ["django"] }
+skip_orphan_patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
+safe_calls = ["setup"]
+
+[frameworks.fastapi]
+detect = { deps = ["fastapi"] }
+safe_calls = ["lifespan"]
+
+[frameworks.flask]
+detect = { deps = ["flask"] }
+safe_calls = ["from_object", "from_envvar"]
+
+[frameworks.celery]
+detect = { deps = ["celery"] }
+safe_calls = ["update"]
+
+[frameworks.pytest]
+detect = { deps = ["pytest"] }
+skip_orphan_patterns = ["conftest.py", "test_*.py", "*_test.py"]
+
+[frameworks.alembic]
+detect = { deps = ["alembic"], config_files = ["alembic.ini"] }
+skip_orphan_patterns = ["*/versions/*.py", "*/alembic/env.py", "alembic/env.py"]

@@ -1,4 +1,4 @@
-"""Shared AST cache — parse each file once, share across all detectors."""
+"""Shared AST cache — parse each file once, share across all checkers."""
 
 import ast
 import sys

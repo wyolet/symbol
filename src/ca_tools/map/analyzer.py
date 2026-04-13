@@ -97,12 +97,13 @@ def analyze_map(
     exclude: list[str] | None = None,
     thresholds: MapThresholds | None = None,
     coupling_depth: int = 1,
+    cache: "ASTCache | None" = None,
 ) -> MapResult:
     """Analyze the import graph for architectural insights."""
     if thresholds is None:
         thresholds = MapThresholds()
 
-    graph = build_import_graph(project_root, include, exclude, skip_defaults=False, propagate_init=False)
+    graph = build_import_graph(project_root, include, exclude, cache=cache, skip_defaults=False, propagate_init=False)
     result = MapResult()
     result.total_files = len(graph.files)
     result.total_edges = sum(len(targets) for targets in graph.resolved_edges.values())
