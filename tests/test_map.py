@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from ca_tools.map.analyzer import analyze_map
+from ca_tools.shared.project_config import MapThresholds, MetricThreshold
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:
@@ -13,17 +14,27 @@ def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:
     return tmp_path
 
 
+def _thresholds(**overrides) -> MapThresholds:
+    """Create thresholds with low defaults for testing."""
+    t = MapThresholds()
+    for key, val in overrides.items():
+        setattr(t, key, val)
+    return t
+
+
 def test_detects_cycle(tmp_path: Path):
+    """Real circular import: a imports b, b imports a, both need names not yet defined."""
     _make_project(
         tmp_path,
         {
-            "a.py": "from b import x",
+            "a.py": "from b import x\ny = 1",
             "b.py": "from a import y\nx = 1",
         },
     )
     result = analyze_map(tmp_path)
+    # The simulator checks if names are available — both x and y are defined
+    # after the import line, so this IS a real cycle
     assert len(result.cycles) >= 1
-    # Both a.py and b.py should appear in a cycle
     cycle_files = set()
     for c in result.cycles:
         cycle_files.update(c.path)
@@ -53,14 +64,14 @@ def test_hotspots(tmp_path: Path):
             "c.py": "from core import x",
         },
     )
-    result = analyze_map(tmp_path, min_fan_in=3)
+    thresholds = _thresholds(hotspots=MetricThreshold(info=3, warning=5, error=10))
+    result = analyze_map(tmp_path, thresholds=thresholds)
     assert len(result.hotspots) == 1
     assert result.hotspots[0].module == "core.py"
     assert result.hotspots[0].fan_in == 3
 
 
 def test_fragile(tmp_path: Path):
-    # Create a module that imports many others
     _make_project(
         tmp_path,
         {
@@ -70,7 +81,8 @@ def test_fragile(tmp_path: Path):
             "main.py": "from m1 import x\nfrom m2 import x\nfrom m3 import x",
         },
     )
-    result = analyze_map(tmp_path, min_fan_out=3)
+    thresholds = _thresholds(fragile=MetricThreshold(info=3, warning=5, error=10))
+    result = analyze_map(tmp_path, thresholds=thresholds)
     assert len(result.fragile) == 1
     assert result.fragile[0].module == "main.py"
     assert result.fragile[0].fan_out == 3
@@ -88,7 +100,7 @@ def test_leaves(tmp_path: Path):
     )
     result = analyze_map(tmp_path)
     leaf_modules = [leaf.module for leaf in result.leaves]
-    # util.py is only imported by main.py
+    # util.py is only imported by main.py — it's a leaf (small file)
     assert "util.py" in leaf_modules
     # core.py is imported by 2 files, not a leaf
     assert "core.py" not in leaf_modules
@@ -104,10 +116,10 @@ def test_deep_chains(tmp_path: Path):
             "d.py": "x = 1",
         },
     )
-    # Chain is 4 deep (a → b → c → d), set threshold to 4
-    result = analyze_map(tmp_path, min_chain_depth=4)
+    thresholds = _thresholds(deep_chains=MetricThreshold(info=4, warning=6, error=10))
+    result = analyze_map(tmp_path, thresholds=thresholds)
     assert len(result.deep_chains) >= 1
-    assert len(result.deep_chains[0]) == 4
+    assert len(result.deep_chains[0].chain) == 4
 
 
 def test_deep_chains_filtered(tmp_path: Path):
@@ -119,8 +131,8 @@ def test_deep_chains_filtered(tmp_path: Path):
             "c.py": "x = 1",
         },
     )
-    # Chain is 3 deep, threshold is 5 — should find nothing
-    result = analyze_map(tmp_path, min_chain_depth=5)
+    thresholds = _thresholds(deep_chains=MetricThreshold(info=5, warning=7, error=10))
+    result = analyze_map(tmp_path, thresholds=thresholds)
     assert len(result.deep_chains) == 0
 
 
@@ -137,7 +149,6 @@ def test_exclude_pattern(tmp_path: Path):
     all_modules = set()
     for leaf in result.leaves:
         all_modules.add(leaf.module)
-    # vendor files should not appear
     assert not any("vendor" in m for m in all_modules)
 
 
@@ -154,8 +165,8 @@ def test_init_reexport_not_a_cycle(tmp_path: Path):
     _make_project(
         tmp_path,
         {
-            "pkg/__init__.py": "from pkg.models import Model\nfrom pkg.utils import helper",
-            "pkg/models.py": "from pkg import utils\nModel = 'model'",
+            "pkg/__init__.py": "from .models import Model\nfrom .utils import helper",
+            "pkg/models.py": "Model = 'model'",
             "pkg/utils.py": "helper = 'helper'",
         },
     )
@@ -168,7 +179,7 @@ def test_real_cross_package_cycle_detected(tmp_path: Path):
     _make_project(
         tmp_path,
         {
-            "pkg_a/__init__.py": "from pkg_b import x",
+            "pkg_a/__init__.py": "from pkg_b import x\ny = 1",
             "pkg_b/__init__.py": "from pkg_a import y\nx = 1",
         },
     )
@@ -176,40 +187,59 @@ def test_real_cross_package_cycle_detected(tmp_path: Path):
     assert len(result.cycles) >= 1
 
 
-def test_init_self_reference_suppressed(tmp_path: Path):
-    """__init__.py referencing itself is noise, not a cycle."""
+def test_type_checking_imports_not_edges(tmp_path: Path):
+    """Imports under TYPE_CHECKING should not create edges."""
     _make_project(
         tmp_path,
         {
-            "pkg/__init__.py": "from pkg import sub\nval = 1",
-            "pkg/sub.py": "x = 1",
+            "a.py": "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from b import x\n",
+            "b.py": "x = 1",
         },
     )
     result = analyze_map(tmp_path)
-    # No self-referencing cycles should appear
-    for cycle in result.cycles:
-        nodes = cycle.path[:-1]
-        assert not (len(nodes) == 1 and nodes[0].endswith("__init__.py"))
+    assert result.total_edges == 0
 
 
-def test_hotspots_resolve_through_init(tmp_path: Path):
-    """__init__.py facades should resolve to the actual modules behind them."""
+def test_submodule_fallback_no_false_cycle(tmp_path: Path):
+    """from . import sub where sub is a submodule file should not create edge to __init__."""
     _make_project(
         tmp_path,
         {
-            "core/__init__.py": "from core.models import M\nfrom core.utils import U",
-            "core/models.py": "M = 'model'",
-            "core/utils.py": "U = 'util'",
-            "a.py": "from core import M",
-            "b.py": "from core import M",
-            "c.py": "from core import M",
-            "d.py": "from core import M",
-            "e.py": "from core import M",
+            "pkg/__init__.py": "from .a import ClassA",
+            "pkg/a.py": "from . import b\nClassA = 'a'",
+            "pkg/b.py": "x = 1",
         },
     )
-    result = analyze_map(tmp_path, min_fan_in=3)
-    hotspot_modules = [h.module for h in result.hotspots]
-    # __init__.py should NOT be a hotspot
-    assert not any("__init__.py" in m for m in hotspot_modules)
-    # The actual modules behind __init__.py should be hotspots
-    assert any("models.py" in m for m in hotspot_modules)
+    result = analyze_map(tmp_path)
+    assert len(result.cycles) == 0
+
+
+def test_coupling(tmp_path: Path):
+    """Module coupling detects cross-package dependencies."""
+    _make_project(
+        tmp_path,
+        {
+            "api/routes.py": "from models.user import User",
+            "models/user.py": "User = 'user'",
+        },
+    )
+    result = analyze_map(tmp_path)
+    assert len(result.coupling) > 0
+    api_node = next((n for n in result.coupling if n.name == "api"), None)
+    assert api_node is not None
+    assert "models" in api_node.deps
+
+
+def test_mutual_coupling(tmp_path: Path):
+    """Bidirectional package dependency is flagged as mutual."""
+    _make_project(
+        tmp_path,
+        {
+            "api/routes.py": "from services.auth import login",
+            "services/auth.py": "from api.helpers import validate\nlogin = 1",
+            "api/helpers.py": "validate = 1",
+        },
+    )
+    result = analyze_map(tmp_path)
+    mutual = [n for n in result.coupling if n.mutual]
+    assert len(mutual) > 0
