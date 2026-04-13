@@ -26,7 +26,7 @@ class ASTCache:
         exclude: list[str] | None = None,
     ):
         self.project_root = project_root
-        self._files = collect_py_files(project_root, include, exclude)
+        self._files = collect_py_files(project_root, include, exclude, skip_defaults=True)
         self._cache: dict[Path, ast.Module | None] = {}
 
     @property

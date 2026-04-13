@@ -3,6 +3,7 @@
 import ast
 import fnmatch
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
 import ca_tools.frameworks  # noqa: F401 — registers framework hooks
@@ -11,11 +12,30 @@ from ca_tools.shared.files import collect_py_files
 from ca_tools.shared.pipeline import ENTRYPOINTS, SKIP_ORPHAN, make_context, run_pipeline
 
 
+class ImportScope(Enum):
+    """Where in the file an import lives — determines how we treat it."""
+
+    TOP = "top"  # Module-level: real runtime edge
+    TYPE_CHECKING = "type_checking"  # if TYPE_CHECKING: — not runtime, skip
+    DEFERRED = "deferred"  # Inside function/method body — lazy import, code smell
+
+
+@dataclass
+class ImportEdge:
+    """A single import statement, parsed from AST."""
+
+    module: str  # The resolved module dotted path (what Python loads)
+    names: list[str]  # Imported names (potential submodules or classes)
+    scope: ImportScope  # Where it lives in the file
+    line: int  # Source line number
+
+
 @dataclass
 class ImportGraph:
     files: list[Path] = field(default_factory=list)
-    edges: dict[Path, set[str]] = field(default_factory=dict)
+    edges: dict[Path, list[ImportEdge]] = field(default_factory=dict)
     resolved_edges: dict[Path, set[Path]] = field(default_factory=dict)
+    module_to_file: dict[str, Path] = field(default_factory=dict)
 
 
 @dataclass
@@ -29,16 +49,19 @@ def build_import_graph(
     include: list[str] | None = None,
     exclude: list[str] | None = None,
     cache: ASTCache | None = None,
+    skip_defaults: bool = True,
+    propagate_init: bool = True,
 ) -> ImportGraph:
     graph = ImportGraph()
 
     if cache:
         py_files = cache.files
     else:
-        py_files = collect_py_files(project_root, include, exclude)
+        py_files = collect_py_files(project_root, include, exclude, skip_defaults=skip_defaults)
     graph.files = py_files
 
     module_to_file = _build_module_map(project_root, py_files)
+    graph.module_to_file = module_to_file
 
     for py_file in py_files:
         if cache:
@@ -53,25 +76,51 @@ def build_import_graph(
         if tree is None:
             continue
 
-        imports = _extract_imports(tree, py_file, project_root)
-        graph.edges[py_file] = imports
+        import_edges = _extract_imports(tree, py_file, project_root)
+        graph.edges[py_file] = import_edges
 
+        # Resolve following Python's import rules:
+        # 1. For each imported name, check if it resolves as a submodule file
+        # 2. Only add the module (package) edge if some names are NOT submodules
+        #    (meaning they must come from __init__.py or the module itself)
+        #
+        # This matches Python's behavior: `from pkg import sub` where sub is a
+        # submodule loads sub.py, not __init__.py. But `from pkg import MyClass`
+        # loads __init__.py because MyClass is defined there.
         resolved: set[Path] = set()
-        for imp in imports:
-            # Direct module match
-            if imp in module_to_file:
-                resolved.add(module_to_file[imp])
-            # Parent module match (from foo.bar import baz → foo.bar)
-            parts = imp.rsplit(".", 1)
-            if len(parts) == 2 and parts[0] in module_to_file:
-                resolved.add(module_to_file[parts[0]])
+        for edge in import_edges:
+            if edge.scope == ImportScope.TYPE_CHECKING:
+                continue
 
-        # Remove self-references (a file can't meaningfully import itself)
+            if not edge.names:
+                # `import foo.bar` — no names, just the module
+                if edge.module and edge.module in module_to_file:
+                    resolved.add(module_to_file[edge.module])
+                continue
+
+            # `from foo import bar, baz` — check each name
+            has_non_submodule = False
+            for name in edge.names:
+                submodule = f"{edge.module}.{name}" if edge.module else name
+                if submodule in module_to_file:
+                    # name is a submodule file — edge goes to that file
+                    resolved.add(module_to_file[submodule])
+                else:
+                    # name is a class/function — must come from the module itself
+                    has_non_submodule = True
+
+            # Only add edge to the module if it has non-submodule names
+            # (those names must be defined in the module's own code)
+            if has_non_submodule and edge.module and edge.module in module_to_file:
+                resolved.add(module_to_file[edge.module])
+
         resolved.discard(py_file)
         graph.resolved_edges[py_file] = resolved
 
-    # Second pass: resolve "from pkg import name" where name is a submodule file
-    _resolve_submodule_imports(graph)
+    # Propagate __init__.py re-exports for orphan reachability.
+    # Not needed for cycle/map analysis — those use direct edges only.
+    if propagate_init:
+        _resolve_submodule_imports(graph)
 
     return graph
 
@@ -107,9 +156,29 @@ def _build_module_map(project_root: Path, py_files: list[Path]) -> dict[str, Pat
     return module_to_file
 
 
-def _extract_imports(tree: ast.Module, filepath: Path, project_root: Path) -> set[str]:
-    """Extract all imported module names, resolving relative imports."""
-    imports: set[str] = set()
+def _is_type_checking_block(node: ast.If) -> bool:
+    """Check if an `if` node is `if TYPE_CHECKING:` guard."""
+    test = node.test
+    if isinstance(test, ast.Name) and test.id == "TYPE_CHECKING":
+        return True
+    if isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING":
+        return True
+    return False
+
+
+
+def _extract_imports(tree: ast.Module, filepath: Path, project_root: Path) -> list[ImportEdge]:
+    """Extract structured import edges from an AST.
+
+    Follows Python's import rules:
+    - `import foo.bar` → module="foo.bar", names=[]
+    - `from foo.bar import Baz` → module="foo.bar", names=["Baz"]
+    - `from . import bar` → module=<current_package>, names=["bar"]
+    - `from .bar import baz` → module=<current_package>.bar, names=["baz"]
+
+    Tracks scope: top-level, TYPE_CHECKING, or deferred (function body).
+    """
+    edges: list[ImportEdge] = []
 
     # Compute this file's package for relative import resolution
     rel = filepath.relative_to(project_root)
@@ -119,34 +188,88 @@ def _extract_imports(tree: ast.Module, filepath: Path, project_root: Path) -> se
     else:
         file_package_parts = rel_parts[:-1]
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                imports.add(alias.name)
+    def _resolve_relative(level: int, module: str | None) -> str:
+        """Resolve a relative import to an absolute dotted path."""
+        base_parts = file_package_parts[: len(file_package_parts) - (level - 1)]
+        if module:
+            return ".".join(base_parts + module.split("."))
+        return ".".join(base_parts)
 
-        elif isinstance(node, ast.ImportFrom):
-            if node.level == 0:
-                # Absolute import
-                if node.module:
-                    imports.add(node.module)
-                    # Also add "module.name" for each imported name
-                    # This catches "from pkg import submodule" where submodule is a file
-                    for alias in node.names:
-                        imports.add(f"{node.module}.{alias.name}")
-            else:
-                # Relative import: resolve based on file's package
-                # level=1 means current package, level=2 means parent, etc.
-                base_parts = file_package_parts[: len(file_package_parts) - (node.level - 1)]
-                if node.module:
-                    resolved = ".".join(base_parts + node.module.split("."))
-                else:
-                    resolved = ".".join(base_parts)
-                imports.add(resolved)
-                # Also resolve each imported name as a potential submodule
+    def _walk_body(body: list[ast.stmt], scope: ImportScope) -> None:
+        """Walk a list of statements, tracking scope transitions."""
+        for node in body:
+            # TYPE_CHECKING block
+            if isinstance(node, ast.If) and _is_type_checking_block(node):
+                _walk_body(node.body, ImportScope.TYPE_CHECKING)
+                if node.orelse:
+                    _walk_body(node.orelse, scope)
+                continue
+
+            # Function/method body — deferred imports
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                _walk_body(node.body, ImportScope.DEFERRED)
+                continue
+
+            # Class body — imports here are still top-level (class init time)
+            if isinstance(node, ast.ClassDef):
+                _walk_body(node.body, scope)
+                continue
+
+            # Regular if/else, try/except, with — inherit scope
+            if isinstance(node, ast.If):
+                _walk_body(node.body, scope)
+                if node.orelse:
+                    _walk_body(node.orelse, scope)
+                continue
+            if isinstance(node, ast.Try):
+                _walk_body(node.body, scope)
+                for handler in node.handlers:
+                    _walk_body(handler.body, scope)
+                _walk_body(node.orelse, scope)
+                _walk_body(node.finalbody, scope)
+                continue
+            if isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
+                _walk_body(node.body, scope)
+                if node.orelse:
+                    _walk_body(node.orelse, scope)
+                continue
+            if isinstance(node, (ast.With, ast.AsyncWith)):
+                _walk_body(node.body, scope)
+                continue
+
+            # Import statements
+            if isinstance(node, ast.Import):
                 for alias in node.names:
-                    imports.add(f"{resolved}.{alias.name}")
+                    # import foo.bar → module is the full dotted path
+                    edges.append(ImportEdge(
+                        module=alias.name,
+                        names=[],
+                        scope=scope,
+                        line=node.lineno,
+                    ))
 
-    return imports
+            elif isinstance(node, ast.ImportFrom):
+                names = [alias.name for alias in node.names]
+                if node.level == 0:
+                    # Absolute: from foo.bar import Baz
+                    edges.append(ImportEdge(
+                        module=node.module or "",
+                        names=names,
+                        scope=scope,
+                        line=node.lineno,
+                    ))
+                else:
+                    # Relative: from .bar import baz
+                    resolved = _resolve_relative(node.level, node.module)
+                    edges.append(ImportEdge(
+                        module=resolved,
+                        names=names,
+                        scope=scope,
+                        line=node.lineno,
+                    ))
+
+    _walk_body(tree.body, ImportScope.TOP)
+    return edges
 
 
 def _resolve_submodule_imports(graph: ImportGraph) -> None:

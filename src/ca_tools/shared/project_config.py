@@ -16,6 +16,48 @@ def _parse_severity(value: str) -> Severity:
 
 
 @dataclass
+class MetricThreshold:
+    """Severity tiers for a single metric — value >= threshold triggers that level."""
+
+    info: int
+    warning: int
+    error: int
+
+    def classify(self, value: int) -> Severity:
+        if value >= self.error:
+            return Severity.ERROR
+        if value >= self.warning:
+            return Severity.WARNING
+        return Severity.INFO
+
+
+@dataclass
+class MapThresholds:
+    """Configurable severity thresholds for map analysis metrics."""
+
+    hotspots: MetricThreshold = field(default_factory=lambda: MetricThreshold(info=5, warning=15, error=25))
+    fragile: MetricThreshold = field(default_factory=lambda: MetricThreshold(info=8, warning=15, error=25))
+    deep_chains: MetricThreshold = field(default_factory=lambda: MetricThreshold(info=7, warning=12, error=18))
+    cycles: MetricThreshold = field(default_factory=lambda: MetricThreshold(info=3, warning=5, error=8))
+
+
+@dataclass
+class MapSeverityFilter:
+    """Minimum severity to display — general default with per-section overrides."""
+
+    general: Severity = Severity.INFO
+    cycles: Severity | None = None
+    hotspots: Severity | None = None
+    fragile: Severity | None = None
+    deep_chains: Severity | None = None
+    leaves: Severity | None = None
+
+    def for_section(self, section: str) -> Severity:
+        override = getattr(self, section, None)
+        return override if override is not None else self.general
+
+
+@dataclass
 class ProjectConfig:
     """Configuration from the target project's [tool.ca-tools] section."""
 
@@ -29,6 +71,10 @@ class ProjectConfig:
     ignore_deps: list[str] = field(default_factory=list)
     ignore_orphans: list[str] = field(default_factory=list)
     ignore_side_effects: list[str] = field(default_factory=list)
+
+    map_thresholds: MapThresholds = field(default_factory=MapThresholds)
+    map_severity: MapSeverityFilter = field(default_factory=MapSeverityFilter)
+    map_limit: int = 10
 
 
 def load_project_config(project_root: Path) -> ProjectConfig:
@@ -64,5 +110,36 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     config.ignore_deps = ignore.get("deps", [])
     config.ignore_orphans = ignore.get("orphans", [])
     config.ignore_side_effects = ignore.get("side_effects", [])
+
+    # Map config: [tool.ca-tools.map]
+    map_section = ca.get("map", {})
+    if "limit" in map_section:
+        config.map_limit = map_section["limit"]
+
+    # Severity filter: [tool.ca-tools.map.severity]
+    sev_filter = map_section.get("severity", {})
+    if isinstance(sev_filter, str):
+        # Shorthand: severity = "warning" sets the general level
+        config.map_severity.general = _parse_severity(sev_filter)
+    elif isinstance(sev_filter, dict):
+        if "general" in sev_filter:
+            config.map_severity.general = _parse_severity(sev_filter["general"])
+        for section in ("cycles", "hotspots", "fragile", "deep_chains", "leaves"):
+            if section in sev_filter:
+                setattr(config.map_severity, section, _parse_severity(sev_filter[section]))
+
+    thresholds = map_section.get("thresholds", {})
+    if thresholds:
+        mt = config.map_thresholds
+        for metric_name in ("hotspots", "fragile", "deep_chains", "cycles"):
+            if metric_name in thresholds:
+                vals = thresholds[metric_name]
+                current = getattr(mt, metric_name)
+                if "info" in vals:
+                    current.info = vals["info"]
+                if "warning" in vals:
+                    current.warning = vals["warning"]
+                if "error" in vals:
+                    current.error = vals["error"]
 
     return config

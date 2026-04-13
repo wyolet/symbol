@@ -90,20 +90,22 @@ def map_command(
     path: Annotated[str, typer.Argument(help="Path to the project directory")],
     include: Annotated[list[str] | None, typer.Option("-i", "--include", help="Glob patterns to include")] = None,
     exclude: Annotated[list[str] | None, typer.Option("-e", "--exclude", help="Glob patterns to exclude")] = None,
-    min_fan_in: Annotated[int, typer.Option(help="Minimum fan-in for hotspots")] = 5,
-    min_fan_out: Annotated[int, typer.Option(help="Minimum fan-out for fragile")] = 8,
-    min_chain: Annotated[int, typer.Option(help="Minimum chain depth to show")] = 5,
     blast: Annotated[str | None, typer.Option(help="Show blast radius for a file")] = None,
+    severity: Annotated[str | None, typer.Option("-s", "--severity", help="Minimum severity to show: info, warning, error")] = None,
+    coupling_depth: Annotated[int, typer.Option("--coupling-depth", help="Package depth for coupling analysis (1=top-level, 2=sub-packages)")] = 1,
+    show: Annotated[str | None, typer.Option(help="Show full detail for one section: cycles, hotspots, fragile, chains, leafs, coupling")] = None,
+    limit: Annotated[int | None, typer.Option("-n", "--limit", help="Max items per section in summary view")] = None,
 ) -> None:
     """Map the import graph — find cycles, hotspots, and fragile modules."""
     map_cmd(
         path,
         include=include or [],
         exclude=exclude or [],
-        min_fan_in=min_fan_in,
-        min_fan_out=min_fan_out,
-        min_chain=min_chain,
         blast=blast,
+        severity=severity,
+        coupling_depth=coupling_depth,
+        show=show,
+        limit=limit,
         format=state.get("format", "rich"),
     )
 
