@@ -91,6 +91,7 @@ class ProjectConfig:
 
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
+    skip_dirs: list[str] = field(default_factory=list)
     disabled_checkers: list[str] = field(default_factory=list)
 
     # Paths to custom checker modules — loaded before running checkers
@@ -127,6 +128,7 @@ def load_project_config(project_root: Path) -> ProjectConfig:
 
     config.include = ca.get("include", [])
     config.exclude = ca.get("exclude", [])
+    config.skip_dirs = ca.get("skip_dirs", [])
     config.disabled_checkers = ca.get("disable", [])
     config.custom_checkers = ca.get("custom_checkers", [])
 

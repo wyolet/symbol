@@ -65,6 +65,12 @@ class EntrypointSpec:
 
 
 @dataclass(frozen=True)
+class FilesSpec:
+    """File collection defaults from [files] in spec.toml."""
+    skip_dirs: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
 class Spec:
     categories: dict[str, str]
     packages: dict[str, PackageInfo]
@@ -72,6 +78,11 @@ class Spec:
     config_dirs: dict[str, str]
     side_effects: SideEffectSpec
     entrypoints: EntrypointSpec
+    files: FilesSpec = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.files is None:
+            object.__setattr__(self, "files", FilesSpec())
 
 
 def load_spec() -> Spec:
@@ -122,6 +133,7 @@ def _parse_spec(raw: dict) -> Spec:
 
     se = raw["side_effects"]
     ep = raw["entrypoints"]
+    f = raw.get("files", {})
 
     return Spec(
         categories=categories,
@@ -138,4 +150,5 @@ def _parse_spec(raw: dict) -> Spec:
             starters=frozenset(ep["starters"]),
             starter_names=frozenset(ep["starter_names"]),
         ),
+        files=FilesSpec(skip_dirs=frozenset(f.get("skip_dirs", []))),
     )

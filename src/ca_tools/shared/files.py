@@ -2,22 +2,8 @@
 
 from pathlib import Path, PurePath
 
-# Always excluded directories — never build ASTs for these.
-# LOC counting (linguist) scans files directly and is unaffected.
-# Framework-specific conventions (e.g. fastapi's docs_src/) go in
-# [packages.X.orphan] in spec.toml instead — they're skipped from
-# orphan detection but still parsed if a project includes them via
-# their own include/exclude config.
-ALWAYS_SKIP = {
-    "__pycache__", "venv", ".venv", "node_modules", "env",
-    ".git", ".hg", ".svn",
-    "docs", "doc",               # documentation — tutorial snippets, not production code
-    "scripts", "bin", "tools",   # one-off scripts — not part of the import graph
-    "examples", "example",       # demo code
-}
-
-# Default exclude patterns — test files add noise to import graph analysis.
-# These are always applied; pyproject [tool.ca-tools].exclude adds on top.
+# Default exclude patterns for import graph analysis.
+# Applied unless skip_defaults=True. Pyproject [tool.ca-tools].exclude adds on top.
 DEFAULT_EXCLUDE = [
     "tests/**/*.py",
     "test/**/*.py",
@@ -37,11 +23,19 @@ def collect_py_files(
     include: list[str] | None = None,
     exclude: list[str] | None = None,
     skip_defaults: bool = False,
+    skip_dirs: frozenset[str] | None = None,
 ) -> list[Path]:
-    """Collect Python files respecting include/exclude glob patterns."""
+    """Collect Python files respecting include/exclude glob patterns.
+
+    skip_dirs — directory names to skip entirely (no AST, no analysis).
+                Comes from spec.toml [files] skip_dirs, merged with project config.
+                Linguist LOC counting is unaffected (it scans files independently).
+    """
     all_excludes = list(exclude or [])
     if not skip_defaults:
         all_excludes.extend(DEFAULT_EXCLUDE)
+
+    effective_skip = skip_dirs or frozenset()
 
     results: list[Path] = []
 
@@ -50,7 +44,7 @@ def collect_py_files(
         rel_str = str(rel)
         parts = rel.parts
 
-        if any(p.startswith(".") or p in ALWAYS_SKIP for p in parts):
+        if any(p.startswith(".") or p in effective_skip for p in parts):
             continue
 
         if include and not any(_matches(rel_str, pat) for pat in include):
