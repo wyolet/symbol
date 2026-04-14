@@ -10,8 +10,10 @@ from ca_tools.shared.project_config import ProjectConfig, load_project_config
 
 def test_defaults_when_no_pyproject(tmp_path: Path):
     config = load_project_config(tmp_path)
-    assert config.include == []
-    assert config.exclude == []
+    assert config.checker.include == []
+    assert config.checker.exclude == []
+    assert config.scanner.include == []
+    assert config.scanner.exclude == []
     assert config.checkers == {}
     assert config.packages == {}
 
@@ -24,13 +26,13 @@ def test_defaults_when_no_ca_tools_section(tmp_path: Path):
 
 def test_loads_include_exclude(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools]
+[tool.ca-tools.checker]
 include = ["src/*"]
 exclude = ["tests/*", "scripts/*"]
 """)
     config = load_project_config(tmp_path)
-    assert config.include == ["src/*"]
-    assert config.exclude == ["tests/*", "scripts/*"]
+    assert config.checker.include == ["src/*"]
+    assert config.checker.exclude == ["tests/*", "scripts/*"]
 
 
 def test_loads_checker_severity(tmp_path: Path):
@@ -83,7 +85,7 @@ ignore = ["greenlet"]
 """)
     config = load_project_config(tmp_path)
     assert config.checkers["unused_deps"].ignore == ["greenlet"]
-    assert config.exclude == []
+    assert config.checker.exclude == []
 
 
 def test_malformed_toml(tmp_path: Path):

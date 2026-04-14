@@ -9,6 +9,8 @@ from rich.table import Table
 from rich.text import Text
 
 from ca_tools.shared.linguist import Linguist
+from ca_tools.shared.project_config import load_project_config
+from ca_tools.shared.spec import load_spec
 
 console = Console()
 
@@ -46,8 +48,13 @@ def loc_cmd(path: str, format: str = "rich") -> None:
     project_root = Path(path)
     project_name = project_root.name
 
+    config = load_project_config(project_root)
+    spec = load_spec(project_root=project_root)
+
+    scanner_exclude = list(spec.scanner.exclude) + config.scanner.exclude
+
     linguist = Linguist()
-    stats = linguist.detect_directory(str(project_root))
+    stats = linguist.detect_directory(str(project_root), exclude=scanner_exclude or None)
 
     if format == "json":
         # Enrich JSON with summary and biggest files

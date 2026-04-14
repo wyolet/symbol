@@ -46,7 +46,6 @@ def build_import_graph(
     include: list[str] | None = None,
     exclude: list[str] | None = None,
     cache: ASTCache | None = None,
-    skip_patterns: tuple[str, ...] | None = None,
     propagate_init: bool = True,
 ) -> ImportGraph:
     graph = ImportGraph()
@@ -54,7 +53,7 @@ def build_import_graph(
     if cache:
         py_files = cache.files
     else:
-        py_files = collect_py_files(project_root, include, exclude, skip_patterns=skip_patterns)
+        py_files = collect_py_files(project_root, include, exclude)
     graph.files = py_files
 
     module_to_file = _build_module_map(project_root, py_files)

@@ -1,2 +1,5 @@
 name = "sqlmodel"
 category = "orm"
+
+[checker]
+exclude = ["docs_src/**"]

@@ -15,8 +15,9 @@ def _make_files(tmp_path: Path, paths: list[str]) -> None:
         f.write_text("# placeholder")
 
 
-def _collect(tmp_path: Path, **kwargs):
-    return collect_py_files(tmp_path, skip_dirs=SPEC.files.skip_dirs, **kwargs)
+def _collect(tmp_path: Path, exclude: list[str] | None = None, **kwargs):
+    combined_exclude = list(SPEC.checker.exclude) + (exclude or [])
+    return collect_py_files(tmp_path, exclude=combined_exclude, **kwargs)
 
 
 def test_collects_py_files(tmp_path: Path):

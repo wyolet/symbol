@@ -35,6 +35,10 @@ class PackageInfo:
     detect_config_files: frozenset[str] = frozenset()
     orphan: PackageOrphanSpec = None  # type: ignore[assignment]
     runtime_only: bool = False
+    # Glob patterns to exclude from AST analysis when this package is active.
+    checker_exclude: tuple[str, ...] = ()
+    # Glob patterns to exclude from LOC counting when this package is active.
+    scanner_exclude: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.side_effects is None:
@@ -72,10 +76,17 @@ class OrphanSpec:
 
 
 @dataclass(frozen=True)
-class FilesSpec:
-    """File collection defaults from [files] in spec.toml."""
-    skip_dirs: frozenset[str] = frozenset()
-    skip_patterns: tuple[str, ...] = ()
+class CheckerSpec:
+    """Checker file collection defaults from [checker] in spec.toml."""
+    include: tuple[str, ...] = ()
+    exclude: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScannerSpec:
+    """Scanner file collection defaults from [scanner] in spec.toml."""
+    include: tuple[str, ...] = ()
+    exclude: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -98,14 +109,17 @@ class Spec:
     config_dirs: dict[str, str]
     side_effects: SideEffectSpec
     entrypoints: EntrypointSpec
-    files: FilesSpec = None  # type: ignore[assignment]
+    checker: CheckerSpec = None  # type: ignore[assignment]
+    scanner: ScannerSpec = None  # type: ignore[assignment]
     stack: StackSpec = None  # type: ignore[assignment]
     orphan: OrphanSpec = None  # type: ignore[assignment]
     init: InitSpec = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        if self.files is None:
-            object.__setattr__(self, "files", FilesSpec())
+        if self.checker is None:
+            object.__setattr__(self, "checker", CheckerSpec())
+        if self.scanner is None:
+            object.__setattr__(self, "scanner", ScannerSpec())
         if self.stack is None:
             object.__setattr__(self, "stack", StackSpec())
         if self.orphan is None:
@@ -201,6 +215,8 @@ def _load_package_spec(raw: dict, categories: dict[str, str]) -> "tuple[str, Pac
         detect_config_files=frozenset(detect_raw.get("config_files", [])),
         orphan=pkg_orphan,
         runtime_only=raw.get("runtime_only", False),
+        checker_exclude=tuple(raw.get("checker", {}).get("exclude", [])),
+        scanner_exclude=tuple(raw.get("scanner", {}).get("exclude", [])),
     )
     return pkg_name, info
 
@@ -221,7 +237,8 @@ def _parse_spec(raw: dict, packages: "dict[str, PackageInfo]") -> "Spec":
 
     se = raw["side_effects"]
     ep = raw["entrypoints"]
-    f = raw.get("files", {})
+    c = raw.get("checker", {})
+    s = raw.get("scanner", {})
 
     return Spec(
         categories=categories,
@@ -238,9 +255,13 @@ def _parse_spec(raw: dict, packages: "dict[str, PackageInfo]") -> "Spec":
             starters=frozenset(ep["starters"]),
             starter_names=frozenset(ep["starter_names"]),
         ),
-        files=FilesSpec(
-            skip_dirs=frozenset(f.get("skip_dirs", [])),
-            skip_patterns=tuple(f.get("skip_patterns", [])),
+        checker=CheckerSpec(
+            include=tuple(c.get("include", [])),
+            exclude=tuple(c.get("exclude", [])),
+        ),
+        scanner=ScannerSpec(
+            include=tuple(s.get("include", [])),
+            exclude=tuple(s.get("exclude", [])),
         ),
         stack=StackSpec(primary_categories=frozenset(raw.get("stack", {}).get("primary_categories", []))),
         orphan=OrphanSpec(skip_patterns=tuple(raw.get("orphan", {}).get("skip_patterns", []))),

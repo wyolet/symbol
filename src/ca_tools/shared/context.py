@@ -101,12 +101,24 @@ def build_context(
         project_root=project_root,
     )
 
-    inc = include or config.include or None
-    exc = exclude or config.exclude or None
-    skip_dirs = spec.files.skip_dirs | frozenset(config.skip_dirs)
+    # Merge checker excludes: spec global + active package excludes + project config
+    pkg_checker_excludes = [
+        pat for info in spec.packages.values() for pat in info.checker_exclude
+    ]
+    checker_exclude = (
+        list(spec.checker.exclude)
+        + pkg_checker_excludes
+        + config.checker.exclude
+        + list(exclude or [])
+    )
+    checker_include = include or config.checker.include or list(spec.checker.include) or None
 
     if cache is None:
-        cache = ASTCache(project_root, inc, exc, skip_dirs=skip_dirs, skip_patterns=spec.files.skip_patterns or None)
+        cache = ASTCache(
+            project_root,
+            include=checker_include or None,
+            exclude=checker_exclude or None,
+        )
 
     frameworks = detect_active_frameworks(deps, spec, project_root)
     resolved = resolve_config(spec, frameworks, config)

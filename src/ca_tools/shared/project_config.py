@@ -86,12 +86,23 @@ class CheckerProjectConfig:
 
 
 @dataclass
+class CheckerConfig:
+    include: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ScannerConfig:
+    include: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ProjectConfig:
     """Configuration from the target project's [tool.ca-tools] section."""
 
-    include: list[str] = field(default_factory=list)
-    exclude: list[str] = field(default_factory=list)
-    skip_dirs: list[str] = field(default_factory=list)
+    checker: CheckerConfig = field(default_factory=CheckerConfig)
+    scanner: ScannerConfig = field(default_factory=ScannerConfig)
     disabled_checkers: list[str] = field(default_factory=list)
 
     # Paths to custom checker modules — loaded before running checkers
@@ -129,9 +140,14 @@ def load_project_config(project_root: Path) -> ProjectConfig:
 
     config = ProjectConfig()
 
-    config.include = ca.get("include", [])
-    config.exclude = ca.get("exclude", [])
-    config.skip_dirs = ca.get("skip_dirs", [])
+    checker_raw = ca.get("checker", {})
+    config.checker.include = checker_raw.get("include", [])
+    config.checker.exclude = checker_raw.get("exclude", [])
+
+    scanner_raw = ca.get("scanner", {})
+    config.scanner.include = scanner_raw.get("include", [])
+    config.scanner.exclude = scanner_raw.get("exclude", [])
+
     config.disabled_checkers = ca.get("disable", [])
     config.custom_checkers = ca.get("custom_checkers", [])
     config.extra_specs = ca.get("extra_specs", [])

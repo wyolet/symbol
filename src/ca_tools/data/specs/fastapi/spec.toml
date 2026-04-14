@@ -2,8 +2,8 @@ name = "fastapi"
 category = "web"
 detect = { deps = ["fastapi"] }
 
-[orphan]
-patterns = ["docs_src/**"]
+[checker]
+exclude = ["docs_src/**"]
 
 [side_effects]
 safe_calls = ["lifespan"]

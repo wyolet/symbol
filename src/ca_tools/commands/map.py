@@ -61,8 +61,8 @@ def map_cmd(
     project_name = project_root.name
 
     config = load_project_config(project_root)
-    inc = include or config.include or None
-    exc = exclude or config.exclude or None
+    inc = include or config.checker.include or None
+    exc = exclude or config.checker.exclude or None
 
     # CLI --severity overrides pyproject general level
     sev_filter = config.map_severity

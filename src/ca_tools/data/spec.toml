@@ -319,10 +319,29 @@ starter_names = [
 ]
 
 
-# ── File collection ───────────────────────────────────────────────────
-# Directories skipped entirely when collecting Python files for analysis.
-# Linguist (LOC) is unaffected — it scans files independently.
-# Projects can extend this list via [tool.ca-tools] skip_dirs = [...].
+# ── Checker file collection ───────────────────────────────────────────
+# Glob patterns excluded from AST analysis (checker layer).
+# Projects can extend via [tool.ca-tools.checker] exclude = [...].
+
+[checker]
+exclude = [
+    "**/.venv/**", "**/venv/**", "**/env/**",
+    "**/__pycache__/**", "**/node_modules/**",
+    "**/.tox/**", "**/.mypy_cache/**", "**/.pytest_cache/**",
+    "**/build/**", "**/dist/**", "**/*.egg-info/**",
+]
+
+# ── Scanner file collection ───────────────────────────────────────────
+# Glob patterns excluded from LOC counting (scanner layer).
+# Projects can extend via [tool.ca-tools.scanner] exclude = [...].
+
+[scanner]
+exclude = [
+    "**/.venv/**", "**/venv/**", "**/env/**",
+    "**/__pycache__/**", "**/node_modules/**",
+    "**/.tox/**", "**/.mypy_cache/**",
+    "**/build/**", "**/dist/**",
+]
 
 # ── Stack checker config ──────────────────────────────────────────────
 # Categories that count as "primary stack" in audit output.
@@ -343,28 +362,6 @@ skip_patterns = [
     "__init__.py", "__main__.py", "setup.py", "manage.py",
     # Test infrastructure
     "conftest.py", "test_*.py", "*_test.py",
-]
-
-[files]
-skip_dirs = [
-    # Python environment noise — never production code
-    "__pycache__", "venv", ".venv", "env", ".env",
-    "node_modules", "bower_components",
-    # VCS internals
-    ".git", ".hg", ".svn",
-    # Documentation — tutorial snippets, not production code
-    "docs", "doc",
-    # Scripts / tooling — not part of the import graph
-    "scripts", "bin", "tools",
-    # Demo / example code
-    "examples", "example",
-]
-
-skip_patterns = [
-    # Test files — add noise to import graph analysis
-    "tests/**/*.py", "test/**/*.py",
-    "test_*.py", "*_test.py",
-    "conftest.py",
 ]
 
 # ── ca init config ────────────────────────────────────────────────────

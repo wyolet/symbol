@@ -281,12 +281,14 @@ class TestLinguistDetectDirectory:
         assert "Python" in names
 
     def test_skips_venv_directory(self, tmp_path: Path):
+        from ca_tools.shared.spec import load_spec
         venv_dir = tmp_path / "venv" / "lib"
         venv_dir.mkdir(parents=True)
         (venv_dir / "pkg.py").write_text("x = 1\n")
         (tmp_path / "app.py").write_text("y = 2\n")
+        spec = load_spec()
         linguist = Linguist()
-        stats = linguist.detect_directory(str(tmp_path))
+        stats = linguist.detect_directory(str(tmp_path), exclude=list(spec.scanner.exclude))
         total_py_files = sum(s["files"] for s in stats if s["name"] == "Python")
         assert total_py_files == 1
 

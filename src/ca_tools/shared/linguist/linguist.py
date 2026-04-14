@@ -12,7 +12,6 @@ from .strategy import (
     XMLStrategy,
 )
 
-SKIP_DIRS = {"__pycache__", "venv", ".venv", "node_modules", "env", ".git", ".hg", ".svn", ".tox", ".mypy_cache"}
 
 # Well-known extensions where the common language should always win over obscure matches.
 # Maps extension → preferred language name when ambiguous.
@@ -96,8 +95,8 @@ class Linguist:
         # then by popularity of the language type for this file context.
         return _best_candidate(languages, blob)
 
-    def detect_directory(self, absolute_path: str):
-        paths = self._get_all_file_paths(absolute_path)
+    def detect_directory(self, absolute_path: str, exclude: list[str] | None = None):
+        paths = self._get_all_file_paths(absolute_path, exclude=exclude)
 
         for file_path in paths:
             blob = Blob(file_path)
@@ -134,11 +133,35 @@ class Linguist:
         return [lang.dict() for lang in self.statistics.values()]
 
     @staticmethod
-    def _get_all_file_paths(directory: str) -> list[str]:
+    def _get_all_file_paths(directory: str, exclude: list[str] | None = None) -> list[str]:
+        import fnmatch
+
+        def _exc_match(rel: str, pat: str) -> bool:
+            if fnmatch.fnmatch(rel, pat):
+                return True
+            if pat.startswith("**/"):
+                return fnmatch.fnmatch(rel, pat[3:])
+            return False
+
         paths = []
-        for root, dirs, files in os.walk(directory):
-            # Skip hidden and known junk directories
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS]
+        abs_dir = os.path.abspath(directory)
+        for root, dirs, files in os.walk(abs_dir):
+            rel_root = os.path.relpath(root, abs_dir)
+            # Filter subdirs in-place to prevent descending
+            if exclude:
+                dirs[:] = [
+                    d for d in dirs
+                    if not d.startswith(".")
+                    and not any(
+                        _exc_match(os.path.join(rel_root, d), pat)
+                        for pat in exclude
+                    )
+                ]
+            else:
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
             for file in files:
+                rel_path = os.path.join(rel_root, file)
+                if exclude and any(_exc_match(rel_path, pat) for pat in exclude):
+                    continue
                 paths.append(os.path.abspath(os.path.join(root, file)))
         return paths
