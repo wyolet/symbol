@@ -11,15 +11,21 @@ class Severity(Enum):
     ERROR = "error"       # real problems
     CRITICAL = "critical" # parse failures, dangerous calls, blocking issues
 
+    @property
+    def _order(self) -> int:
+        return {"debug": 0, "info": 1, "warning": 2, "error": 3, "critical": 4}[self.value]
+
     def __lt__(self, other: "Severity") -> bool:
-        order = {
-            Severity.DEBUG: 0,
-            Severity.INFO: 1,
-            Severity.WARNING: 2,
-            Severity.ERROR: 3,
-            Severity.CRITICAL: 4,
-        }
-        return order[self] < order[other]
+        return self._order < other._order
+
+    def __le__(self, other: "Severity") -> bool:
+        return self._order <= other._order
+
+    def __gt__(self, other: "Severity") -> bool:
+        return self._order > other._order
+
+    def __ge__(self, other: "Severity") -> bool:
+        return self._order >= other._order
 
 
 SEVERITY_STYLE = {

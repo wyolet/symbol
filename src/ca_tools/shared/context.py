@@ -16,6 +16,11 @@ class ActiveFramework:
     name: str
     skip_orphan_patterns: tuple[str, ...]
     safe_calls: frozenset[str]
+    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.file_roles is None:
+            object.__setattr__(self, "file_roles", {})
 
 
 @dataclass

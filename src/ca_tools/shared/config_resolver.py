@@ -26,12 +26,19 @@ def resolve_config(
         skip_patterns.extend(fw.skip_orphan_patterns)
     skip_patterns.extend(project_config.ignore_orphans)
 
-    # --- side effect file/package roles: spec baseline + framework additions ---
+    # --- side effect file roles: spec baseline + framework additions ---
     file_roles: dict[str, "Severity"] = dict(spec.side_effects.file_roles)
     for fw in frameworks:
         file_roles.update(fw.file_roles)  # framework overrides spec
 
+    # --- side effect package roles: derived from per-package specs ---
+    # Global [side_effects.package_roles] is the baseline, per-package overrides it.
+    from ca_tools.shared.findings import Severity
     package_roles: dict[str, "Severity"] = dict(spec.side_effects.package_roles)
+    for pkg_name, pkg_info in spec.packages.items():
+        if pkg_info.side_effects.module_level != Severity.WARNING:
+            import_name = pkg_info.import_name or pkg_name.replace("-", "_")
+            package_roles[import_name] = pkg_info.side_effects.module_level
 
     # --- severity overrides from project config ---
     severity_overrides: dict = {}

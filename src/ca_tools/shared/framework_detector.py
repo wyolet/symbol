@@ -31,6 +31,7 @@ def detect_active_frameworks(
                 name=fw_spec.name,
                 skip_orphan_patterns=fw_spec.skip_orphan_patterns,
                 safe_calls=fw_spec.safe_calls,
+                file_roles=fw_spec.file_roles,
             ))
 
     return active

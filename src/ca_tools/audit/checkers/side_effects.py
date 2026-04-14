@@ -15,12 +15,28 @@ from ca_tools.shared.findings import SEVERITY_STYLE, Finding, Severity
 
 I1, I2 = "  ", "    "
 
+_STYLE_MAP = {
+    Severity.DEBUG: "dim",
+    Severity.INFO: "bold blue",
+    Severity.WARNING: "bold yellow",
+    Severity.ERROR: "bold red",
+    Severity.CRITICAL: "bold red",
+}
+_ICON_MAP = {
+    Severity.DEBUG: "\u00b7",
+    Severity.INFO: "\u2139\ufe0f ",
+    Severity.WARNING: "\u26a0\ufe0f ",
+    Severity.ERROR: "\U0001f534",
+    Severity.CRITICAL: "\U0001f6a8",
+}
+
 
 @dataclass
 class SideEffect:
     filepath: Path
     lineno: int
     call_text: str
+    severity: Severity = Severity.WARNING
 
 
 @register(
@@ -41,6 +57,11 @@ def detect(
     safe_calls = ctx.resolved.safe_calls
     known_effects = ctx.resolved.known_effects
     ignore_patterns = ctx.resolved.ignore_patterns.get("side_effects", [])
+    file_roles = ctx.resolved.side_effect_file_roles
+    package_roles = ctx.resolved.side_effect_package_roles
+
+    # Severity for this file based on its role
+    file_sev = file_roles.get(filepath.name, Severity.WARNING)
 
     results: list[SideEffect] = []
 
@@ -68,69 +89,88 @@ def detect(
         if ignore_patterns and any(fnmatch.fnmatch(call_text, pat) for pat in ignore_patterns):
             continue
 
-        results.append(SideEffect(filepath=filepath, lineno=node.lineno, call_text=call_text))
+        # Resolve severity: package role wins over file role
+        sev = _resolve_severity(call_name, file_sev, package_roles)
+
+        results.append(SideEffect(filepath=filepath, lineno=node.lineno, call_text=call_text, severity=sev))
 
     return results
+
+
+def _resolve_severity(
+    call_name: str,
+    file_sev: Severity,
+    package_roles: dict[str, Severity],
+) -> Severity:
+    """Package role wins over file role. Highest severity among matched prefixes wins."""
+    pkg_sev = None
+    for prefix, sev in package_roles.items():
+        if call_name == prefix or call_name.startswith(prefix + "."):
+            if pkg_sev is None or sev > pkg_sev:
+                pkg_sev = sev
+    return pkg_sev if pkg_sev is not None else file_sev
 
 
 # ── Views ────────────────────────────────────────────────────────────
 
 
 def to_findings(items: list[SideEffect], ctx: AnalysisContext) -> list[Finding]:
-    sev = ctx.resolved.severity_overrides.get("side_effects", Severity.WARNING)
+    # Only contribute findings at WARNING and above to the report
     return [
         Finding(
             section="side_effects",
             message=se.call_text,
-            severity=sev,
+            severity=se.severity,
             location=f"{se.filepath.relative_to(ctx.project_root)}:{se.lineno}",
         )
         for se in items
+        if se.severity >= Severity.WARNING
     ]
 
 
 def rich_view(items: list[SideEffect], ctx: AnalysisContext, console: Console) -> None:
-    sev = ctx.resolved.severity_overrides.get("side_effects", Severity.WARNING)
+    # Group by severity, hide DEBUG unless verbose
+    visible = [se for se in items if ctx.verbose or se.severity >= Severity.WARNING]
 
     console.print()
-    if not items:
+    if not visible:
         console.print(Text(f"{I1}\u2705 SIDE EFFECTS (0)", style="bold green"))
         console.print()
         console.print(f"{I2}[green]No module-level side effects detected[/green]")
         return
 
-    style_map = {
-        Severity.DEBUG: "dim", Severity.INFO: "bold blue",
-        Severity.WARNING: "bold yellow", Severity.ERROR: "bold red", Severity.CRITICAL: "bold red",
-    }
-    icon_map = {
-        Severity.DEBUG: "\u00b7", Severity.INFO: "\u2139\ufe0f ",
-        Severity.WARNING: "\u26a0\ufe0f ", Severity.ERROR: "\U0001f534", Severity.CRITICAL: "\U0001f6a8",
-    }
-    console.print(Text(f"{I1}{icon_map[sev]} SIDE EFFECTS ({len(items)})", style=style_map[sev]))
+    # Header severity = worst among visible items
+    worst = max(se.severity for se in visible)
+    console.print(Text(f"{I1}{_ICON_MAP[worst]} SIDE EFFECTS ({len(visible)})", style=_STYLE_MAP[worst]))
     console.print(f"{I2}[dim]Bare function calls at module level — runs on import[/dim]")
     console.print()
 
     cap = 10
-    s, icon = SEVERITY_STYLE[sev]
     if ctx.verbose:
-        for se in items[:cap]:
+        shown = visible[:cap]
+        for se in shown:
+            s, icon = SEVERITY_STYLE[se.severity]
             rel = se.filepath.relative_to(ctx.project_root)
-            loc = f"{rel}:{se.lineno}"
-            console.print(f"{I2}[{s}]{icon}[/{s}] [bold]{loc:<30s}[/bold] [yellow]{se.call_text}[/yellow]")
-        if len(items) > cap:
-            console.print(f"{I2}[dim]... and {len(items) - cap} more[/dim]")
-    else:
-        by_file: dict[str, list[str]] = defaultdict(list)
-        for se in items:
-            rel = str(se.filepath.relative_to(ctx.project_root))
-            by_file[rel].append(se.call_text)
-        file_items = list(by_file.items())
-        for filepath, calls in file_items[:cap]:
-            call_summary = ", ".join(calls[:3])
-            extra = f" +{len(calls) - 3} more" if len(calls) > 3 else ""
             console.print(
-                f"{I2}[{s}]{icon}[/{s}] [bold]{filepath:<30s}[/bold] [yellow]{call_summary}{extra}[/yellow]"
+                f"{I2}[{s}]{icon}[/{s}] [bold]{str(rel) + ':' + str(se.lineno):<40s}[/bold] "
+                f"[yellow]{se.call_text}[/yellow]"
+            )
+        if len(visible) > cap:
+            console.print(f"{I2}[dim]... and {len(visible) - cap} more[/dim]")
+    else:
+        # Group by file, show worst severity per file
+        by_file: dict[str, list[SideEffect]] = defaultdict(list)
+        for se in visible:
+            by_file[str(se.filepath.relative_to(ctx.project_root))].append(se)
+
+        file_items = list(by_file.items())
+        for rel_path, ses in file_items[:cap]:
+            file_worst = max(se.severity for se in ses)
+            s, icon = SEVERITY_STYLE[file_worst]
+            call_summary = ", ".join(se.call_text for se in ses[:3])
+            extra = f" +{len(ses) - 3} more" if len(ses) > 3 else ""
+            console.print(
+                f"{I2}[{s}]{icon}[/{s}] [bold]{rel_path:<40s}[/bold] [yellow]{call_summary}{extra}[/yellow]"
             )
         if len(file_items) > cap:
             console.print(f"{I2}[dim]... and {len(file_items) - cap} more files[/dim]")
@@ -142,6 +182,7 @@ def json_view(items: list[SideEffect], ctx: AnalysisContext) -> list[dict]:
             "file": str(se.filepath.relative_to(ctx.project_root)),
             "lineno": se.lineno,
             "call_text": se.call_text,
+            "severity": se.severity.value,
         }
         for se in items
     ]

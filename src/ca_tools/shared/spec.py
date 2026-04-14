@@ -8,9 +8,21 @@ from ca_tools.shared.findings import Severity
 
 
 @dataclass(frozen=True)
+class PackageSideEffectsSpec:
+    module_level: Severity = Severity.WARNING
+
+
+@dataclass(frozen=True)
 class PackageInfo:
     category: str
+    type: str = "lib"              # lib | tool | app
+    stdlib: bool = False
     import_name: str | None = None
+    side_effects: PackageSideEffectsSpec = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.side_effects is None:
+            object.__setattr__(self, "side_effects", PackageSideEffectsSpec())
 
 
 @dataclass(frozen=True)
@@ -91,9 +103,16 @@ def _parse_spec(raw: dict) -> Spec:
         cat = info["category"]
         if cat not in categories:
             raise ValueError(f"Package {pkg_name!r} references unknown category {cat!r}")
+        se_raw = info.get("side_effects", {})
+        pkg_se = PackageSideEffectsSpec(
+            module_level=Severity(se_raw.get("module_level", "warning")),
+        )
         packages[pkg_name] = PackageInfo(
             category=cat,
+            type=info.get("type", "lib"),
+            stdlib=info.get("stdlib", False),
             import_name=info.get("import_name"),
+            side_effects=pkg_se,
         )
 
     se = raw["side_effects"]

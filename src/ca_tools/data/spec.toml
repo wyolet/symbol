@@ -62,317 +62,860 @@ grpc = "gRPC"
 orchestration = "Orchestration"
 
 # ── Packages ──────────────────────────────────────────────────────────
-# PyPI package name → { category (required), import_name (optional) }.
-# import_name is only needed when `import X` differs from the package name
-# after standard normalization (hyphens → underscores).
+# Each package entry:
+#   category    = "..."        required, must match a [categories] key
+#   type        = "lib|tool"   default: lib
+#   stdlib      = true/false   default: false
+#   import_name = "..."        only when import name differs from package name
+#
+# Per-checker config lives in subtables: [packages.NAME.side_effects]
+# Use subtable form ([packages.NAME]) when you need per-checker config.
+# Use inline form (NAME = { ... }) for identity-only entries.
 
-[packages]
-# Web frameworks
-django = { category = "web" }
-flask = { category = "web" }
-fastapi = { category = "web" }
-starlette = { category = "web" }
-tornado = { category = "web" }
-sanic = { category = "web" }
-bottle = { category = "web" }
-falcon = { category = "web" }
-quart = { category = "web" }
-litestar = { category = "web" }
-hug = { category = "web" }
-cherrypy = { category = "web" }
-pyramid = { category = "web" }
-uvicorn = { category = "web" }
-gunicorn = { category = "web" }
-hypercorn = { category = "web" }
-daphne = { category = "web" }
-waitress = { category = "web" }
-granian = { category = "web" }
+# ── Web frameworks ────────────────────────────────────────────────────
+[packages.django]
+category = "web"
 
-# ORM / database toolkit
-sqlalchemy = { category = "orm" }
-django-orm = { category = "orm" }
-tortoise-orm = { category = "orm" }
-peewee = { category = "orm" }
-sqlmodel = { category = "orm" }
-pony = { category = "orm" }
-mongoengine = { category = "orm" }
-odmantic = { category = "orm" }
-beanie = { category = "orm" }
+[packages.flask]
+category = "web"
 
-# Database drivers
-psycopg2 = { category = "database_driver" }
-psycopg2-binary = { category = "database_driver", import_name = "psycopg2" }
-psycopg = { category = "database_driver" }
-asyncpg = { category = "database_driver" }
-mysqlclient = { category = "database_driver" }
-pymysql = { category = "database_driver" }
-aiomysql = { category = "database_driver" }
-sqlite3 = { category = "database_driver" }
-aiosqlite = { category = "database_driver" }
-redis = { category = "database_driver" }
-aioredis = { category = "database_driver" }
-pymongo = { category = "database_driver" }
-motor = { category = "database_driver" }
-cassandra-driver = { category = "database_driver" }
-elasticsearch = { category = "database_driver" }
-opensearch-py = { category = "database_driver" }
-clickhouse-driver = { category = "database_driver" }
-neo4j = { category = "database_driver" }
-cx-oracle = { category = "database_driver", import_name = "cx_Oracle" }
-oracledb = { category = "database_driver" }
-pyodbc = { category = "database_driver" }
+[packages.fastapi]
+category = "web"
 
-# Task queues
-celery = { category = "task_queue" }
-rq = { category = "task_queue" }
-dramatiq = { category = "task_queue" }
-huey = { category = "task_queue" }
-arq = { category = "task_queue" }
-taskiq = { category = "task_queue" }
+[packages.starlette]
+category = "web"
 
-# LLM / AI
-openai = { category = "llm" }
-anthropic = { category = "llm" }
-langchain = { category = "llm" }
-langchain-core = { category = "llm" }
-langchain-community = { category = "llm" }
-langchain-openai = { category = "llm" }
-langchain-anthropic = { category = "llm" }
-llama-index = { category = "llm" }
-transformers = { category = "llm" }
-huggingface-hub = { category = "llm" }
-cohere = { category = "llm" }
-google-generativeai = { category = "llm", import_name = "google.generativeai" }
-litellm = { category = "llm" }
-vllm = { category = "llm" }
-ollama = { category = "llm" }
-instructor = { category = "llm" }
+[packages.tornado]
+category = "web"
 
-# Migrations
-alembic = { category = "migration" }
-django-migrations = { category = "migration" }
-yoyo-migrations = { category = "migration" }
+[packages.sanic]
+category = "web"
 
-# Testing
-pytest = { category = "testing" }
-pytest-cov = { category = "testing" }
-pytest-asyncio = { category = "testing" }
-pytest-mock = { category = "testing" }
-pytest-xdist = { category = "testing" }
-pytest-django = { category = "testing" }
-unittest = { category = "testing" }
-hypothesis = { category = "testing" }
-factory-boy = { category = "testing", import_name = "factory" }
-faker = { category = "testing" }
-coverage = { category = "testing" }
-tox = { category = "testing" }
-nox = { category = "testing" }
-responses = { category = "testing" }
-respx = { category = "testing" }
-vcrpy = { category = "testing" }
-freezegun = { category = "testing" }
-time-machine = { category = "testing" }
-polyfactory = { category = "testing" }
+[packages.bottle]
+category = "web"
 
-# HTTP clients
-requests = { category = "http_client" }
-httpx = { category = "http_client" }
-urllib3 = { category = "http_client" }
-aiohttp = { category = "http_client" }
-httplib2 = { category = "http_client" }
-treq = { category = "http_client" }
+[packages.falcon]
+category = "web"
 
-# Validation
-pydantic = { category = "validation" }
-pydantic-settings = { category = "validation" }
-marshmallow = { category = "validation" }
-cerberus = { category = "validation" }
-attrs = { category = "validation" }
+[packages.quart]
+category = "web"
 
-# Serialization
-cattrs = { category = "serialization" }
-msgpack = { category = "serialization" }
-orjson = { category = "serialization" }
-ujson = { category = "serialization" }
-protobuf = { category = "serialization" }
-avro-python3 = { category = "serialization" }
-msgspec = { category = "serialization" }
+[packages.litestar]
+category = "web"
 
-# CLI
-click = { category = "cli" }
-typer = { category = "cli" }
-argparse = { category = "cli" }
-fire = { category = "cli" }
-rich = { category = "cli" }
-textual = { category = "cli" }
+[packages.hug]
+category = "web"
 
-# Monitoring / observability
-sentry-sdk = { category = "monitoring" }
-prometheus-client = { category = "monitoring" }
-opentelemetry-api = { category = "monitoring" }
-opentelemetry-sdk = { category = "monitoring" }
-structlog = { category = "monitoring" }
-loguru = { category = "monitoring" }
-datadog = { category = "monitoring" }
-newrelic = { category = "monitoring" }
-statsd = { category = "monitoring" }
+[packages.cherrypy]
+category = "web"
 
-# Auth
-pyjwt = { category = "auth", import_name = "jwt" }
-python-jose = { category = "auth", import_name = "jose" }
-authlib = { category = "auth" }
-passlib = { category = "auth" }
-bcrypt = { category = "auth" }
-python-multipart = { category = "auth", import_name = "multipart" }
+[packages.pyramid]
+category = "web"
 
-# Data science / ML
-numpy = { category = "data_science" }
-pandas = { category = "data_science" }
-scipy = { category = "data_science" }
-scikit-learn = { category = "data_science", import_name = "sklearn" }
-matplotlib = { category = "data_science" }
-seaborn = { category = "data_science" }
-plotly = { category = "data_science" }
-polars = { category = "data_science" }
-dask = { category = "data_science" }
-torch = { category = "data_science" }
-tensorflow = { category = "data_science" }
-keras = { category = "data_science" }
-xgboost = { category = "data_science" }
-lightgbm = { category = "data_science" }
+[packages.uvicorn]
+category = "web"
+type = "tool"
 
-# Config / env
-python-dotenv = { category = "config", import_name = "dotenv" }
-environs = { category = "config" }
-dynaconf = { category = "config" }
-python-decouple = { category = "config", import_name = "decouple" }
+[packages.gunicorn]
+category = "web"
+type = "tool"
 
-# Templating
-jinja2 = { category = "templating" }
-mako = { category = "templating" }
+[packages.hypercorn]
+category = "web"
+type = "tool"
 
-# File handling
-pillow = { category = "file_handling", import_name = "PIL" }
-openpyxl = { category = "file_handling" }
-python-docx = { category = "file_handling" }
-reportlab = { category = "file_handling" }
+[packages.daphne]
+category = "web"
+type = "tool"
 
-# Cloud
-boto3 = { category = "cloud" }
-google-cloud-storage = { category = "cloud", import_name = "google.cloud.storage" }
-azure-storage-blob = { category = "cloud", import_name = "azure.storage.blob" }
+[packages.waitress]
+category = "web"
+type = "tool"
 
-# Misc / utility with import_name overrides
-python-dateutil = { category = "utility", import_name = "dateutil" }
-pyyaml = { category = "serialization", import_name = "yaml" }
-beautifulsoup4 = { category = "web", import_name = "bs4" }
-toml = { category = "serialization" }
-tomli = { category = "serialization" }
+[packages.granian]
+category = "web"
+type = "tool"
 
-# Async
-anyio = { category = "async" }
-trio = { category = "async" }
-asyncio = { category = "async" }
-uvloop = { category = "async" }
-greenlet = { category = "async" }
+# ── ORM / database toolkit ────────────────────────────────────────────
+[packages.sqlalchemy]
+category = "orm"
 
-# Caching
-cachetools = { category = "caching" }
-aiocache = { category = "caching" }
-diskcache = { category = "caching" }
-django-redis = { category = "caching" }
+[packages.django-orm]
+category = "orm"
 
-# GraphQL
-graphene = { category = "graphql" }
-strawberry-graphql = { category = "graphql", import_name = "strawberry" }
-ariadne = { category = "graphql" }
+[packages.tortoise-orm]
+category = "orm"
 
-# WebSockets
-websockets = { category = "websocket" }
-channels = { category = "websocket" }
-socketio = { category = "websocket" }
-python-socketio = { category = "websocket", import_name = "socketio" }
+[packages.peewee]
+category = "orm"
 
-# Email
-sendgrid = { category = "email" }
-python-postmark = { category = "email", import_name = "postmarker" }
+[packages.sqlmodel]
+category = "orm"
 
-# Background / scheduling
-apscheduler = { category = "scheduling" }
-schedule = { category = "scheduling" }
-django-celery-beat = { category = "scheduling" }
+[packages.pony]
+category = "orm"
 
-# PDF / docs
-weasyprint = { category = "file_handling" }
-pypdf = { category = "file_handling" }
-pypdf2 = { category = "file_handling", import_name = "PyPDF2" }
-pdfplumber = { category = "file_handling" }
+[packages.mongoengine]
+category = "orm"
 
-# Image
-opencv-python = { category = "file_handling", import_name = "cv2" }
-imageio = { category = "file_handling" }
+[packages.odmantic]
+category = "orm"
 
-# Crypto
-cryptography = { category = "auth" }
-paramiko = { category = "auth" }
+[packages.beanie]
+category = "orm"
 
-# Feature flags
-launchdarkly-server-sdk = { category = "feature_flags", import_name = "ldclient" }
-flagsmith = { category = "feature_flags" }
+# ── Database drivers ──────────────────────────────────────────────────
+# Raw connect calls at module level are critical — they block import and fail at startup
 
-# i18n
-babel = { category = "i18n" }
-django-modeltranslation = { category = "i18n" }
+[packages.psycopg2]
+category = "database_driver"
 
-# Rate limiting
-ratelimit = { category = "rate_limiting" }
-slowapi = { category = "rate_limiting" }
+[packages.psycopg2-binary]
+category = "database_driver"
+import_name = "psycopg2"
 
-# Admin
-django-admin = { category = "admin" }
-flask-admin = { category = "admin" }
-sqladmin = { category = "admin" }
+[packages.psycopg]
+category = "database_driver"
 
-# Payment
-stripe = { category = "payment" }
-braintree = { category = "payment" }
+[packages.asyncpg]
+category = "database_driver"
 
-# Search
-whoosh = { category = "search" }
-django-haystack = { category = "search" }
-meilisearch = { category = "search" }
-typesense = { category = "search" }
+[packages.mysqlclient]
+category = "database_driver"
 
-# gRPC
-grpcio = { category = "grpc", import_name = "grpc" }
-grpcio-tools = { category = "grpc", import_name = "grpc_tools" }
-betterproto = { category = "grpc" }
+[packages.pymysql]
+category = "database_driver"
 
-# AWS
-botocore = { category = "cloud" }
-aiobotocore = { category = "cloud" }
-s3fs = { category = "cloud" }
+[packages.aiomysql]
+category = "database_driver"
 
-# Workflow / orchestration
-prefect = { category = "orchestration" }
-airflow = { category = "orchestration" }
-dagster = { category = "orchestration" }
-luigi = { category = "orchestration" }
-temporal-sdk = { category = "orchestration", import_name = "temporalio" }
+[packages.sqlite3]
+category = "database_driver"
+stdlib = true
 
-# LLM extras
-chromadb = { category = "llm" }
-pinecone-client = { category = "llm", import_name = "pinecone" }
-weaviate-client = { category = "llm", import_name = "weaviate" }
-qdrant-client = { category = "llm", import_name = "qdrant_client" }
-tiktoken = { category = "llm" }
-tokenizers = { category = "llm" }
-sentence-transformers = { category = "llm", import_name = "sentence_transformers" }
-guidance = { category = "llm" }
-dspy-ai = { category = "llm", import_name = "dspy" }
-langgraph = { category = "llm" }
-crewai = { category = "llm" }
-autogen = { category = "llm" }
+[packages.aiosqlite]
+category = "database_driver"
+
+[packages.redis]
+category = "database_driver"
+
+[packages.aioredis]
+category = "database_driver"
+
+[packages.pymongo]
+category = "database_driver"
+
+[packages.motor]
+category = "database_driver"
+
+[packages.cassandra-driver]
+category = "database_driver"
+
+[packages.elasticsearch]
+category = "database_driver"
+
+[packages.opensearch-py]
+category = "database_driver"
+
+[packages.clickhouse-driver]
+category = "database_driver"
+
+[packages.neo4j]
+category = "database_driver"
+
+[packages.cx-oracle]
+category = "database_driver"
+import_name = "cx_Oracle"
+
+[packages.oracledb]
+category = "database_driver"
+
+[packages.pyodbc]
+category = "database_driver"
+
+# ── Task queues ───────────────────────────────────────────────────────
+[packages.celery]
+category = "task_queue"
+
+[packages.rq]
+category = "task_queue"
+
+[packages.dramatiq]
+category = "task_queue"
+
+[packages.huey]
+category = "task_queue"
+
+[packages.arq]
+category = "task_queue"
+
+[packages.taskiq]
+category = "task_queue"
+
+# ── LLM / AI ─────────────────────────────────────────────────────────
+[packages.openai]
+category = "llm"
+
+[packages.openai.side_effects]
+module_level = "critical"   # API calls at import time — always a bug
+
+[packages.anthropic]
+category = "llm"
+
+[packages.anthropic.side_effects]
+module_level = "critical"
+
+[packages.langchain]
+category = "llm"
+
+[packages.langchain-core]
+category = "llm"
+
+[packages.langchain-community]
+category = "llm"
+
+[packages.langchain-openai]
+category = "llm"
+
+[packages.langchain-anthropic]
+category = "llm"
+
+[packages.llama-index]
+category = "llm"
+
+[packages.transformers]
+category = "llm"
+
+[packages.huggingface-hub]
+category = "llm"
+
+[packages.cohere]
+category = "llm"
+
+[packages.google-generativeai]
+category = "llm"
+import_name = "google.generativeai"
+
+[packages.litellm]
+category = "llm"
+
+[packages.vllm]
+category = "llm"
+
+[packages.ollama]
+category = "llm"
+
+[packages.instructor]
+category = "llm"
+
+[packages.chromadb]
+category = "llm"
+
+[packages.pinecone-client]
+category = "llm"
+import_name = "pinecone"
+
+[packages.weaviate-client]
+category = "llm"
+import_name = "weaviate"
+
+[packages.qdrant-client]
+category = "llm"
+import_name = "qdrant_client"
+
+[packages.tiktoken]
+category = "llm"
+
+[packages.tokenizers]
+category = "llm"
+
+[packages.sentence-transformers]
+category = "llm"
+import_name = "sentence_transformers"
+
+[packages.guidance]
+category = "llm"
+
+[packages.dspy-ai]
+category = "llm"
+import_name = "dspy"
+
+[packages.langgraph]
+category = "llm"
+
+[packages.crewai]
+category = "llm"
+
+[packages.autogen]
+category = "llm"
+
+# ── Migrations ────────────────────────────────────────────────────────
+[packages.alembic]
+category = "migration"
+type = "tool"
+
+[packages.django-migrations]
+category = "migration"
+
+[packages.yoyo-migrations]
+category = "migration"
+type = "tool"
+
+# ── Testing ───────────────────────────────────────────────────────────
+# Tools: module-level calls are expected (test setup, fixtures, markers)
+
+[packages.pytest]
+category = "testing"
+type = "tool"
+
+[packages.pytest.side_effects]
+module_level = "debug"
+
+[packages.pytest-cov]
+category = "testing"
+type = "tool"
+
+[packages.pytest-asyncio]
+category = "testing"
+type = "tool"
+
+[packages.pytest-mock]
+category = "testing"
+type = "tool"
+
+[packages.pytest-xdist]
+category = "testing"
+type = "tool"
+
+[packages.pytest-django]
+category = "testing"
+type = "tool"
+
+[packages.unittest]
+category = "testing"
+stdlib = true
+
+[packages.hypothesis]
+category = "testing"
+
+[packages.factory-boy]
+category = "testing"
+import_name = "factory"
+
+[packages.faker]
+category = "testing"
+
+[packages.coverage]
+category = "testing"
+type = "tool"
+
+[packages.coverage.side_effects]
+module_level = "debug"
+
+[packages.tox]
+category = "testing"
+type = "tool"
+
+[packages.nox]
+category = "testing"
+type = "tool"
+
+[packages.responses]
+category = "testing"
+
+[packages.respx]
+category = "testing"
+
+[packages.vcrpy]
+category = "testing"
+
+[packages.freezegun]
+category = "testing"
+
+[packages.time-machine]
+category = "testing"
+
+[packages.polyfactory]
+category = "testing"
+
+# ── HTTP clients ──────────────────────────────────────────────────────
+# Network calls at module level are always critical
+
+[packages.requests]
+category = "http_client"
+
+[packages.requests.side_effects]
+module_level = "critical"
+
+[packages.httpx]
+category = "http_client"
+
+[packages.httpx.side_effects]
+module_level = "critical"
+
+[packages.urllib3]
+category = "http_client"
+
+[packages.urllib3.side_effects]
+module_level = "critical"
+
+[packages.aiohttp]
+category = "http_client"
+
+[packages.aiohttp.side_effects]
+module_level = "critical"
+
+[packages.httplib2]
+category = "http_client"
+
+[packages.httplib2.side_effects]
+module_level = "critical"
+
+[packages.treq]
+category = "http_client"
+
+[packages.treq.side_effects]
+module_level = "critical"
+
+# ── Stdlib: network / system / IO ─────────────────────────────────────
+# These are never safe to call at module level
+
+[packages.subprocess]
+category = "utility"
+stdlib = true
+
+[packages.subprocess.side_effects]
+module_level = "critical"
+
+[packages.socket]
+category = "utility"
+stdlib = true
+
+[packages.socket.side_effects]
+module_level = "critical"
+
+[packages.os]
+category = "utility"
+stdlib = true
+
+# os itself is fine, but os.system / os.popen at module level are critical
+# (handled via safe_calls / known_effects for specific leaf names)
+
+[packages.urllib]
+category = "http_client"
+stdlib = true
+
+[packages.urllib.side_effects]
+module_level = "critical"
+
+# ── Validation ────────────────────────────────────────────────────────
+[packages.pydantic]
+category = "validation"
+
+[packages.pydantic-settings]
+category = "validation"
+
+[packages.marshmallow]
+category = "validation"
+
+[packages.cerberus]
+category = "validation"
+
+[packages.attrs]
+category = "validation"
+
+# ── Serialization ─────────────────────────────────────────────────────
+[packages.cattrs]
+category = "serialization"
+
+[packages.msgpack]
+category = "serialization"
+
+[packages.orjson]
+category = "serialization"
+
+[packages.ujson]
+category = "serialization"
+
+[packages.protobuf]
+category = "serialization"
+
+[packages.avro-python3]
+category = "serialization"
+
+[packages.msgspec]
+category = "serialization"
+
+[packages.pyyaml]
+category = "serialization"
+import_name = "yaml"
+
+[packages.toml]
+category = "serialization"
+
+[packages.tomli]
+category = "serialization"
+
+# ── CLI ───────────────────────────────────────────────────────────────
+[packages.click]
+category = "cli"
+
+[packages.typer]
+category = "cli"
+
+[packages.argparse]
+category = "cli"
+stdlib = true
+
+[packages.fire]
+category = "cli"
+
+[packages.rich]
+category = "cli"
+
+[packages.textual]
+category = "cli"
+
+# ── Monitoring / observability ────────────────────────────────────────
+[packages.sentry-sdk]
+category = "monitoring"
+
+[packages.prometheus-client]
+category = "monitoring"
+
+[packages.opentelemetry-api]
+category = "monitoring"
+
+[packages.opentelemetry-sdk]
+category = "monitoring"
+
+[packages.structlog]
+category = "monitoring"
+
+[packages.loguru]
+category = "monitoring"
+
+[packages.datadog]
+category = "monitoring"
+
+[packages.newrelic]
+category = "monitoring"
+
+[packages.statsd]
+category = "monitoring"
+
+# ── Auth ──────────────────────────────────────────────────────────────
+[packages.pyjwt]
+category = "auth"
+import_name = "jwt"
+
+[packages.python-jose]
+category = "auth"
+import_name = "jose"
+
+[packages.authlib]
+category = "auth"
+
+[packages.passlib]
+category = "auth"
+
+[packages.bcrypt]
+category = "auth"
+
+[packages.python-multipart]
+category = "auth"
+import_name = "multipart"
+
+[packages.cryptography]
+category = "auth"
+
+[packages.paramiko]
+category = "auth"
+
+# ── Data science / ML ─────────────────────────────────────────────────
+[packages.numpy]
+category = "data_science"
+
+[packages.pandas]
+category = "data_science"
+
+[packages.scipy]
+category = "data_science"
+
+[packages.scikit-learn]
+category = "data_science"
+import_name = "sklearn"
+
+[packages.matplotlib]
+category = "data_science"
+
+[packages.seaborn]
+category = "data_science"
+
+[packages.plotly]
+category = "data_science"
+
+[packages.polars]
+category = "data_science"
+
+[packages.dask]
+category = "data_science"
+
+[packages.torch]
+category = "data_science"
+
+[packages.tensorflow]
+category = "data_science"
+
+[packages.keras]
+category = "data_science"
+
+[packages.xgboost]
+category = "data_science"
+
+[packages.lightgbm]
+category = "data_science"
+
+# ── Config / env ──────────────────────────────────────────────────────
+[packages.python-dotenv]
+category = "config"
+import_name = "dotenv"
+
+[packages.environs]
+category = "config"
+
+[packages.dynaconf]
+category = "config"
+
+[packages.python-decouple]
+category = "config"
+import_name = "decouple"
+
+# ── Templating ────────────────────────────────────────────────────────
+[packages.jinja2]
+category = "templating"
+
+[packages.mako]
+category = "templating"
+
+# ── File handling ─────────────────────────────────────────────────────
+[packages.pillow]
+category = "file_handling"
+import_name = "PIL"
+
+[packages.openpyxl]
+category = "file_handling"
+
+[packages.python-docx]
+category = "file_handling"
+
+[packages.reportlab]
+category = "file_handling"
+
+[packages.weasyprint]
+category = "file_handling"
+
+[packages.pypdf]
+category = "file_handling"
+
+[packages.pypdf2]
+category = "file_handling"
+import_name = "PyPDF2"
+
+[packages.pdfplumber]
+category = "file_handling"
+
+[packages.opencv-python]
+category = "file_handling"
+import_name = "cv2"
+
+[packages.imageio]
+category = "file_handling"
+
+# ── Cloud ─────────────────────────────────────────────────────────────
+[packages.boto3]
+category = "cloud"
+
+[packages.botocore]
+category = "cloud"
+
+[packages.aiobotocore]
+category = "cloud"
+
+[packages.s3fs]
+category = "cloud"
+
+[packages.google-cloud-storage]
+category = "cloud"
+import_name = "google.cloud.storage"
+
+[packages.azure-storage-blob]
+category = "cloud"
+import_name = "azure.storage.blob"
+
+# ── Misc / utility ────────────────────────────────────────────────────
+[packages.python-dateutil]
+category = "utility"
+import_name = "dateutil"
+
+[packages.beautifulsoup4]
+category = "web"
+import_name = "bs4"
+
+# ── Async ─────────────────────────────────────────────────────────────
+[packages.anyio]
+category = "async"
+
+[packages.trio]
+category = "async"
+
+[packages.asyncio]
+category = "async"
+stdlib = true
+
+[packages.uvloop]
+category = "async"
+
+[packages.greenlet]
+category = "async"
+
+# ── Caching ───────────────────────────────────────────────────────────
+[packages.cachetools]
+category = "caching"
+
+[packages.aiocache]
+category = "caching"
+
+[packages.diskcache]
+category = "caching"
+
+[packages.django-redis]
+category = "caching"
+
+# ── GraphQL ───────────────────────────────────────────────────────────
+[packages.graphene]
+category = "graphql"
+
+[packages.strawberry-graphql]
+category = "graphql"
+import_name = "strawberry"
+
+[packages.ariadne]
+category = "graphql"
+
+# ── WebSockets ────────────────────────────────────────────────────────
+[packages.websockets]
+category = "websocket"
+
+[packages.channels]
+category = "websocket"
+
+[packages.socketio]
+category = "websocket"
+
+[packages.python-socketio]
+category = "websocket"
+import_name = "socketio"
+
+# ── Email ─────────────────────────────────────────────────────────────
+[packages.sendgrid]
+category = "email"
+
+[packages.python-postmark]
+category = "email"
+import_name = "postmarker"
+
+# ── Scheduling ────────────────────────────────────────────────────────
+[packages.apscheduler]
+category = "scheduling"
+
+[packages.schedule]
+category = "scheduling"
+
+[packages.django-celery-beat]
+category = "scheduling"
+
+# ── Feature flags ─────────────────────────────────────────────────────
+[packages.launchdarkly-server-sdk]
+category = "feature_flags"
+import_name = "ldclient"
+
+[packages.flagsmith]
+category = "feature_flags"
+
+# ── i18n ──────────────────────────────────────────────────────────────
+[packages.babel]
+category = "i18n"
+
+[packages.django-modeltranslation]
+category = "i18n"
+
+# ── Rate limiting ─────────────────────────────────────────────────────
+[packages.ratelimit]
+category = "rate_limiting"
+
+[packages.slowapi]
+category = "rate_limiting"
+
+# ── Admin ─────────────────────────────────────────────────────────────
+[packages.django-admin]
+category = "admin"
+
+[packages.flask-admin]
+category = "admin"
+
+[packages.sqladmin]
+category = "admin"
+
+# ── Payment ───────────────────────────────────────────────────────────
+[packages.stripe]
+category = "payment"
+
+[packages.braintree]
+category = "payment"
+
+# ── Search ────────────────────────────────────────────────────────────
+[packages.whoosh]
+category = "search"
+
+[packages.django-haystack]
+category = "search"
+
+[packages.meilisearch]
+category = "search"
+
+[packages.typesense]
+category = "search"
+
+# ── gRPC ──────────────────────────────────────────────────────────────
+[packages.grpcio]
+category = "grpc"
+import_name = "grpc"
+
+[packages.grpcio-tools]
+category = "grpc"
+import_name = "grpc_tools"
+type = "tool"
+
+[packages.betterproto]
+category = "grpc"
+
+# ── Orchestration ─────────────────────────────────────────────────────
+[packages.prefect]
+category = "orchestration"
+
+[packages.airflow]
+category = "orchestration"
+
+[packages.dagster]
+category = "orchestration"
+
+[packages.luigi]
+category = "orchestration"
+
+[packages.temporal-sdk]
+category = "orchestration"
+import_name = "temporalio"
 
 # ── Config files ──────────────────────────────────────────────────────
 # Filename → description. Checked at project root.
@@ -541,31 +1084,9 @@ error = [
     "errors.py",
 ]
 
-# Package roles — maps severity level to list of import prefixes.
-# critical = these do I/O, network, or subprocess work — never safe at import time.
-[side_effects.package_roles]
-critical = [
-    # HTTP / network
-    "requests",
-    "httpx",
-    "aiohttp",
-    "urllib.request",
-    "urllib3",
-    # System
-    "subprocess",
-    "os.system",
-    "os.popen",
-    "socket",
-    # Blocking
-    "time.sleep",
-    "asyncio.sleep",
-    # Raw DB connections
-    "sqlite3.connect",
-    "psycopg2.connect",
-    "pymysql.connect",
-    "asyncpg.connect",
-    "pymongo.MongoClient",
-]
+# Package-level side_effects config lives under [packages.X.side_effects].
+# The global package_roles section is no longer needed — per-package config
+# is more precise and keeps everything co-located with the package definition.
 
 # ── Entry points ──────────────────────────────────────────────────────
 # Patterns for detecting application entry points.
