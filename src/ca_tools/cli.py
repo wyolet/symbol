@@ -64,6 +64,7 @@ def main(
 @app.command()
 def analyze(
     file: Annotated[str, typer.Argument(help="Path to the file to analyze")],
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
 ) -> None:
     """Analyze a single file — exports, imports, per-name blast radius."""
     file_path = Path(file).resolve()
@@ -74,7 +75,7 @@ def analyze(
             break
         project_root = project_root.parent
     target = str(file_path.relative_to(project_root))
-    analyze_cmd(str(project_root), target, format=state.get("format", "rich"))
+    analyze_cmd(str(project_root), target, format=format)
 
 
 @app.command()
@@ -91,10 +92,11 @@ def audit(
     path: Annotated[str, typer.Argument(help="Path to the project directory")],
     include: Annotated[list[str] | None, typer.Option("-i", "--include", help="Glob patterns to include")] = None,
     exclude: Annotated[list[str] | None, typer.Option("-e", "--exclude", help="Glob patterns to exclude")] = None,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
 ) -> None:
     """Audit a Python codebase — detect stack, entry points, orphans, side effects."""
     audit_cmd(
-        path, include=include or [], exclude=exclude or [], verbose=state["verbose"], format=state.get("format", "rich")
+        path, include=include or [], exclude=exclude or [], verbose=state["verbose"], format=format
     )
 
 
@@ -109,9 +111,10 @@ def init(
 @app.command()
 def loc(
     path: Annotated[str, typer.Argument(help="Path to the project directory")],
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
 ) -> None:
     """Count lines of code by language — powered by GitHub Linguist."""
-    loc_cmd(path, format=state.get("format", "rich"))
+    loc_cmd(path, format=format)
 
 
 @app.command("map")
@@ -124,6 +127,7 @@ def map_command(
     coupling_depth: Annotated[int, typer.Option("--coupling-depth", help="Package depth for coupling analysis (1=top-level, 2=sub-packages)")] = 1,
     show: Annotated[str | None, typer.Option(help="Show full detail for one section: cycles, hotspots, fragile, chains, leafs, coupling")] = None,
     limit: Annotated[int | None, typer.Option("-n", "--limit", help="Max items per section in summary view")] = None,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
 ) -> None:
     """Map the import graph — find cycles, hotspots, and fragile modules."""
     map_cmd(
@@ -135,7 +139,7 @@ def map_command(
         coupling_depth=coupling_depth,
         show=show,
         limit=limit,
-        format=state.get("format", "rich"),
+        format=format,
     )
 
 
