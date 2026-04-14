@@ -2,11 +2,16 @@
 
 from pathlib import Path, PurePath
 
-# Always excluded directories — never parse these, not even for import graph
+# Always excluded directories — never build ASTs for these.
+# LOC counting (linguist) scans files directly and is unaffected.
+# Framework-specific conventions (e.g. fastapi's docs_src/) go in
+# [packages.X.orphan] in spec.toml instead — they're skipped from
+# orphan detection but still parsed if a project includes them via
+# their own include/exclude config.
 ALWAYS_SKIP = {
     "__pycache__", "venv", ".venv", "node_modules", "env",
     ".git", ".hg", ".svn",
-    "docs", "doc", "docs_src",   # documentation — standalone snippets, not production code
+    "docs", "doc",               # documentation — tutorial snippets, not production code
     "scripts", "bin", "tools",   # one-off scripts — not part of the import graph
     "examples", "example",       # demo code
 }

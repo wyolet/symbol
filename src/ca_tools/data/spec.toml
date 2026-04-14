@@ -100,6 +100,9 @@ debug = ["extensions.py", "factory.py"]
 category = "web"
 detect = { deps = ["fastapi"] }
 
+[packages.fastapi.orphan]
+patterns = ["docs_src/**"]   # fastapi's tutorial snippets — not production code
+
 [packages.fastapi.side_effects]
 safe_calls = ["lifespan"]
 
