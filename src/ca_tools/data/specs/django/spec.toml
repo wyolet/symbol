@@ -5,9 +5,9 @@ detect = { deps = ["django"] }
 [orphan]
 patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
 
-[side_effects]
-safe_calls = ["setup"]
+[checkers.side_effects.calls]
+skip = ["setup"]
 
-[side_effects.file_roles]
+[checkers.side_effects.patterns]
 debug = ["apps.py", "admin.py", "signals.py", "manage.py", "urls.py"]
 error = ["forms.py", "filters.py", "permissions.py"]

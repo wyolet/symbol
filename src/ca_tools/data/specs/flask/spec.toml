@@ -2,9 +2,9 @@ name = "flask"
 category = "web"
 detect = { deps = ["flask"] }
 
-[side_effects]
-safe_calls = ["Flask", "Blueprint", "from_object", "from_envvar"]
+[checkers.side_effects.calls]
+skip = ["Flask", "Blueprint", "from_object", "from_envvar"]
 
-[side_effects.file_roles]
+[checkers.side_effects.patterns]
 debug = ["extensions.py", "factory.py"]
 error = ["forms.py", "filters.py"]

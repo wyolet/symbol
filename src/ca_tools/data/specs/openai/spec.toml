@@ -1,5 +1,5 @@
 name = "openai"
 category = "llm"
 
-[side_effects]
-module_level = "critical"
+[checkers.side_effects]
+severity = "critical"

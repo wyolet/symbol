@@ -62,7 +62,11 @@ class MapSeverityFilter:
 @dataclass
 class PackageSideEffectsOverride:
     """Project-level override for a package's side_effects checker config."""
-    module_level: Severity | None = None
+    severity: Severity | None = None
+    # backward compat alias
+    @property
+    def module_level(self) -> Severity | None:
+        return self.severity
 
 
 @dataclass
@@ -80,14 +84,13 @@ class PackageProjectConfig:
 
 @dataclass
 class SideEffectsProjectConfig:
-    """Project-level overrides for [tool.ca-tools.side_effects].
+    """Project-level overrides for [tool.ca-tools.checkers.side_effects].
 
     Wins over spec and package defaults — use to silence or add calls project-wide.
     """
-    safe_calls: list[str] = field(default_factory=list)
-    known_effects: list[str] = field(default_factory=list)
-    # basename → severity: overrides file role for specific files in this project
-    file_roles: dict[str, "Severity"] = field(default_factory=dict)
+    severity: Severity | None = None
+    calls: dict[str, list[str]] = field(default_factory=dict)   # severity → [call names]
+    patterns: dict[str, Severity] = field(default_factory=dict)  # basename → Severity
 
 
 @dataclass
@@ -165,17 +168,38 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     config.custom_checkers = ca.get("custom_checkers", [])
     config.extra_specs = ca.get("extra_specs", [])
 
-    # [tool.ca-tools.side_effects] — project-level overrides, win over all spec layers
-    se_raw = ca.get("side_effects", {})
+    # [tool.ca-tools.checkers.side_effects] — project-level overrides, win over all spec layers
+    # Also check legacy [tool.ca-tools.side_effects] for backward compat
+    _checkers_se_raw = ca.get("checkers", {}).get("side_effects", {})
+    _legacy_se_raw = ca.get("side_effects", {})
+    se_raw = _checkers_se_raw if _checkers_se_raw else _legacy_se_raw
     if se_raw:
-        config.side_effects.safe_calls = list(se_raw.get("safe_calls", []))
-        config.side_effects.known_effects = list(se_raw.get("known_effects", []))
-        raw_roles = se_raw.get("file_roles", {})
-        config.side_effects.file_roles = {
-            name: _parse_severity(sev_str)
-            for sev_str, names in raw_roles.items()
-            for name in names
-        }
+        if "severity" in se_raw:
+            config.side_effects.severity = _parse_severity(se_raw["severity"])
+        if _checkers_se_raw:
+            # New shape: calls = {severity: [names]}
+            calls_raw = se_raw.get("calls", {})
+            config.side_effects.calls = {sev: list(names) for sev, names in calls_raw.items()}
+            raw_patterns = se_raw.get("patterns", {})
+            config.side_effects.patterns = {
+                name: _parse_severity(sev_str)
+                for sev_str, names in raw_patterns.items()
+                for name in names
+            }
+        else:
+            # Legacy shape — migrate into new calls/patterns structure
+            _legacy_skip = list(se_raw.get("safe_calls", []))
+            _legacy_error = list(se_raw.get("known_effects", []))
+            if _legacy_skip:
+                config.side_effects.calls["skip"] = _legacy_skip
+            if _legacy_error:
+                config.side_effects.calls["error"] = _legacy_error
+            raw_roles = se_raw.get("file_roles", {})
+            config.side_effects.patterns = {
+                name: _parse_severity(sev_str)
+                for sev_str, names in raw_roles.items()
+                for name in names
+            }
 
     # Per-checker config: [tool.ca-tools.checkers.NAME]
     for checker_name, checker_data in ca.get("checkers", {}).items():
@@ -227,8 +251,12 @@ def load_project_config(project_root: Path) -> ProjectConfig:
         pkg_cfg = PackageProjectConfig()
 
         se = pkg_data.get("side_effects", {})
-        if isinstance(se, dict) and "module_level" in se:
-            pkg_cfg.side_effects.module_level = _parse_severity(se["module_level"])
+        if isinstance(se, dict):
+            if "severity" in se:
+                pkg_cfg.side_effects.severity = _parse_severity(se["severity"])
+            elif "module_level" in se:
+                # legacy key
+                pkg_cfg.side_effects.severity = _parse_severity(se["module_level"])
 
         orphan = pkg_data.get("orphan", {})
         if isinstance(orphan, dict) and "patterns" in orphan:

@@ -5,8 +5,8 @@ detect = { deps = ["fastapi"] }
 [checker]
 exclude = ["docs_src/**"]
 
-[side_effects]
-safe_calls = ["FastAPI", "APIRouter", "lifespan"]
+[checkers.side_effects.calls]
+skip = ["FastAPI", "APIRouter", "lifespan"]
 
-[side_effects.file_roles]
+[checkers.side_effects.patterns]
 debug = ["dependencies.py", "lifespan.py", "middleware.py"]

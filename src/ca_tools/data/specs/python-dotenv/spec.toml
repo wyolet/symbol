@@ -2,5 +2,5 @@ name = "python-dotenv"
 category = "config"
 import_name = "dotenv"
 
-[side_effects]
-known_effects = ["load_dotenv", "dotenv_values"]
+[checkers.side_effects.calls]
+error = ["load_dotenv", "dotenv_values"]

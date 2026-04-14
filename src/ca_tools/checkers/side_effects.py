@@ -16,6 +16,7 @@ from ca_tools.shared.findings import SEVERITY_STYLE, Finding, Severity
 I1, I2 = "  ", "    "
 
 _STYLE_MAP = {
+    Severity.SKIP: "dim",
     Severity.DEBUG: "dim",
     Severity.INFO: "bold blue",
     Severity.WARNING: "bold yellow",
@@ -23,6 +24,7 @@ _STYLE_MAP = {
     Severity.CRITICAL: "bold red",
 }
 _ICON_MAP = {
+    Severity.SKIP: "○",
     Severity.DEBUG: "\u00b7",
     Severity.INFO: "\u2139\ufe0f ",
     Severity.WARNING: "\u26a0\ufe0f ",
@@ -55,9 +57,9 @@ def detect(
         return []
 
     safe_calls = ctx.resolved.safe_calls
-    known_effects = ctx.resolved.known_effects
+    known_effects = ctx.resolved.error_calls
     ignore_patterns = ctx.resolved.ignore_patterns.get("side_effects", [])
-    file_roles = ctx.resolved.side_effect_file_roles
+    file_roles = ctx.resolved.side_effect_patterns
     package_roles = ctx.resolved.side_effect_package_roles
 
     # Severity for this file based on its role

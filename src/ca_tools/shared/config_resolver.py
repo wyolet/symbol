@@ -21,19 +21,19 @@ def resolve_config(
 
     se_project = project_config.side_effects
 
-    # --- safe_calls ---
-    safe_calls = set(spec.side_effects.safe_calls)
+    # --- safe_calls (skip severity) ---
+    safe_calls = set(spec.side_effects.skip_calls)
     for pkg_info in spec.packages.values():
-        safe_calls.update(pkg_info.side_effects.safe_calls)
+        safe_calls.update(pkg_info.side_effects.skip_calls)
     for fw in frameworks:
         safe_calls.update(fw.safe_calls)
-    safe_calls.update(se_project.safe_calls)
+    safe_calls.update(se_project.calls.get("skip", []))
 
-    # --- known_effects ---
-    known_effects: set[str] = set(spec.side_effects.known_effects)
+    # --- error_calls (known error severity) ---
+    error_calls: set[str] = set(spec.side_effects.known_error_calls)
     for pkg_info in spec.packages.values():
-        known_effects.update(pkg_info.side_effects.known_effects)
-    known_effects.update(se_project.known_effects)
+        error_calls.update(pkg_info.side_effects.error_calls)
+    error_calls.update(se_project.calls.get("error", []))
 
     # --- skip_orphan_patterns ---
     skip_patterns: list[str] = []
@@ -45,25 +45,25 @@ def resolve_config(
     for pkg_cfg in project_config.packages.values():
         skip_patterns.extend(pkg_cfg.orphan.patterns)
 
-    # --- side effect file roles: spec → packages → frameworks → project ---
-    file_roles: dict[str, "Severity"] = dict(spec.side_effects.file_roles)
+    # --- side effect patterns: spec → packages → frameworks → project ---
+    patterns: dict[str, "Severity"] = dict(spec.side_effects.patterns)
     for pkg_info in spec.packages.values():
-        file_roles.update(pkg_info.side_effects.file_roles)
+        patterns.update(pkg_info.side_effects.patterns)
     for fw in frameworks:
-        file_roles.update(fw.file_roles)
-    file_roles.update(se_project.file_roles)
+        patterns.update(fw.file_roles)
+    patterns.update(se_project.patterns)
 
     # --- side effect package roles: spec baseline → per-package spec → project overrides ---
     package_roles: dict[str, Severity] = dict(spec.side_effects.package_roles)
     for pkg_name, pkg_info in spec.packages.items():
-        if pkg_info.side_effects.module_level != Severity.WARNING:
+        if pkg_info.side_effects.severity != Severity.WARNING:
             import_name = pkg_info.import_name or pkg_name.replace("-", "_")
-            package_roles[import_name] = pkg_info.side_effects.module_level
+            package_roles[import_name] = pkg_info.side_effects.severity
     # Project-level package overrides win last
     for pkg_name, pkg_cfg in project_config.packages.items():
-        if pkg_cfg.side_effects.module_level is not None:
+        if pkg_cfg.side_effects.severity is not None:
             import_name = pkg_name.replace("-", "_")
-            package_roles[import_name] = pkg_cfg.side_effects.module_level
+            package_roles[import_name] = pkg_cfg.side_effects.severity
 
     # --- severity overrides and ignore patterns from [tool.ca-tools.checkers.NAME] ---
     _CHECKER_DEFAULTS: dict[str, Severity] = {
@@ -87,8 +87,8 @@ def resolve_config(
         severity_overrides=severity_overrides,
         ignore_patterns=ignore,
         safe_calls=frozenset(safe_calls),
-        known_effects=frozenset(known_effects),
+        error_calls=frozenset(error_calls),
         skip_orphan_patterns=skip_patterns,
-        side_effect_file_roles=file_roles,
+        side_effect_patterns=patterns,
         side_effect_package_roles=package_roles,
     )

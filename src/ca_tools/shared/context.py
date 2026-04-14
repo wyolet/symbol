@@ -31,18 +31,27 @@ class ResolvedConfig:
     severity_overrides: dict[str, Severity] = field(default_factory=dict)
     ignore_patterns: dict[str, list[str]] = field(default_factory=dict)
     safe_calls: frozenset[str] = frozenset()
-    known_effects: frozenset[str] = frozenset()
+    error_calls: frozenset[str] = frozenset()
     skip_orphan_patterns: list[str] = field(default_factory=list)
     # basename → Severity: merged from spec + frameworks + project
-    side_effect_file_roles: dict[str, Severity] = None  # type: ignore[assignment]
+    side_effect_patterns: dict[str, Severity] = None  # type: ignore[assignment]
     # package prefix → Severity: merged from spec + project
     side_effect_package_roles: dict[str, Severity] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        if self.side_effect_file_roles is None:
-            object.__setattr__(self, "side_effect_file_roles", {})
+        if self.side_effect_patterns is None:
+            object.__setattr__(self, "side_effect_patterns", {})
         if self.side_effect_package_roles is None:
             object.__setattr__(self, "side_effect_package_roles", {})
+
+    # backward-compat alias
+    @property
+    def known_effects(self) -> frozenset[str]:
+        return self.error_calls
+
+    @property
+    def side_effect_file_roles(self) -> dict[str, Severity]:
+        return self.side_effect_patterns
 
 
 @dataclass

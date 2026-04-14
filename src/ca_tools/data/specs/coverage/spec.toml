@@ -2,5 +2,5 @@ name = "coverage"
 category = "testing"
 type = "tool"
 
-[side_effects]
-module_level = "debug"
+[checkers.side_effects]
+severity = "debug"

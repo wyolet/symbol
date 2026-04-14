@@ -9,15 +9,32 @@ from ca_tools.shared.findings import Severity
 
 @dataclass(frozen=True)
 class PackageSideEffectsSpec:
-    module_level: Severity = Severity.WARNING
-    safe_calls: frozenset[str] = frozenset()
-    known_effects: frozenset[str] = frozenset()
-    # basename → Severity overrides for this package's framework files
-    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+    severity: Severity = Severity.WARNING
+    calls: dict[str, frozenset[str]] = None   # severity_str → frozenset of call names
+    patterns: dict[str, Severity] = None       # basename → Severity (flat)
 
     def __post_init__(self) -> None:
-        if self.file_roles is None:
-            object.__setattr__(self, "file_roles", {})
+        if self.calls is None:
+            object.__setattr__(self, "calls", {})
+        if self.patterns is None:
+            object.__setattr__(self, "patterns", {})
+
+    @property
+    def skip_calls(self) -> frozenset[str]:
+        return self.calls.get("skip", frozenset())
+
+    @property
+    def error_calls(self) -> frozenset[str]:
+        return self.calls.get("error", frozenset())
+
+    # --- backward-compat properties used by framework_detector and config_resolver ---
+    @property
+    def safe_calls(self) -> frozenset[str]:
+        return self.skip_calls
+
+    @property
+    def file_roles(self) -> dict[str, Severity]:
+        return self.patterns if self.patterns is not None else {}
 
 
 @dataclass(frozen=True)
@@ -50,18 +67,39 @@ class PackageInfo:
 
 @dataclass(frozen=True)
 class SideEffectSpec:
-    safe_calls: frozenset[str]
-    known_effects: frozenset[str]
-    # basename → Severity: overrides default WARNING for that file
-    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
-    # package prefix → Severity: overrides default WARNING for calls from that package
-    package_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+    severity: Severity = Severity.WARNING
+    calls: dict[str, frozenset[str]] = None    # severity_str → frozenset of call names
+    patterns: dict[str, Severity] = None        # basename → Severity (flat)
+    package_roles: dict[str, Severity] = None   # package prefix → Severity
 
     def __post_init__(self) -> None:
-        if self.file_roles is None:
-            object.__setattr__(self, "file_roles", {})
+        if self.calls is None:
+            object.__setattr__(self, "calls", {})
+        if self.patterns is None:
+            object.__setattr__(self, "patterns", {})
         if self.package_roles is None:
             object.__setattr__(self, "package_roles", {})
+
+    @property
+    def skip_calls(self) -> frozenset[str]:
+        return self.calls.get("skip", frozenset())
+
+    @property
+    def known_error_calls(self) -> frozenset[str]:
+        return self.calls.get("error", frozenset())
+
+    # --- backward-compat properties ---
+    @property
+    def safe_calls(self) -> frozenset[str]:
+        return self.skip_calls
+
+    @property
+    def known_effects(self) -> frozenset[str]:
+        return self.known_error_calls
+
+    @property
+    def file_roles(self) -> dict[str, Severity]:
+        return self.patterns if self.patterns is not None else {}
 
 
 @dataclass(frozen=True)
@@ -199,13 +237,33 @@ def _load_package_spec(raw: dict, categories: dict[str, str]) -> "tuple[str, Pac
         raise ValueError(f"Package {pkg_name!r} references unknown category {cat!r}")
     detect_raw = raw.get("detect", {})
     orphan_raw = raw.get("orphan", {})
-    se_raw = raw.get("side_effects", {})
-    pkg_se = PackageSideEffectsSpec(
-        module_level=Severity(se_raw.get("module_level", "warning")),
-        safe_calls=frozenset(se_raw.get("safe_calls", [])),
-        known_effects=frozenset(se_raw.get("known_effects", [])),
-        file_roles=_parse_roles(se_raw.get("file_roles", {})),
-    )
+    # Support both old [side_effects] shape and new [checkers.side_effects] shape
+    old_se_raw = raw.get("side_effects", {})
+    new_se_raw = raw.get("checkers", {}).get("side_effects", {})
+    # New shape takes precedence; fall back to old shape
+    if new_se_raw:
+        calls_raw = new_se_raw.get("calls", {})
+        calls = {sev: frozenset(names) for sev, names in calls_raw.items()}
+        patterns = _parse_roles(new_se_raw.get("patterns", {}))
+        pkg_se = PackageSideEffectsSpec(
+            severity=Severity(new_se_raw.get("severity", "warning")),
+            calls=calls,
+            patterns=patterns,
+        )
+    else:
+        # Legacy shape — migrate fields into new structure
+        _legacy_skip = list(old_se_raw.get("safe_calls", []))
+        _legacy_error = list(old_se_raw.get("known_effects", []))
+        calls: dict[str, frozenset[str]] = {}
+        if _legacy_skip:
+            calls["skip"] = frozenset(_legacy_skip)
+        if _legacy_error:
+            calls["error"] = frozenset(_legacy_error)
+        pkg_se = PackageSideEffectsSpec(
+            severity=Severity(old_se_raw.get("module_level", "warning")),
+            calls=calls,
+            patterns=_parse_roles(old_se_raw.get("file_roles", {})),
+        )
     pkg_orphan = PackageOrphanSpec(patterns=tuple(orphan_raw.get("patterns", [])))
     info = PackageInfo(
         category=cat,
@@ -237,10 +295,30 @@ def _parse_spec(raw: dict, packages: "dict[str, PackageInfo]") -> "Spec":
     """Parse raw TOML dict into a validated Spec."""
     categories = dict(raw["categories"])
 
-    se = raw["side_effects"]
     ep = raw["entrypoints"]
     c = raw.get("checker", {})
     s = raw.get("scanner", {})
+
+    # Support both old [side_effects] and new [checkers.side_effects]
+    new_se = raw.get("checkers", {}).get("side_effects", {})
+    old_se = raw.get("side_effects", {})
+    if new_se:
+        _se_calls_raw = new_se.get("calls", {})
+        _se_calls = {sev: frozenset(names) for sev, names in _se_calls_raw.items()}
+        _se_patterns = _parse_roles(new_se.get("patterns", {}))
+        _se_pkg_roles = _parse_roles(new_se.get("package_roles", {}))
+        _se_severity = Severity(new_se.get("severity", "warning"))
+    else:
+        _legacy_skip = list(old_se.get("safe_calls", []))
+        _legacy_error = list(old_se.get("known_effects", []))
+        _se_calls: dict[str, frozenset[str]] = {}
+        if _legacy_skip:
+            _se_calls["skip"] = frozenset(_legacy_skip)
+        if _legacy_error:
+            _se_calls["error"] = frozenset(_legacy_error)
+        _se_patterns = _parse_roles(old_se.get("file_roles", {}))
+        _se_pkg_roles = _parse_roles(old_se.get("package_roles", {}))
+        _se_severity = Severity(old_se.get("severity", "warning"))
 
     return Spec(
         categories=categories,
@@ -248,10 +326,10 @@ def _parse_spec(raw: dict, packages: "dict[str, PackageInfo]") -> "Spec":
         config_files=dict(raw["config_files"]),
         config_dirs=dict(raw["config_dirs"]),
         side_effects=SideEffectSpec(
-            safe_calls=frozenset(se["safe_calls"]),
-            known_effects=frozenset(se["known_effects"]),
-            file_roles=_parse_roles(se.get("file_roles", {})),
-            package_roles=_parse_roles(se.get("package_roles", {})),
+            severity=_se_severity,
+            calls=_se_calls,
+            patterns=_se_patterns,
+            package_roles=_se_pkg_roles,
         ),
         entrypoints=EntrypointSpec(
             starters=frozenset(ep["starters"]),

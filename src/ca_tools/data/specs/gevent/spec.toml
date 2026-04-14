@@ -1,5 +1,5 @@
 name = "gevent"
 category = "async"
 
-[side_effects]
-known_effects = ["monkey_patch", "monkey.patch_all"]
+[checkers.side_effects.calls]
+error = ["monkey_patch", "monkey.patch_all"]

@@ -5,6 +5,7 @@ from enum import Enum
 
 
 class Severity(Enum):
+    SKIP = "skip"         # suppressed entirely — not recorded anywhere
     DEBUG = "debug"       # seen, suppressed by default — skip-list files, noise
     INFO = "info"         # informational, shown with -v
     WARNING = "warning"   # default output threshold
@@ -13,7 +14,7 @@ class Severity(Enum):
 
     @property
     def _order(self) -> int:
-        return {"debug": 0, "info": 1, "warning": 2, "error": 3, "critical": 4}[self.value]
+        return {"skip": -1, "debug": 0, "info": 1, "warning": 2, "error": 3, "critical": 4}[self.value]
 
     def __lt__(self, other: "Severity") -> bool:
         return self._order < other._order
@@ -29,6 +30,7 @@ class Severity(Enum):
 
 
 SEVERITY_STYLE = {
+    Severity.SKIP: ("dim", "○"),
     Severity.DEBUG: ("dim", "\u00b7"),
     Severity.INFO: ("blue", "\u00b7"),
     Severity.WARNING: ("yellow", "!"),

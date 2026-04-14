@@ -190,16 +190,20 @@ terraform = "infrastructure as code"
 
 # ── Side effects ──────────────────────────────────────────────────────
 # Global rules for the side_effects checker.
-# Per-package overrides live under [packages.X.side_effects].
+# Per-package overrides live under [checkers.side_effects] in package specs.
 #
 # Severity resolution order (highest wins):
-#   1. [packages.X.side_effects] module_level  — package-specific
-#   2. [side_effects.file_roles]               — file basename role
+#   1. [checkers.side_effects] severity  — package-specific override
+#   2. [checkers.side_effects.patterns]  — file basename role
 #   3. default WARNING
 
-[side_effects]
-# Leaf function names that are safe / expected at module level — never flagged.
-safe_calls = [
+[checkers.side_effects]
+severity = "warning"
+
+# Call names by severity: skip = never flagged, error = always flagged even if uppercase.
+# Only stdlib/builtins here — framework-specific entries belong in their package specs.
+[checkers.side_effects.calls]
+skip = [
     "getLogger",
     "basicConfig",
     "TypeVar",
@@ -213,10 +217,7 @@ safe_calls = [
     "IntEnum",
     "StrEnum",
 ]
-
-# Leaf function names known to have real side effects — always flagged even if uppercase.
-# Only stdlib/builtins here — framework-specific entries belong in their package specs.
-known_effects = [
+error = [
     "configure",
     "setup",
     "init",
@@ -225,11 +226,11 @@ known_effects = [
     "patch",
 ]
 
-# File roles — maps severity level to list of basenames.
+# File patterns — maps severity level to list of basenames.
 # debug   = side effects are EXPECTED here (entry points, config, app wiring)
 # error   = side effects are UNEXPECTED here (pure logic modules — almost always a bug)
 # warning = default for everything not listed (no entry needed)
-[side_effects.file_roles]
+[checkers.side_effects.patterns]
 debug = [
     # Generic entry points
     "main.py",
@@ -268,7 +269,7 @@ error = [
     "errors.py",
 ]
 
-# Package-level side_effects config lives under [packages.X.side_effects].
+# Package-level side_effects config lives under [checkers.side_effects] in package specs.
 # The global package_roles section is no longer needed — per-package config
 # is more precise and keeps everything co-located with the package definition.
 
