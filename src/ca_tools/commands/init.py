@@ -8,12 +8,12 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
-from ca_tools.shared.entrypoint_finder import detect_entrypoints
-from ca_tools.shared.import_graph import OrphanFile, build_import_graph, detect_orphans
-from ca_tools.shared.sideeffect_finder import SideEffect, detect_sideeffects
-from ca_tools.shared.deps import detect_deps
-from ca_tools.shared.unused_dep_finder import detect_unused_deps
-from ca_tools.shared.spec import load_spec
+import ca_tools.checkers  # noqa: F401
+from ca_tools.checkers.orphans import OrphanFile
+from ca_tools.checkers.side_effects import SideEffect
+from ca_tools.shared.context import build_context
+from ca_tools.shared.findings import Report
+from ca_tools.shared.runner import run_checkers
 
 console = Console()
 
@@ -121,7 +121,6 @@ def init_cmd(path: str) -> None:
     """Analyze a project and generate a recommended [tool.ca-tools] config."""
     project_root = Path(path).resolve()
     project_name = project_root.name
-    spec = load_spec()
 
     console.print()
     console.print(
@@ -134,19 +133,13 @@ def init_cmd(path: str) -> None:
     console.print()
 
     # Run analysis passes
-    console.print("  [dim]Detecting entry points...[/dim]")
-    detect_entrypoints(project_root)
+    console.print("  [dim]Analyzing project...[/dim]")
+    ctx = build_context(project_root)
+    results = run_checkers(ctx, Report())
 
-    console.print("  [dim]Building import graph...[/dim]")
-    graph = build_import_graph(project_root)
-    orphans = detect_orphans(project_root, graph)
-
-    console.print("  [dim]Detecting side effects...[/dim]")
-    sideeffects = detect_sideeffects(project_root, spec)
-
-    console.print("  [dim]Detecting unused deps...[/dim]")
-    deps = detect_deps(project_root)
-    unused = detect_unused_deps(project_root, deps, spec)
+    orphans = results.get("orphans", [])
+    sideeffects = results.get("side_effects", [])
+    unused = results.get("unused_deps", [])
 
     # Match patterns
     ignore_orphans = _match_orphan_patterns(orphans, project_root)

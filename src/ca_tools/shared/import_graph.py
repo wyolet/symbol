@@ -1,14 +1,12 @@
 """Import graph construction and orphan file detection."""
 
 import ast
-import fnmatch
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
 from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.files import collect_py_files
-from ca_tools.shared.pipeline import ENTRYPOINTS, SKIP_ORPHAN, make_context, run_pipeline
 
 
 class ImportScope(Enum):
@@ -300,90 +298,6 @@ def _resolve_submodule_imports(graph: ImportGraph) -> None:
                     if new_targets:
                         targets.update(new_targets)
                         changed = True
-
-
-def detect_orphans(
-    project_root: Path,
-    graph: ImportGraph | None = None,
-    entry_point_files: set[Path] | None = None,
-) -> list[OrphanFile]:
-    if graph is None:
-        graph = build_import_graph(project_root)
-
-    imported_files: set[Path] = set()
-    for targets in graph.resolved_edges.values():
-        imported_files.update(targets)
-
-    # Default skip patterns — Python conventions and common test patterns
-    _DEFAULT_SKIP = [
-        "__init__.py", "__main__.py", "setup.py", "manage.py",
-        "conftest.py", "test_*.py", "*_test.py",
-    ]
-
-    # Collect skip patterns from framework hooks
-    context = make_context(project_root)
-    skip_patterns = _DEFAULT_SKIP + run_pipeline(SKIP_ORPHAN, project_root, context)
-
-    # Collect framework-detected entry points (uvicorn strings, [project.scripts], etc.)
-    extra_entry_modules = run_pipeline(ENTRYPOINTS, project_root, context)
-    if extra_entry_modules:
-        module_to_file = _build_module_map(project_root, graph.files)
-        if entry_point_files is None:
-            entry_point_files = set()
-        for mod in extra_entry_modules:
-            # Resolve dotted module to file path
-            normalized = mod.replace("/", ".").removesuffix(".py")
-            if normalized in module_to_file:
-                entry_point_files.add(module_to_file[normalized])
-
-    orphans: list[OrphanFile] = []
-    for py_file in graph.files:
-        if py_file in imported_files:
-            continue
-
-        rel = py_file.relative_to(project_root)
-        name = rel.name
-        rel_str = str(rel)
-
-        # Check against skip patterns from framework hooks
-        if _matches_skip(name, rel_str, skip_patterns):
-            continue
-
-        # Skip files already detected as entry points
-        if entry_point_files and py_file in entry_point_files:
-            continue
-
-        # Classify the orphan
-        if "script" in rel_str or "scripts" in rel_str:
-            reason = "likely one-off script"
-        elif "test" in rel_str or "tests" in rel_str:
-            reason = "likely test file"
-        else:
-            reason = "likely dead code"
-
-        orphans.append(OrphanFile(filepath=py_file, reason=reason))
-
-    return orphans
-
-
-def _matches_skip(name: str, rel_str: str, patterns: list[str]) -> bool:
-    """Check if a file matches any skip pattern.
-
-    Patterns can be:
-    - Exact filenames: "conftest.py", "__init__.py"
-    - Glob patterns: "test_*.py", "alembic/versions/*.py"
-    """
-    for pattern in patterns:
-        # Exact filename match
-        if name == pattern:
-            return True
-        # Glob against filename
-        if fnmatch.fnmatch(name, pattern):
-            return True
-        # Glob against relative path
-        if fnmatch.fnmatch(rel_str, pattern):
-            return True
-    return False
 
 
 def graph_summary(graph: ImportGraph, orphan_count: int) -> dict[str, int]:

@@ -7,8 +7,6 @@ from pathlib import Path
 # Pipeline categories
 DEPS = "deps"
 IMPORTS = "imports"
-ENTRYPOINTS = "entrypoints"
-SKIP_ORPHAN = "skip_orphan"  # hooks that decide if a file should be excluded from orphan detection
 
 # Registry: pipeline name → list of (priority, function)
 _registry: dict[str, list[tuple[int, Callable]]] = defaultdict(list)
