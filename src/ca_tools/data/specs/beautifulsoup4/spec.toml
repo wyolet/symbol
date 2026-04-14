@@ -1,0 +1,3 @@
+name = "beautifulsoup4"
+category = "web"
+import_name = "bs4"

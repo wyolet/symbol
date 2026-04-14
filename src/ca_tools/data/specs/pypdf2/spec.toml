@@ -1,0 +1,3 @@
+name = "pypdf2"
+category = "file_handling"
+import_name = "PyPDF2"

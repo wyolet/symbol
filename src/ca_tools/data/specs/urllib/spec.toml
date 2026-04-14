@@ -1,0 +1,6 @@
+name = "urllib"
+category = "http_client"
+stdlib = true
+
+[side_effects]
+module_level = "critical"

@@ -1,0 +1,3 @@
+name = "unittest"
+category = "testing"
+stdlib = true

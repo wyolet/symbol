@@ -1,0 +1,4 @@
+name = "gunicorn"
+category = "web"
+type = "tool"
+runtime_only = true

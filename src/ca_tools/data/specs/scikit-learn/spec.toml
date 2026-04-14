@@ -1,0 +1,3 @@
+name = "scikit-learn"
+category = "data_science"
+import_name = "sklearn"

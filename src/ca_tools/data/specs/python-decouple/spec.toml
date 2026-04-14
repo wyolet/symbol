@@ -1,0 +1,3 @@
+name = "python-decouple"
+category = "config"
+import_name = "decouple"

@@ -1,0 +1,13 @@
+name = "pytest"
+category = "testing"
+type = "tool"
+detect = { deps = ["pytest"] }
+
+[orphan]
+patterns = ["conftest.py", "test_*.py", "*_test.py"]
+
+[side_effects]
+module_level = "debug"
+
+[side_effects.file_roles]
+debug = ["conftest.py"]

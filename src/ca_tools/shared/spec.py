@@ -114,11 +114,50 @@ class Spec:
             object.__setattr__(self, "init", InitSpec())
 
 
-def load_spec() -> Spec:
-    """Load the bundled spec.toml and return a validated Spec."""
-    spec_path = files("ca_tools").joinpath("data", "spec.toml")
+def load_spec(extra_spec_paths: "list[object] | None" = None) -> "Spec":
+    """Load the bundled spec.toml and per-package specs, return a validated Spec."""
+    data_root = files("ca_tools").joinpath("data")
+    spec_path = data_root.joinpath("spec.toml")
     raw = tomllib.loads(spec_path.read_text(encoding="utf-8"))
-    return _parse_spec(raw)
+    categories = dict(raw["categories"])
+
+    packages: dict[str, PackageInfo] = {}
+    for pkg_name in raw.get("specs", {}).get("include", []):
+        pkg_spec_path = data_root.joinpath("specs", pkg_name, "spec.toml")
+        pkg_raw = tomllib.loads(pkg_spec_path.read_text(encoding="utf-8"))
+        name, info = _load_package_spec(pkg_raw, categories)
+        packages[name] = info
+
+    return _parse_spec(raw, packages)
+
+
+def _load_package_spec(raw: dict, categories: dict[str, str]) -> "tuple[str, PackageInfo]":
+    """Parse a root-level per-package spec file into (name, PackageInfo)."""
+    pkg_name = raw["name"]
+    cat = raw["category"]
+    if cat not in categories:
+        raise ValueError(f"Package {pkg_name!r} references unknown category {cat!r}")
+    detect_raw = raw.get("detect", {})
+    orphan_raw = raw.get("orphan", {})
+    se_raw = raw.get("side_effects", {})
+    pkg_se = PackageSideEffectsSpec(
+        module_level=Severity(se_raw.get("module_level", "warning")),
+        safe_calls=frozenset(se_raw.get("safe_calls", [])),
+        file_roles=_parse_roles(se_raw.get("file_roles", {})),
+    )
+    pkg_orphan = PackageOrphanSpec(patterns=tuple(orphan_raw.get("patterns", [])))
+    info = PackageInfo(
+        category=cat,
+        type=raw.get("type", "lib"),
+        stdlib=raw.get("stdlib", False),
+        import_name=raw.get("import_name"),
+        side_effects=pkg_se,
+        detect_deps=frozenset(detect_raw.get("deps", [])),
+        detect_config_files=frozenset(detect_raw.get("config_files", [])),
+        orphan=pkg_orphan,
+        runtime_only=raw.get("runtime_only", False),
+    )
+    return pkg_name, info
 
 
 def _parse_roles(roles: dict) -> dict[str, Severity]:
@@ -131,35 +170,9 @@ def _parse_roles(roles: dict) -> dict[str, Severity]:
     return result
 
 
-def _parse_spec(raw: dict) -> Spec:
+def _parse_spec(raw: dict, packages: "dict[str, PackageInfo]") -> "Spec":
     """Parse raw TOML dict into a validated Spec."""
     categories = dict(raw["categories"])
-
-    packages: dict[str, PackageInfo] = {}
-    for pkg_name, info in raw["packages"].items():
-        cat = info["category"]
-        if cat not in categories:
-            raise ValueError(f"Package {pkg_name!r} references unknown category {cat!r}")
-        detect_raw = info.get("detect", {})
-        orphan_raw = info.get("orphan", {})
-        se_raw = info.get("side_effects", {})
-        pkg_se = PackageSideEffectsSpec(
-            module_level=Severity(se_raw.get("module_level", "warning")),
-            safe_calls=frozenset(se_raw.get("safe_calls", [])),
-            file_roles=_parse_roles(se_raw.get("file_roles", {})),
-        )
-        pkg_orphan = PackageOrphanSpec(patterns=tuple(orphan_raw.get("patterns", [])))
-        packages[pkg_name] = PackageInfo(
-            category=cat,
-            type=info.get("type", "lib"),
-            stdlib=info.get("stdlib", False),
-            import_name=info.get("import_name"),
-            side_effects=pkg_se,
-            detect_deps=frozenset(detect_raw.get("deps", [])),
-            detect_config_files=frozenset(detect_raw.get("config_files", [])),
-            orphan=pkg_orphan,
-            runtime_only=info.get("runtime_only", False),
-        )
 
     se = raw["side_effects"]
     ep = raw["entrypoints"]

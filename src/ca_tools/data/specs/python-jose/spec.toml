@@ -1,0 +1,3 @@
+name = "python-jose"
+category = "auth"
+import_name = "jose"

@@ -1,0 +1,3 @@
+name = "pytest-asyncio"
+category = "testing"
+type = "tool"

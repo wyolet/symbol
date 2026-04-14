@@ -1,0 +1,4 @@
+name = "psycopg2-binary"
+category = "database_driver"
+import_name = "psycopg2"
+runtime_only = true

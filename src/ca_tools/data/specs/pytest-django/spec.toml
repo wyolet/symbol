@@ -1,0 +1,3 @@
+name = "pytest-django"
+category = "testing"
+type = "tool"

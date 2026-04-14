@@ -1,0 +1,3 @@
+name = "azure-storage-blob"
+category = "cloud"
+import_name = "azure.storage.blob"

@@ -1,0 +1,4 @@
+name = "grpcio-tools"
+category = "grpc"
+type = "tool"
+import_name = "grpc_tools"

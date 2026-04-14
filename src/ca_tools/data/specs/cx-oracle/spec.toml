@@ -1,0 +1,3 @@
+name = "cx-oracle"
+category = "database_driver"
+import_name = "cx_Oracle"

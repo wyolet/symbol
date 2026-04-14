@@ -1,0 +1,12 @@
+name = "django"
+category = "web"
+detect = { deps = ["django"] }
+
+[orphan]
+patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
+
+[side_effects]
+safe_calls = ["setup"]
+
+[side_effects.file_roles]
+debug = ["apps.py", "admin.py", "signals.py", "manage.py", "urls.py"]

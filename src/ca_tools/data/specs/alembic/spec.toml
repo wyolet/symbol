@@ -1,0 +1,12 @@
+name = "alembic"
+category = "migration"
+type = "tool"
+detect = { deps = ["alembic"], config_files = ["alembic.ini"] }
+
+[orphan]
+patterns = ["*/versions/*.py", "*/alembic/env.py", "alembic/env.py"]
+
+[side_effects]
+
+[side_effects.file_roles]
+debug = ["env.py"]

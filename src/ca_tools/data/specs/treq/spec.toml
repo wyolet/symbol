@@ -1,0 +1,5 @@
+name = "treq"
+category = "http_client"
+
+[side_effects]
+module_level = "critical"

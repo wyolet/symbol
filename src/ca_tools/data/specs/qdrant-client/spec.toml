@@ -1,0 +1,3 @@
+name = "qdrant-client"
+category = "llm"
+import_name = "qdrant_client"

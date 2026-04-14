@@ -1,0 +1,3 @@
+name = "launchdarkly-server-sdk"
+category = "feature_flags"
+import_name = "ldclient"

@@ -1,0 +1,3 @@
+name = "sentence-transformers"
+category = "llm"
+import_name = "sentence_transformers"

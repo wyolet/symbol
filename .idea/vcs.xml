@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/click" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/cookiecutter" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/fastapi" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/full-stack-fastapi-template" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/healthchecks" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/httpx" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/rich" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/saleor" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/searxng" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/sqlmodel" vcs="Git" />
+  </component>
+</project>

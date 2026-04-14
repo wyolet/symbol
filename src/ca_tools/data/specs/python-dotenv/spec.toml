@@ -1,0 +1,4 @@
+name = "python-dotenv"
+category = "config"
+import_name = "dotenv"
+runtime_only = true

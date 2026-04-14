@@ -1,0 +1,3 @@
+name = "pytest-mock"
+category = "testing"
+type = "tool"

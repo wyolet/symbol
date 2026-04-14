@@ -1,0 +1,3 @@
+name = "factory-boy"
+category = "testing"
+import_name = "factory"

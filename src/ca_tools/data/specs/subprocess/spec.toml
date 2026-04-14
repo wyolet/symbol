@@ -1,0 +1,6 @@
+name = "subprocess"
+category = "utility"
+stdlib = true
+
+[side_effects]
+module_level = "critical"

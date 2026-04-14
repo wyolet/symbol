@@ -1,0 +1,3 @@
+name = "greenlet"
+category = "async"
+runtime_only = true

@@ -1,0 +1,5 @@
+name = "urllib3"
+category = "http_client"
+
+[side_effects]
+module_level = "critical"

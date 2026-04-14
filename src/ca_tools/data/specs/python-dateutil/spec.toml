@@ -1,0 +1,3 @@
+name = "python-dateutil"
+category = "utility"
+import_name = "dateutil"

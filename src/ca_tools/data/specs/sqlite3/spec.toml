@@ -1,0 +1,3 @@
+name = "sqlite3"
+category = "database_driver"
+stdlib = true
