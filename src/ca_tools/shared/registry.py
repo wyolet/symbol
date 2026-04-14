@@ -77,6 +77,35 @@ def get(name: str) -> CheckerEntry | None:
     return _registry.get(name)
 
 
+def load_custom_checkers(paths: list[str], project_root: "Path") -> list[str]:
+    """Import custom checker modules from paths relative to project_root.
+
+    Each module is expected to call @register at import time. Returns names of
+    successfully loaded modules; logs warnings for failures.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    loaded: list[str] = []
+    for rel_path in paths:
+        full = (project_root / rel_path).resolve()
+        if not full.exists():
+            import warnings
+            warnings.warn(f"Custom checker not found: {full}", stacklevel=2)
+            continue
+        spec = importlib.util.spec_from_file_location(f"_ca_custom_{full.stem}", full)
+        if spec is None or spec.loader is None:
+            continue
+        module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(module)  # type: ignore[union-attr]
+            loaded.append(rel_path)
+        except Exception as exc:
+            import warnings
+            warnings.warn(f"Failed to load custom checker {rel_path}: {exc}", stacklevel=2)
+    return loaded
+
+
 def clear() -> None:
     """For tests."""
     _registry.clear()

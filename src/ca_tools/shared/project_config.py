@@ -93,6 +93,9 @@ class ProjectConfig:
     exclude: list[str] = field(default_factory=list)
     disabled_checkers: list[str] = field(default_factory=list)
 
+    # Paths to custom checker modules — loaded before running checkers
+    custom_checkers: list[str] = field(default_factory=list)
+
     # Per-checker overrides: [tool.ca-tools.checkers.NAME]
     checkers: dict[str, CheckerProjectConfig] = field(default_factory=dict)
 
@@ -125,6 +128,7 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     config.include = ca.get("include", [])
     config.exclude = ca.get("exclude", [])
     config.disabled_checkers = ca.get("disable", [])
+    config.custom_checkers = ca.get("custom_checkers", [])
 
     # Per-checker config: [tool.ca-tools.checkers.NAME]
     for checker_name, checker_data in ca.get("checkers", {}).items():

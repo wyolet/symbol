@@ -85,10 +85,14 @@ def build_context(
     from ca_tools.shared.config_resolver import resolve_config
     from ca_tools.shared.framework_detector import detect_active_frameworks
     from ca_tools.shared.project_config import load_project_config
+    from ca_tools.shared.registry import load_custom_checkers
     from ca_tools.shared.spec import load_spec
 
     spec = load_spec()
     config = load_project_config(project_root)
+
+    if config.custom_checkers:
+        load_custom_checkers(config.custom_checkers, project_root)
 
     inc = include or config.include or None
     exc = exclude or config.exclude or None
