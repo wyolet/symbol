@@ -3,7 +3,7 @@ category = "migration"
 type = "tool"
 detect = { deps = ["alembic"], config_files = ["alembic.ini"] }
 
-[orphan]
+[checkers.orphan]
 patterns = ["*/versions/*.py", "*/alembic/env.py", "alembic/env.py"]
 
 [checkers.side_effects.patterns]

@@ -3,7 +3,7 @@ category = "testing"
 type = "tool"
 detect = { deps = ["pytest"] }
 
-[orphan]
+[checkers.orphan]
 patterns = ["conftest.py", "test_*.py", "*_test.py"]
 
 [checkers.side_effects]
