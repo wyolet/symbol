@@ -88,11 +88,18 @@ def build_context(
     from ca_tools.shared.registry import load_custom_checkers
     from ca_tools.shared.spec import load_spec
 
-    spec = load_spec()
     config = load_project_config(project_root)
 
     if config.custom_checkers:
         load_custom_checkers(config.custom_checkers, project_root)
+
+    # Detect deps first so load_spec only reads relevant spec files.
+    deps = detect_deps(project_root)
+    spec = load_spec(
+        project_deps=deps,
+        extra_spec_paths=config.extra_specs or None,
+        project_root=project_root,
+    )
 
     inc = include or config.include or None
     exc = exclude or config.exclude or None
@@ -101,7 +108,6 @@ def build_context(
     if cache is None:
         cache = ASTCache(project_root, inc, exc, skip_dirs=skip_dirs, skip_patterns=spec.files.skip_patterns or None)
 
-    deps = detect_deps(project_root)
     frameworks = detect_active_frameworks(deps, spec, project_root)
     resolved = resolve_config(spec, frameworks, config)
 

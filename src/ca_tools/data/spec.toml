@@ -81,7 +81,7 @@ include = [
     "django", "flask", "fastapi", "starlette", "tornado", "sanic",
     "bottle", "falcon", "quart", "litestar", "hug", "cherrypy",
     "pyramid", "uvicorn", "gunicorn", "hypercorn", "daphne", "waitress",
-    "granian", "sqlalchemy", "django-orm", "tortoise-orm", "peewee", "sqlmodel",
+    "granian", "sqlalchemy", "tortoise-orm", "peewee", "sqlmodel",
     "pony", "mongoengine", "odmantic", "beanie", "psycopg2", "psycopg2-binary",
     "psycopg", "asyncpg", "mysqlclient", "pymysql", "aiomysql", "sqlite3",
     "aiosqlite", "redis", "aioredis", "pymongo", "motor", "cassandra-driver",
@@ -92,7 +92,7 @@ include = [
     "google-generativeai", "litellm", "vllm", "ollama", "instructor", "chromadb",
     "pinecone-client", "weaviate-client", "qdrant-client", "tiktoken", "tokenizers", "sentence-transformers",
     "guidance", "dspy-ai", "langgraph", "crewai", "autogen", "alembic",
-    "django-migrations", "yoyo-migrations", "pytest", "pytest-cov", "pytest-asyncio", "pytest-mock",
+    "yoyo-migrations", "pytest", "pytest-cov", "pytest-asyncio", "pytest-mock",
     "pytest-xdist", "pytest-django", "unittest", "hypothesis", "factory-boy", "faker",
     "coverage", "tox", "nox", "responses", "respx", "vcrpy",
     "freezegun", "time-machine", "polyfactory", "requests", "httpx", "urllib3",
@@ -112,12 +112,12 @@ include = [
     "s3fs", "google-cloud-storage", "azure-storage-blob", "python-dateutil", "beautifulsoup4", "anyio",
     "trio", "asyncio", "uvloop", "greenlet", "httptools", "watchfiles",
     "gevent", "cachetools", "aiocache", "diskcache", "django-redis", "graphene",
-    "strawberry-graphql", "ariadne", "websockets", "channels", "socketio", "python-socketio",
+    "strawberry-graphql", "ariadne", "websockets", "channels", "python-socketio",
     "sendgrid", "python-postmark", "apscheduler", "schedule", "django-celery-beat", "launchdarkly-server-sdk",
-    "flagsmith", "babel", "django-modeltranslation", "ratelimit", "slowapi", "django-admin",
+    "flagsmith", "babel", "django-modeltranslation", "ratelimit", "slowapi",
     "flask-admin", "sqladmin", "stripe", "braintree", "whoosh", "django-haystack",
     "meilisearch", "typesense", "grpcio", "grpcio-tools", "betterproto", "prefect",
-    "airflow", "dagster", "luigi", "temporal-sdk",
+    "airflow", "dagster", "luigi", "temporalio",
 ]
 
 # ── Config files ──────────────────────────────────────────────────────

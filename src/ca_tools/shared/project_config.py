@@ -97,6 +97,9 @@ class ProjectConfig:
     # Paths to custom checker modules — loaded before running checkers
     custom_checkers: list[str] = field(default_factory=list)
 
+    # Paths to extra spec files — loaded after built-in specs, can add or override packages
+    extra_specs: list[str] = field(default_factory=list)
+
     # Per-checker overrides: [tool.ca-tools.checkers.NAME]
     checkers: dict[str, CheckerProjectConfig] = field(default_factory=dict)
 
@@ -131,6 +134,7 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     config.skip_dirs = ca.get("skip_dirs", [])
     config.disabled_checkers = ca.get("disable", [])
     config.custom_checkers = ca.get("custom_checkers", [])
+    config.extra_specs = ca.get("extra_specs", [])
 
     # Per-checker config: [tool.ca-tools.checkers.NAME]
     for checker_name, checker_data in ca.get("checkers", {}).items():

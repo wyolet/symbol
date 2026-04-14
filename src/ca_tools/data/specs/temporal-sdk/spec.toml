@@ -1,3 +1,0 @@
-name = "temporal-sdk"
-category = "orchestration"
-import_name = "temporalio"

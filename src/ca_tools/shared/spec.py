@@ -114,21 +114,66 @@ class Spec:
             object.__setattr__(self, "init", InitSpec())
 
 
-def load_spec(extra_spec_paths: "list[object] | None" = None) -> "Spec":
-    """Load the bundled spec.toml and per-package specs, return a validated Spec."""
+def load_spec(
+    extra_spec_paths: "list[str] | None" = None,
+    project_deps: "list[str] | None" = None,
+    project_root: "Path | None" = None,
+) -> "Spec":
+    """Load the bundled spec.toml and per-package specs, return a validated Spec.
+
+    project_deps     — when provided, only load spec files for packages present in
+                       deps (plus stdlib). Skips reading the other ~200 files entirely.
+                       Pass None to load all specs (used by tests and tooling).
+    extra_spec_paths — paths to additional package spec files to load after built-ins.
+                       Relative paths are resolved against project_root.
+                       Later entries override earlier ones (last write wins).
+    project_root     — base directory for resolving relative extra_spec_paths.
+    """
+    from ca_tools.shared.pkg_registry import normalize_package_name
+
     data_root = files("ca_tools").joinpath("data")
     spec_path = data_root.joinpath("spec.toml")
     raw = tomllib.loads(spec_path.read_text(encoding="utf-8"))
     categories = dict(raw["categories"])
 
+    dep_set: "frozenset[str] | None" = None
+    if project_deps is not None:
+        dep_set = frozenset(normalize_package_name(d) for d in project_deps)
+
     packages: dict[str, PackageInfo] = {}
     for pkg_name in raw.get("specs", {}).get("include", []):
+        if dep_set is not None and normalize_package_name(pkg_name) not in dep_set:
+            # Quick stdlib peek — stdlib specs are tiny (<5 lines).
+            pkg_spec_path = data_root.joinpath("specs", pkg_name, "spec.toml")
+            peek = tomllib.loads(pkg_spec_path.read_text(encoding="utf-8"))
+            if not peek.get("stdlib", False):
+                continue
+            name, info = _load_package_spec(peek, categories)
+            packages[name] = info
+            continue
+
         pkg_spec_path = data_root.joinpath("specs", pkg_name, "spec.toml")
         pkg_raw = tomllib.loads(pkg_spec_path.read_text(encoding="utf-8"))
         name, info = _load_package_spec(pkg_raw, categories)
         packages[name] = info
 
+    # Load extra specs from project config — override built-ins if same name.
+    if extra_spec_paths:
+        base = project_root or Path.cwd()
+        for spec_str in extra_spec_paths:
+            extra_path = Path(spec_str)
+            if not extra_path.is_absolute():
+                extra_path = base / extra_path
+            if not extra_path.exists():
+                import warnings
+                warnings.warn(f"extra_specs path not found: {extra_path}", stacklevel=3)
+                continue
+            extra_raw = tomllib.loads(extra_path.read_text(encoding="utf-8"))
+            name, info = _load_package_spec(extra_raw, categories)
+            packages[name] = info  # intentionally overrides built-in if same name
+
     return _parse_spec(raw, packages)
+
 
 
 def _load_package_spec(raw: dict, categories: dict[str, str]) -> "tuple[str, PackageInfo]":
