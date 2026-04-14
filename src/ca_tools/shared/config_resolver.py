@@ -36,9 +36,11 @@ def resolve_config(
     error_calls.update(se_project.calls.get("error", []))
 
     # --- skip_orphan_patterns ---
+    # All loaded packages contribute their orphan patterns (active frameworks
+    # already loaded via selective spec loading, app-level specs included too).
     skip_patterns: list[str] = []
-    for fw in frameworks:
-        skip_patterns.extend(fw.skip_orphan_patterns)
+    for pkg_info in spec.packages.values():
+        skip_patterns.extend(pkg_info.orphan.patterns)
     orphan_cfg = project_config.checkers.get("orphans")
     if orphan_cfg:
         skip_patterns.extend(orphan_cfg.ignore)

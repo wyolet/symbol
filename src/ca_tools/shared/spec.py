@@ -3,6 +3,7 @@
 import tomllib
 from dataclasses import dataclass
 from importlib.resources import files
+from pathlib import Path
 
 from ca_tools.shared.findings import Severity
 

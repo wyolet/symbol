@@ -103,9 +103,16 @@ def build_context(
 
     # Detect deps first so load_spec only reads relevant spec files.
     deps = detect_deps(project_root)
+
+    # Auto-discover project-level spec at root (no config needed).
+    auto_spec = project_root / "ca-tools.spec.toml"
+    extra_specs = list(config.extra_specs)
+    if auto_spec.exists() and str(auto_spec) not in extra_specs:
+        extra_specs.insert(0, str(auto_spec))
+
     spec = load_spec(
         project_deps=deps,
-        extra_spec_paths=config.extra_specs or None,
+        extra_spec_paths=extra_specs or None,
         project_root=project_root,
     )
 
