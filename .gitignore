@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Survey: cloned repos and audit output
+survey/repos/
+survey/runs/

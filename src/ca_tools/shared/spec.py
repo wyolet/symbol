@@ -4,6 +4,8 @@ import tomllib
 from dataclasses import dataclass
 from importlib.resources import files
 
+from ca_tools.shared.findings import Severity
+
 
 @dataclass(frozen=True)
 class PackageInfo:
@@ -15,6 +17,16 @@ class PackageInfo:
 class SideEffectSpec:
     safe_calls: frozenset[str]
     known_effects: frozenset[str]
+    # basename → Severity: overrides default WARNING for that file
+    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+    # package prefix → Severity: overrides default WARNING for calls from that package
+    package_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.file_roles is None:
+            object.__setattr__(self, "file_roles", {})
+        if self.package_roles is None:
+            object.__setattr__(self, "package_roles", {})
 
 
 @dataclass(frozen=True)
@@ -30,6 +42,12 @@ class FrameworkSpec:
     detect_config_files: frozenset[str] = frozenset()
     skip_orphan_patterns: tuple[str, ...] = ()
     safe_calls: frozenset[str] = frozenset()
+    # basename → Severity overrides for this framework's files
+    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.file_roles is None:
+            object.__setattr__(self, "file_roles", {})
 
 
 @dataclass(frozen=True)
@@ -54,6 +72,16 @@ def load_spec() -> Spec:
     return _parse_spec(raw)
 
 
+def _parse_roles(roles: dict) -> dict[str, Severity]:
+    """Parse {severity: [names...]} into flat {name: Severity} for O(1) lookup."""
+    result: dict[str, Severity] = {}
+    for sev_str, names in roles.items():
+        sev = Severity(sev_str.lower())
+        for name in names:
+            result[name] = sev
+    return result
+
+
 def _parse_spec(raw: dict) -> Spec:
     """Parse raw TOML dict into a validated Spec."""
     categories = dict(raw["categories"])
@@ -75,12 +103,14 @@ def _parse_spec(raw: dict) -> Spec:
     frameworks: dict[str, FrameworkSpec] = {}
     for fw_name, fw_data in raw.get("frameworks", {}).items():
         detect = fw_data.get("detect", {})
+        fw_file_roles = _parse_roles(fw_data.get("file_roles", {}))
         frameworks[fw_name] = FrameworkSpec(
             name=fw_name,
             detect_deps=frozenset(detect.get("deps", [])),
             detect_config_files=frozenset(detect.get("config_files", [])),
             skip_orphan_patterns=tuple(fw_data.get("skip_orphan_patterns", [])),
             safe_calls=frozenset(fw_data.get("safe_calls", [])),
+            file_roles=fw_file_roles,
         )
 
     return Spec(
@@ -91,6 +121,8 @@ def _parse_spec(raw: dict) -> Spec:
         side_effects=SideEffectSpec(
             safe_calls=frozenset(se["safe_calls"]),
             known_effects=frozenset(se["known_effects"]),
+            file_roles=_parse_roles(se.get("file_roles", {})),
+            package_roles=_parse_roles(se.get("package_roles", {})),
         ),
         entrypoints=EntrypointSpec(
             starters=frozenset(ep["starters"]),

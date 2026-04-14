@@ -26,9 +26,15 @@ def resolve_config(
         skip_patterns.extend(fw.skip_orphan_patterns)
     skip_patterns.extend(project_config.ignore_orphans)
 
+    # --- side effect file/package roles: spec baseline + framework additions ---
+    file_roles: dict[str, "Severity"] = dict(spec.side_effects.file_roles)
+    for fw in frameworks:
+        file_roles.update(fw.file_roles)  # framework overrides spec
+
+    package_roles: dict[str, "Severity"] = dict(spec.side_effects.package_roles)
+
     # --- severity overrides from project config ---
     severity_overrides: dict = {}
-    # Map legacy ProjectConfig fields to checker names
     severity_overrides["side_effects"] = project_config.severity_side_effects
     severity_overrides["unused_deps"] = project_config.severity_unused_deps
 
@@ -49,4 +55,6 @@ def resolve_config(
         safe_calls=frozenset(safe_calls),
         known_effects=known_effects,
         skip_orphan_patterns=skip_patterns,
+        side_effect_file_roles=file_roles,
+        side_effect_package_roles=package_roles,
     )

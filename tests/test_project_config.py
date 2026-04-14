@@ -66,7 +66,7 @@ side_effects = ["*.include_router()", "*.add_middleware()"]
 def test_invalid_severity_raises(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
 [tool.ca-tools.severity]
-orphans = "critical"
+orphans = "nonsense"
 """)
     with pytest.raises(ValueError, match="Invalid severity"):
         load_project_config(tmp_path)

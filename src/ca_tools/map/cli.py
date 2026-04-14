@@ -13,7 +13,13 @@ from ca_tools.shared.project_config import MapSeverityFilter, load_project_confi
 
 from .analyzer import MapResult, analyze_blast, analyze_map
 
-_SEV_ORDER = {Severity.INFO: 0, Severity.WARNING: 1, Severity.ERROR: 2}
+_SEV_ORDER = {
+    Severity.DEBUG: 0,
+    Severity.INFO: 1,
+    Severity.WARNING: 2,
+    Severity.ERROR: 3,
+    Severity.CRITICAL: 4,
+}
 
 console = Console()
 
@@ -23,15 +29,19 @@ I2 = "    "  # items, descriptions
 I3 = "      "  # sub-items (cycle reasons, etc.)
 
 _SEV_STYLE = {
-    Severity.ERROR: "red",
-    Severity.WARNING: "yellow",
+    Severity.DEBUG: "dim",
     Severity.INFO: "blue",
+    Severity.WARNING: "yellow",
+    Severity.ERROR: "red",
+    Severity.CRITICAL: "bold red",
 }
 
 _SEV_ICON = {
-    Severity.ERROR: "\u2717",
-    Severity.WARNING: "!",
+    Severity.DEBUG: "\u00b7",
     Severity.INFO: "\u00b7",
+    Severity.WARNING: "!",
+    Severity.ERROR: "\u2717",
+    Severity.CRITICAL: "\u2718",
 }
 
 
@@ -132,9 +142,10 @@ def _print_cycles(result: MapResult, sev_filter: MapSeverityFilter, cap: int = 0
     visible = [c for c in result.cycles if _at_least(c.severity, min_sev)]
     console.print()
     if visible:
+        crits = sum(1 for c in visible if c.severity == Severity.CRITICAL)
         errs = sum(1 for c in visible if c.severity == Severity.ERROR)
         warns = sum(1 for c in visible if c.severity == Severity.WARNING)
-        header_style = "bold red" if errs else "bold yellow" if warns else "bold blue"
+        header_style = "bold red" if (crits or errs) else "bold yellow" if warns else "bold blue"
         total_label = f" [dim]({len(result.cycles)} total)[/dim]" if len(visible) < len(result.cycles) else ""
         console.print(Text(f"{I1}\U0001f534 CIRCULAR IMPORTS ({len(visible)})", style=header_style), total_label, end="")
         console.print()

@@ -426,9 +426,18 @@ terraform = "infrastructure as code"
 
 # ── Side effects ──────────────────────────────────────────────────────
 # Controls what gets flagged as a module-level side effect.
+#
+# Severity is determined by three layered rules (highest wins):
+#   1. module_level_critical package prefix → CRITICAL regardless of file
+#   2. File basename in pure_files          → ERROR
+#   3. File basename in skip_files          → DEBUG (silent by default)
+#   4. Everything else                      → WARNING (default)
+#
+# Framework sections can extend skip_files for their own patterns.
+# Projects can extend all lists via [tool.ca-tools] in pyproject.toml.
 
 [side_effects]
-# Function names that are safe / expected at module level — never flagged.
+# Leaf function names that are safe / expected at module level — never flagged.
 safe_calls = [
     "getLogger",
     "basicConfig",
@@ -451,7 +460,7 @@ safe_calls = [
     "Namespace",
 ]
 
-# Function names known to have real side effects — always flagged.
+# Leaf function names known to have real side effects — always flagged even if uppercase.
 known_effects = [
     "load_dotenv",
     "create_engine",
@@ -465,6 +474,82 @@ known_effects = [
     "monkey.patch_all",
     "eventlet.monkey_patch",
     "gevent.monkey.patch_all",
+]
+
+# File roles — maps severity level to list of basenames.
+# debug   = side effects are EXPECTED here (entry points, config, app wiring)
+# error   = side effects are UNEXPECTED here (pure logic modules — almost always a bug)
+# warning = default for everything not listed (no entry needed)
+[side_effects.file_roles]
+debug = [
+    # Generic entry points
+    "main.py",
+    "__main__.py",
+    "run.py",
+    "app.py",
+    "server.py",
+    "start.py",
+    # Config / environment
+    "settings.py",
+    "config.py",
+    "configuration.py",
+    "env.py",
+    # WSGI/ASGI adapters
+    "wsgi.py",
+    "asgi.py",
+    # Task queue config
+    "celeryconf.py",
+    "celery.py",
+    # Test infrastructure
+    "conftest.py",
+]
+error = [
+    # Data layer
+    "models.py",
+    "schemas.py",
+    "serializers.py",
+    "types.py",
+    "enums.py",
+    "constants.py",
+    # Business logic
+    "utils.py",
+    "helpers.py",
+    "validators.py",
+    "mixins.py",
+    "decorators.py",
+    # Web layer
+    "forms.py",
+    "filters.py",
+    "permissions.py",
+    # Error handling
+    "exceptions.py",
+    "errors.py",
+]
+
+# Package roles — maps severity level to list of import prefixes.
+# critical = these do I/O, network, or subprocess work — never safe at import time.
+[side_effects.package_roles]
+critical = [
+    # HTTP / network
+    "requests",
+    "httpx",
+    "aiohttp",
+    "urllib.request",
+    "urllib3",
+    # System
+    "subprocess",
+    "os.system",
+    "os.popen",
+    "socket",
+    # Blocking
+    "time.sleep",
+    "asyncio.sleep",
+    # Raw DB connections
+    "sqlite3.connect",
+    "psycopg2.connect",
+    "pymysql.connect",
+    "asyncpg.connect",
+    "pymongo.MongoClient",
 ]
 
 # ── Entry points ──────────────────────────────────────────────────────
@@ -504,23 +589,35 @@ starter_names = [
 detect = { deps = ["django"] }
 skip_orphan_patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
 safe_calls = ["setup"]
+[frameworks.django.file_roles]
+debug = ["apps.py", "admin.py", "signals.py", "manage.py", "urls.py"]
 
 [frameworks.fastapi]
 detect = { deps = ["fastapi"] }
 safe_calls = ["lifespan"]
+[frameworks.fastapi.file_roles]
+debug = ["dependencies.py", "lifespan.py", "middleware.py"]
 
 [frameworks.flask]
 detect = { deps = ["flask"] }
 safe_calls = ["from_object", "from_envvar"]
+[frameworks.flask.file_roles]
+debug = ["extensions.py", "factory.py"]
 
 [frameworks.celery]
 detect = { deps = ["celery"] }
 safe_calls = ["update"]
+[frameworks.celery.file_roles]
+debug = ["tasks.py", "celery.py", "celeryconf.py", "beat.py", "worker.py"]
 
 [frameworks.pytest]
 detect = { deps = ["pytest"] }
 skip_orphan_patterns = ["conftest.py", "test_*.py", "*_test.py"]
+[frameworks.pytest.file_roles]
+debug = ["conftest.py"]
 
 [frameworks.alembic]
 detect = { deps = ["alembic"], config_files = ["alembic.ini"] }
 skip_orphan_patterns = ["*/versions/*.py", "*/alembic/env.py", "alembic/env.py"]
+[frameworks.alembic.file_roles]
+debug = ["env.py"]

@@ -28,6 +28,16 @@ class ResolvedConfig:
     safe_calls: frozenset[str] = frozenset()
     known_effects: frozenset[str] = frozenset()
     skip_orphan_patterns: list[str] = field(default_factory=list)
+    # basename → Severity: merged from spec + frameworks + project
+    side_effect_file_roles: dict[str, Severity] = None  # type: ignore[assignment]
+    # package prefix → Severity: merged from spec + project
+    side_effect_package_roles: dict[str, Severity] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.side_effect_file_roles is None:
+            object.__setattr__(self, "side_effect_file_roles", {})
+        if self.side_effect_package_roles is None:
+            object.__setattr__(self, "side_effect_package_roles", {})
 
 
 @dataclass

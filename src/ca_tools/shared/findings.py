@@ -5,19 +5,29 @@ from enum import Enum
 
 
 class Severity(Enum):
-    ERROR = "error"
-    WARNING = "warning"
-    INFO = "info"
+    DEBUG = "debug"       # seen, suppressed by default — skip-list files, noise
+    INFO = "info"         # informational, shown with -v
+    WARNING = "warning"   # default output threshold
+    ERROR = "error"       # real problems
+    CRITICAL = "critical" # parse failures, dangerous calls, blocking issues
 
     def __lt__(self, other: "Severity") -> bool:
-        order = {Severity.INFO: 0, Severity.WARNING: 1, Severity.ERROR: 2}
+        order = {
+            Severity.DEBUG: 0,
+            Severity.INFO: 1,
+            Severity.WARNING: 2,
+            Severity.ERROR: 3,
+            Severity.CRITICAL: 4,
+        }
         return order[self] < order[other]
 
 
 SEVERITY_STYLE = {
-    Severity.ERROR: ("red", "\u2717"),
-    Severity.WARNING: ("yellow", "!"),
+    Severity.DEBUG: ("dim", "\u00b7"),
     Severity.INFO: ("blue", "\u00b7"),
+    Severity.WARNING: ("yellow", "!"),
+    Severity.ERROR: ("red", "\u2717"),
+    Severity.CRITICAL: ("bold red", "\u2718"),
 }
 
 
@@ -58,6 +68,10 @@ class Report:
         return sum(1 for f in self.findings if f.severity == severity)
 
     @property
+    def criticals(self) -> int:
+        return self.count(Severity.CRITICAL)
+
+    @property
     def errors(self) -> int:
         return self.count(Severity.ERROR)
 
@@ -70,9 +84,13 @@ class Report:
         return self.count(Severity.INFO)
 
     @property
+    def debugs(self) -> int:
+        return self.count(Severity.DEBUG)
+
+    @property
     def has_issues(self) -> bool:
-        return self.errors > 0
+        return self.errors > 0 or self.criticals > 0
 
     @property
     def exit_code(self) -> int:
-        return 1 if self.errors > 0 else 0
+        return 1 if self.has_issues else 0

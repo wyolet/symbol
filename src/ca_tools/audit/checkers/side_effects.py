@@ -99,8 +99,14 @@ def rich_view(items: list[SideEffect], ctx: AnalysisContext, console: Console) -
         console.print(f"{I2}[green]No module-level side effects detected[/green]")
         return
 
-    style_map = {Severity.ERROR: "bold red", Severity.WARNING: "bold yellow", Severity.INFO: "bold blue"}
-    icon_map = {Severity.ERROR: "\U0001f534", Severity.WARNING: "\u26a0\ufe0f ", Severity.INFO: "\u2139\ufe0f "}
+    style_map = {
+        Severity.DEBUG: "dim", Severity.INFO: "bold blue",
+        Severity.WARNING: "bold yellow", Severity.ERROR: "bold red", Severity.CRITICAL: "bold red",
+    }
+    icon_map = {
+        Severity.DEBUG: "\u00b7", Severity.INFO: "\u2139\ufe0f ",
+        Severity.WARNING: "\u26a0\ufe0f ", Severity.ERROR: "\U0001f534", Severity.CRITICAL: "\U0001f6a8",
+    }
     console.print(Text(f"{I1}{icon_map[sev]} SIDE EFFECTS ({len(items)})", style=style_map[sev]))
     console.print(f"{I2}[dim]Bare function calls at module level — runs on import[/dim]")
     console.print()

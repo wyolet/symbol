@@ -28,7 +28,9 @@ class MetricThreshold:
             return Severity.ERROR
         if value >= self.warning:
             return Severity.WARNING
-        return Severity.INFO
+        if value >= self.info:
+            return Severity.INFO
+        return Severity.DEBUG
 
 
 @dataclass
