@@ -20,25 +20,31 @@ def resolve_config(
     # --- known_effects: spec only (no framework/project override) ---
     known_effects = spec.side_effects.known_effects
 
-    # --- skip_orphan_patterns: frameworks + project ignores ---
+    # --- skip_orphan_patterns: frameworks + project ignores + per-package orphan overrides ---
     skip_patterns: list[str] = []
     for fw in frameworks:
         skip_patterns.extend(fw.skip_orphan_patterns)
     skip_patterns.extend(project_config.ignore_orphans)
+    for pkg_cfg in project_config.packages.values():
+        skip_patterns.extend(pkg_cfg.orphan.patterns)
 
     # --- side effect file roles: spec baseline + framework additions ---
     file_roles: dict[str, "Severity"] = dict(spec.side_effects.file_roles)
     for fw in frameworks:
         file_roles.update(fw.file_roles)  # framework overrides spec
 
-    # --- side effect package roles: derived from per-package specs ---
-    # Global [side_effects.package_roles] is the baseline, per-package overrides it.
+    # --- side effect package roles: spec baseline → per-package spec → project overrides ---
     from ca_tools.shared.findings import Severity
     package_roles: dict[str, "Severity"] = dict(spec.side_effects.package_roles)
     for pkg_name, pkg_info in spec.packages.items():
         if pkg_info.side_effects.module_level != Severity.WARNING:
             import_name = pkg_info.import_name or pkg_name.replace("-", "_")
             package_roles[import_name] = pkg_info.side_effects.module_level
+    # Project-level package overrides win last
+    for pkg_name, pkg_cfg in project_config.packages.items():
+        if pkg_cfg.side_effects.module_level is not None:
+            import_name = pkg_name.replace("-", "_")
+            package_roles[import_name] = pkg_cfg.side_effects.module_level
 
     # --- severity overrides from project config ---
     severity_overrides: dict = {}

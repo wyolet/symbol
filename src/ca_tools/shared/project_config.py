@@ -60,6 +60,25 @@ class MapSeverityFilter:
 
 
 @dataclass
+class PackageSideEffectsOverride:
+    """Project-level override for a package's side_effects checker config."""
+    module_level: Severity | None = None
+
+
+@dataclass
+class PackageOrphanOverride:
+    """Project-level override for a package's orphan checker config."""
+    patterns: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PackageProjectConfig:
+    """Per-package overrides from [tool.ca-tools.packages.X]."""
+    side_effects: PackageSideEffectsOverride = field(default_factory=PackageSideEffectsOverride)
+    orphan: PackageOrphanOverride = field(default_factory=PackageOrphanOverride)
+
+
+@dataclass
 class ProjectConfig:
     """Configuration from the target project's [tool.ca-tools] section."""
 
@@ -75,6 +94,9 @@ class ProjectConfig:
     ignore_side_effects: list[str] = field(default_factory=list)
 
     disabled_checkers: list[str] = field(default_factory=list)
+
+    # Per-package overrides: [tool.ca-tools.packages.X]
+    packages: dict[str, PackageProjectConfig] = field(default_factory=dict)
 
     map_thresholds: MapThresholds = field(default_factory=MapThresholds)
     map_severity: MapSeverityFilter = field(default_factory=MapSeverityFilter)
@@ -146,5 +168,22 @@ def load_project_config(project_root: Path) -> ProjectConfig:
                     current.warning = vals["warning"]
                 if "error" in vals:
                     current.error = vals["error"]
+
+    # Per-package overrides: [tool.ca-tools.packages.X]
+    packages_section = ca.get("packages", {})
+    for pkg_name, pkg_data in packages_section.items():
+        if not isinstance(pkg_data, dict):
+            continue
+        pkg_cfg = PackageProjectConfig()
+
+        se = pkg_data.get("side_effects", {})
+        if isinstance(se, dict) and "module_level" in se:
+            pkg_cfg.side_effects.module_level = _parse_severity(se["module_level"])
+
+        orphan = pkg_data.get("orphan", {})
+        if isinstance(orphan, dict) and "patterns" in orphan:
+            pkg_cfg.orphan.patterns = list(orphan["patterns"])
+
+        config.packages[pkg_name] = pkg_cfg
 
     return config
