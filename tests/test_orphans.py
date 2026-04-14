@@ -30,7 +30,7 @@ def test_connected_files_not_orphans(tmp_path: Path):
     orphans = detect_orphans_checker(ctx)
     orphan_names = [o.filepath.name for o in orphans]
     assert "lib.py" not in orphan_names
-    assert "main.py" in orphan_names
+    assert "main.py" not in orphan_names  # main.py is a conventional entrypoint, never flagged
 
 
 def test_init_py_not_orphan(tmp_path: Path):

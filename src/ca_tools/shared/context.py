@@ -70,9 +70,16 @@ class AnalysisContext:
     frameworks: list[ActiveFramework]
     deps: list[str]
     verbose: bool = False
+    # Populated incrementally by runner as each checker completes.
+    # Allows later checkers (e.g. orphans) to read earlier results (e.g. entrypoints).
+    checker_results: dict = field(default_factory=dict)
 
     def has_framework(self, name: str) -> bool:
         return any(f.name == name for f in self.frameworks)
+
+    def checker_result(self, name: str) -> list:
+        """Return results from a previously-run checker, or empty list."""
+        return self.checker_results.get(name, [])
 
     def framework(self, name: str) -> ActiveFramework | None:
         return next((f for f in self.frameworks if f.name == name), None)

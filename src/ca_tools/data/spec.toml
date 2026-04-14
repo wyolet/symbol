@@ -338,10 +338,12 @@ primary_categories = [
 # Files skipped from orphan detection globally. Framework packages extend
 # this via [packages.X.orphan] patterns.
 
-[orphan]
+[checkers.orphan]
 skip_patterns = [
     # Python implicit entry points — always reachable by convention
     "__init__.py", "__main__.py", "setup.py", "manage.py",
+    # Conventional WSGI/ASGI/app entrypoints — run by servers, not imported
+    "main.py", "app.py", "server.py", "run.py", "wsgi.py", "asgi.py",
     # Test infrastructure
     "conftest.py", "test_*.py", "*_test.py",
 ]

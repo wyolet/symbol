@@ -32,6 +32,7 @@ def run_checkers(ctx: AnalysisContext, report: Report) -> dict[str, Any]:
             raise ValueError(f"Unknown checker kind {info.kind!r} for {info.name!r}")
 
         results[info.name] = items
+        ctx.checker_results[info.name] = items  # available to subsequent checkers
 
         # Populate report via to_findings view
         if info.contributes_to_report and entry.to_findings and items:

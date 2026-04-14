@@ -41,12 +41,18 @@ def detect(ctx: AnalysisContext) -> list[OrphanFile]:
     for targets in graph.resolved_edges.values():
         imported.update(targets)
 
-    # Entry point files — skip from orphan detection
+    # Entry point files — skip from orphan detection.
+    # Use entrypoints checker results if already run (priority 30 < 40), else fall back to AST scan.
     entry_point_files: set[Path] = set()
-    for filepath in ctx.cache.files:
-        tree = ctx.cache.get_ast(filepath)
-        if tree and _has_main_guard(tree):
-            entry_point_files.add(filepath)
+    ep_results = ctx.checker_result("entrypoints")
+    if ep_results:
+        for ep in ep_results:
+            entry_point_files.add(ep.filepath)
+    else:
+        for filepath in ctx.cache.files:
+            tree = ctx.cache.get_ast(filepath)
+            if tree and _has_main_guard(tree):
+                entry_point_files.add(filepath)
 
     skip_patterns = list(ctx.spec.orphan.skip_patterns) + list(ctx.resolved.skip_orphan_patterns)
 

@@ -344,6 +344,8 @@ def _parse_spec(raw: dict, packages: "dict[str, PackageInfo]") -> "Spec":
             exclude=tuple(s.get("exclude", [])),
         ),
         stack=StackSpec(primary_categories=frozenset(raw.get("stack", {}).get("primary_categories", []))),
-        orphan=OrphanSpec(skip_patterns=tuple(raw.get("orphan", {}).get("skip_patterns", []))),
+        orphan=OrphanSpec(skip_patterns=tuple(
+            raw.get("checkers", {}).get("orphan", raw.get("orphan", {})).get("skip_patterns", [])
+        )),
         init=InitSpec(safe_side_effect_patterns=tuple(raw.get("init", {}).get("safe_side_effect_patterns", []))),
     )
