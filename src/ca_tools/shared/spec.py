@@ -10,6 +10,18 @@ from ca_tools.shared.findings import Severity
 @dataclass(frozen=True)
 class PackageSideEffectsSpec:
     module_level: Severity = Severity.WARNING
+    safe_calls: frozenset[str] = frozenset()
+    # basename → Severity overrides for this package's framework files
+    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.file_roles is None:
+            object.__setattr__(self, "file_roles", {})
+
+
+@dataclass(frozen=True)
+class PackageOrphanSpec:
+    patterns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -19,10 +31,15 @@ class PackageInfo:
     stdlib: bool = False
     import_name: str | None = None
     side_effects: PackageSideEffectsSpec = None  # type: ignore[assignment]
+    detect_deps: frozenset[str] = frozenset()
+    detect_config_files: frozenset[str] = frozenset()
+    orphan: PackageOrphanSpec = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.side_effects is None:
             object.__setattr__(self, "side_effects", PackageSideEffectsSpec())
+        if self.orphan is None:
+            object.__setattr__(self, "orphan", PackageOrphanSpec())
 
 
 @dataclass(frozen=True)
@@ -48,21 +65,6 @@ class EntrypointSpec:
 
 
 @dataclass(frozen=True)
-class FrameworkSpec:
-    name: str
-    detect_deps: frozenset[str] = frozenset()
-    detect_config_files: frozenset[str] = frozenset()
-    skip_orphan_patterns: tuple[str, ...] = ()
-    safe_calls: frozenset[str] = frozenset()
-    # basename → Severity overrides for this framework's files
-    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.file_roles is None:
-            object.__setattr__(self, "file_roles", {})
-
-
-@dataclass(frozen=True)
 class Spec:
     categories: dict[str, str]
     packages: dict[str, PackageInfo]
@@ -70,11 +72,6 @@ class Spec:
     config_dirs: dict[str, str]
     side_effects: SideEffectSpec
     entrypoints: EntrypointSpec
-    frameworks: dict[str, FrameworkSpec] = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.frameworks is None:
-            object.__setattr__(self, "frameworks", {})
 
 
 def load_spec() -> Spec:
@@ -103,34 +100,28 @@ def _parse_spec(raw: dict) -> Spec:
         cat = info["category"]
         if cat not in categories:
             raise ValueError(f"Package {pkg_name!r} references unknown category {cat!r}")
+        detect_raw = info.get("detect", {})
+        orphan_raw = info.get("orphan", {})
         se_raw = info.get("side_effects", {})
         pkg_se = PackageSideEffectsSpec(
             module_level=Severity(se_raw.get("module_level", "warning")),
+            safe_calls=frozenset(se_raw.get("safe_calls", [])),
+            file_roles=_parse_roles(se_raw.get("file_roles", {})),
         )
+        pkg_orphan = PackageOrphanSpec(patterns=tuple(orphan_raw.get("patterns", [])))
         packages[pkg_name] = PackageInfo(
             category=cat,
             type=info.get("type", "lib"),
             stdlib=info.get("stdlib", False),
             import_name=info.get("import_name"),
             side_effects=pkg_se,
+            detect_deps=frozenset(detect_raw.get("deps", [])),
+            detect_config_files=frozenset(detect_raw.get("config_files", [])),
+            orphan=pkg_orphan,
         )
 
     se = raw["side_effects"]
     ep = raw["entrypoints"]
-
-    # Parse frameworks (optional section)
-    frameworks: dict[str, FrameworkSpec] = {}
-    for fw_name, fw_data in raw.get("frameworks", {}).items():
-        detect = fw_data.get("detect", {})
-        fw_file_roles = _parse_roles(fw_data.get("file_roles", {}))
-        frameworks[fw_name] = FrameworkSpec(
-            name=fw_name,
-            detect_deps=frozenset(detect.get("deps", [])),
-            detect_config_files=frozenset(detect.get("config_files", [])),
-            skip_orphan_patterns=tuple(fw_data.get("skip_orphan_patterns", [])),
-            safe_calls=frozenset(fw_data.get("safe_calls", [])),
-            file_roles=fw_file_roles,
-        )
 
     return Spec(
         categories=categories,
@@ -147,5 +138,4 @@ def _parse_spec(raw: dict) -> Spec:
             starters=frozenset(ep["starters"]),
             starter_names=frozenset(ep["starter_names"]),
         ),
-        frameworks=frameworks,
     )

@@ -75,12 +75,36 @@ orchestration = "Orchestration"
 # ── Web frameworks ────────────────────────────────────────────────────
 [packages.django]
 category = "web"
+detect = { deps = ["django"] }
+
+[packages.django.orphan]
+patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
+
+[packages.django.side_effects]
+safe_calls = ["setup"]
+
+[packages.django.side_effects.file_roles]
+debug = ["apps.py", "admin.py", "signals.py", "manage.py", "urls.py"]
 
 [packages.flask]
 category = "web"
+detect = { deps = ["flask"] }
+
+[packages.flask.side_effects]
+safe_calls = ["from_object", "from_envvar"]
+
+[packages.flask.side_effects.file_roles]
+debug = ["extensions.py", "factory.py"]
 
 [packages.fastapi]
 category = "web"
+detect = { deps = ["fastapi"] }
+
+[packages.fastapi.side_effects]
+safe_calls = ["lifespan"]
+
+[packages.fastapi.side_effects.file_roles]
+debug = ["dependencies.py", "lifespan.py", "middleware.py"]
 
 [packages.starlette]
 category = "web"
@@ -236,6 +260,13 @@ category = "database_driver"
 # ── Task queues ───────────────────────────────────────────────────────
 [packages.celery]
 category = "task_queue"
+detect = { deps = ["celery"] }
+
+[packages.celery.side_effects]
+safe_calls = ["update"]
+
+[packages.celery.side_effects.file_roles]
+debug = ["tasks.py", "celery.py", "celeryconf.py", "beat.py", "worker.py"]
 
 [packages.rq]
 category = "task_queue"
@@ -353,6 +384,13 @@ category = "llm"
 [packages.alembic]
 category = "migration"
 type = "tool"
+detect = { deps = ["alembic"], config_files = ["alembic.ini"] }
+
+[packages.alembic.orphan]
+patterns = ["*/versions/*.py", "*/alembic/env.py", "alembic/env.py"]
+
+[packages.alembic.side_effects.file_roles]
+debug = ["env.py"]
 
 [packages.django-migrations]
 category = "migration"
@@ -367,9 +405,16 @@ type = "tool"
 [packages.pytest]
 category = "testing"
 type = "tool"
+detect = { deps = ["pytest"] }
+
+[packages.pytest.orphan]
+patterns = ["conftest.py", "test_*.py", "*_test.py"]
 
 [packages.pytest.side_effects]
 module_level = "debug"
+
+[packages.pytest.side_effects.file_roles]
+debug = ["conftest.py"]
 
 [packages.pytest-cov]
 category = "testing"
@@ -1115,49 +1160,3 @@ starter_names = [
     "serve",
 ]
 
-# ── Frameworks ───────────────────────────────────────────────────────
-# Framework-specific overrides — activated when framework is detected in deps.
-#
-# Fields:
-#   detect.deps         — activate when any of these packages are declared
-#   detect.config_files — activate when any of these files exist at root
-#   skip_orphan_patterns — globs to exclude from orphan detection
-#   safe_calls          — leaf names safe at module level for this framework
-#   file_roles          — severity overrides by file basename (merged over global)
-
-[frameworks.django]
-detect = { deps = ["django"] }
-skip_orphan_patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
-safe_calls = ["setup"]
-[frameworks.django.file_roles]
-debug = ["apps.py", "admin.py", "signals.py", "manage.py", "urls.py"]
-
-[frameworks.fastapi]
-detect = { deps = ["fastapi"] }
-safe_calls = ["lifespan"]
-[frameworks.fastapi.file_roles]
-debug = ["dependencies.py", "lifespan.py", "middleware.py"]
-
-[frameworks.flask]
-detect = { deps = ["flask"] }
-safe_calls = ["from_object", "from_envvar"]
-[frameworks.flask.file_roles]
-debug = ["extensions.py", "factory.py"]
-
-[frameworks.celery]
-detect = { deps = ["celery"] }
-safe_calls = ["update"]
-[frameworks.celery.file_roles]
-debug = ["tasks.py", "celery.py", "celeryconf.py", "beat.py", "worker.py"]
-
-[frameworks.pytest]
-detect = { deps = ["pytest"] }
-skip_orphan_patterns = ["conftest.py", "test_*.py", "*_test.py"]
-[frameworks.pytest.file_roles]
-debug = ["conftest.py"]
-
-[frameworks.alembic]
-detect = { deps = ["alembic"], config_files = ["alembic.ini"] }
-skip_orphan_patterns = ["*/versions/*.py", "*/alembic/env.py", "alembic/env.py"]
-[frameworks.alembic.file_roles]
-debug = ["env.py"]

@@ -11,27 +11,28 @@ def detect_active_frameworks(
     spec: Spec,
     project_root: Path | None = None,
 ) -> list[ActiveFramework]:
-    """Check which frameworks are active based on declared deps and config files."""
+    """Check which packages act as frameworks (have detect config) and are active."""
     dep_set = set(deps)
     active: list[ActiveFramework] = []
 
-    for fw_spec in spec.frameworks.values():
-        # Check dep-based detection
-        dep_match = any(d in dep_set for d in fw_spec.detect_deps)
+    for pkg_name, pkg_info in spec.packages.items():
+        if not pkg_info.detect_deps and not pkg_info.detect_config_files:
+            continue  # not a framework package
 
-        # Check config-file-based detection
+        dep_match = any(d in dep_set for d in pkg_info.detect_deps)
+
         config_match = False
-        if project_root and fw_spec.detect_config_files:
+        if project_root and pkg_info.detect_config_files:
             config_match = any(
-                (project_root / f).exists() for f in fw_spec.detect_config_files
+                (project_root / f).exists() for f in pkg_info.detect_config_files
             )
 
         if dep_match or config_match:
             active.append(ActiveFramework(
-                name=fw_spec.name,
-                skip_orphan_patterns=fw_spec.skip_orphan_patterns,
-                safe_calls=fw_spec.safe_calls,
-                file_roles=fw_spec.file_roles,
+                name=pkg_name,
+                skip_orphan_patterns=pkg_info.orphan.patterns,
+                safe_calls=pkg_info.side_effects.safe_calls,
+                file_roles=pkg_info.side_effects.file_roles,
             ))
 
     return active
