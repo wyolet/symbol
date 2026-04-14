@@ -11,7 +11,7 @@ from rich.tree import Tree
 from ca_tools.shared.findings import Severity
 from ca_tools.shared.project_config import MapSeverityFilter, load_project_config
 
-from .analyzer import MapResult, analyze_blast, analyze_map
+from ca_tools.shared.graph import MapResult, analyze_blast, analyze_map
 
 _SEV_ORDER = {
     Severity.DEBUG: 0,

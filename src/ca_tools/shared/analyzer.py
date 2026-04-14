@@ -4,7 +4,7 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ca_tools.audit.orphans import ImportEdge, ImportGraph, ImportScope, build_import_graph
+from ca_tools.shared.import_graph import ImportEdge, ImportGraph, ImportScope, build_import_graph
 
 
 @dataclass

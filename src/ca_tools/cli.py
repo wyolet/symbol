@@ -8,12 +8,12 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from .analyze.cli import analyze_cmd, analyze_dump
-from .audit.cli import audit_cmd
-from .init.cli import init_cmd
-from .loc.cli import loc_cmd
-from .loc.linguist.config.load import update_from_github
-from .map.cli import map_cmd
+from .commands.analyze import analyze_cmd, analyze_dump
+from .commands.audit import audit_cmd
+from .commands.init import init_cmd
+from .commands.loc import loc_cmd
+from .shared.linguist.config.load import update_from_github
+from .commands.map import map_cmd
 
 console = Console()
 

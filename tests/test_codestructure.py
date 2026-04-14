@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.codestructure import detect_code_structure
+from ca_tools.shared.codestructure_finder import detect_code_structure
 from ca_tools.shared.ast_cache import ASTCache
 
 

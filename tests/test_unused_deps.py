@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.unused_deps import detect_unused_deps
+from ca_tools.shared.unused_dep_finder import detect_unused_deps
 from ca_tools.shared.spec import load_spec
 
 SPEC = load_spec()

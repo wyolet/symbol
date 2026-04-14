@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.text import Text
 
 from ca_tools.shared.context import AnalysisContext
-from ca_tools.audit.pkg_registry import lookup
+from ca_tools.shared.pkg_registry import lookup
 from ca_tools.shared.registry import register, views
 from ca_tools.shared.spec import Spec
 

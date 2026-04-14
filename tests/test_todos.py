@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.todos import detect_todos
+from ca_tools.shared.todos_finder import detect_todos
 from ca_tools.shared.ast_cache import ASTCache
 
 

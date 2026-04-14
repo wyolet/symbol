@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.sideeffects import detect_sideeffects
+from ca_tools.shared.sideeffect_finder import detect_sideeffects
 from ca_tools.shared.spec import load_spec
 
 SPEC = load_spec()

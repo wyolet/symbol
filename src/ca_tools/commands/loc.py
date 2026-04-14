@@ -8,7 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .linguist import Linguist
+from ca_tools.shared.linguist import Linguist
 
 console = Console()
 

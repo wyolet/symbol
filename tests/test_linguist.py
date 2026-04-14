@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca_tools.loc.linguist import Blob, Linguist
-from ca_tools.loc.linguist.language import Language, UnknownLanguage
+from ca_tools.shared.linguist import Blob, Linguist
+from ca_tools.shared.linguist.language import Language, UnknownLanguage
 
 # ---------------------------------------------------------------------------
 # Language loading

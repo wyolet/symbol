@@ -81,7 +81,7 @@ def build_context(
     Creates AST cache, detects frameworks, resolves layered config.
     If cache is provided, reuses it (for running multiple commands together).
     """
-    from ca_tools.audit.stack import detect_deps
+    from ca_tools.shared.deps import detect_deps
     from ca_tools.shared.config_resolver import resolve_config
     from ca_tools.shared.framework_detector import detect_active_frameworks
     from ca_tools.shared.project_config import load_project_config

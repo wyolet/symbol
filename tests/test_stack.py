@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.stack import _extract_package_name, detect_deps, detect_stack
+from ca_tools.shared.deps import _extract_package_name, detect_deps, detect_stack
 from ca_tools.shared.spec import load_spec
 
 SPEC = load_spec()

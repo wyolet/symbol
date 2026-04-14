@@ -4,11 +4,11 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ca_tools.audit.orphans import ImportGraph, build_import_graph
+from ca_tools.shared.import_graph import ImportGraph, build_import_graph
 from ca_tools.shared.findings import Severity
 from ca_tools.shared.project_config import MapThresholds, MetricThreshold
 
-from .simulator import CycleInfo, simulate_imports
+from ca_tools.shared.simulator import CycleInfo, simulate_imports
 
 
 @dataclass

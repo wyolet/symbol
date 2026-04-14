@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca_tools.audit.orphans import build_import_graph
-from ca_tools.map.simulator import simulate_imports
+from ca_tools.shared.import_graph import build_import_graph
+from ca_tools.shared.simulator import simulate_imports
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:

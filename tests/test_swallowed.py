@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.swallowed import detect_swallowed
+from ca_tools.shared.swallowed_finder import detect_swallowed
 from ca_tools.shared.ast_cache import ASTCache
 
 

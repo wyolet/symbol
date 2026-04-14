@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-import ca_tools.frameworks  # noqa: F401 — registers framework hooks
 from ca_tools.shared.ast_cache import ASTCache
 from ca_tools.shared.files import collect_py_files
 from ca_tools.shared.pipeline import ENTRYPOINTS, SKIP_ORPHAN, make_context, run_pipeline
@@ -315,9 +314,15 @@ def detect_orphans(
     for targets in graph.resolved_edges.values():
         imported_files.update(targets)
 
+    # Default skip patterns — Python conventions and common test patterns
+    _DEFAULT_SKIP = [
+        "__init__.py", "__main__.py", "setup.py", "manage.py",
+        "conftest.py", "test_*.py", "*_test.py",
+    ]
+
     # Collect skip patterns from framework hooks
     context = make_context(project_root)
-    skip_patterns = run_pipeline(SKIP_ORPHAN, project_root, context)
+    skip_patterns = _DEFAULT_SKIP + run_pipeline(SKIP_ORPHAN, project_root, context)
 
     # Collect framework-detected entry points (uvicorn strings, [project.scripts], etc.)
     extra_entry_modules = run_pipeline(ENTRYPOINTS, project_root, context)

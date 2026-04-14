@@ -6,7 +6,7 @@ from pathlib import Path
 from ca_tools.shared.pipeline import DEPS, hook, run_pipeline
 from ca_tools.shared.spec import Spec
 
-from .pkg_registry import lookup, normalize_package_name
+from ca_tools.shared.pkg_registry import lookup, normalize_package_name
 
 
 def _extract_package_name(dep_spec: str) -> str | None:

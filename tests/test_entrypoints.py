@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.entrypoints import detect_entrypoints
+from ca_tools.shared.entrypoint_finder import detect_entrypoints
 
 
 def test_detects_main_guard(tmp_path: Path):

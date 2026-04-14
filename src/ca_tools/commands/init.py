@@ -8,11 +8,11 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
-from ca_tools.audit.entrypoints import detect_entrypoints
-from ca_tools.audit.orphans import OrphanFile, build_import_graph, detect_orphans
-from ca_tools.audit.sideeffects import SideEffect, detect_sideeffects
-from ca_tools.audit.stack import detect_deps
-from ca_tools.audit.unused_deps import detect_unused_deps
+from ca_tools.shared.entrypoint_finder import detect_entrypoints
+from ca_tools.shared.import_graph import OrphanFile, build_import_graph, detect_orphans
+from ca_tools.shared.sideeffect_finder import SideEffect, detect_sideeffects
+from ca_tools.shared.deps import detect_deps
+from ca_tools.shared.unused_dep_finder import detect_unused_deps
 from ca_tools.shared.spec import load_spec
 
 console = Console()

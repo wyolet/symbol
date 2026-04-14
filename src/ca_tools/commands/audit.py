@@ -8,9 +8,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-import ca_tools.audit.checkers  # noqa: F401 — registers all checkers
-import ca_tools.frameworks  # noqa: F401 — registers framework hooks
-from ca_tools.loc.linguist import Linguist
+import ca_tools.checkers  # noqa: F401 — registers all checkers
+from ca_tools.shared.linguist import Linguist
 from ca_tools.shared.context import AnalysisContext, build_context
 from ca_tools.shared.findings import Report
 from ca_tools.shared.registry import get, get_all

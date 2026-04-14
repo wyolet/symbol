@@ -5,7 +5,7 @@ import ast
 from rich.console import Console
 
 from ca_tools.shared.context import AnalysisContext
-from ca_tools.audit.pkg_registry import normalize_package_name
+from ca_tools.shared.pkg_registry import normalize_package_name
 from ca_tools.shared.registry import register, views
 from ca_tools.shared.findings import Finding, Severity
 

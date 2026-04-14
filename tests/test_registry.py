@@ -1,6 +1,6 @@
 """Tests for registry lookup."""
 
-from ca_tools.audit.pkg_registry import lookup, normalize_package_name
+from ca_tools.shared.pkg_registry import lookup, normalize_package_name
 from ca_tools.shared.spec import load_spec
 
 SPEC = load_spec()

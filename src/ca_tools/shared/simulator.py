@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from ca_tools.audit.orphans import ImportEdge, ImportGraph, ImportScope
+from ca_tools.shared.import_graph import ImportEdge, ImportGraph, ImportScope
 
 
 class ModuleState(Enum):

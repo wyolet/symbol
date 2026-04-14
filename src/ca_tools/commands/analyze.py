@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .analyzer import FileAnalysis, analyze_all, analyze_file
+from ca_tools.shared.analyzer import FileAnalysis, analyze_all, analyze_file
 
 console = Console()
 

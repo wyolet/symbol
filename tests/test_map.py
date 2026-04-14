@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.map.analyzer import analyze_map
+from ca_tools.shared.graph import analyze_map
 from ca_tools.shared.project_config import MapThresholds, MetricThreshold
 
 

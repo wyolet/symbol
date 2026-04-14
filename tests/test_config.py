@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca_tools.audit.config import detect_config_files
+from ca_tools.shared.config_files import detect_config_files
 from ca_tools.shared.spec import load_spec
 
 SPEC = load_spec()
