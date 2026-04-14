@@ -346,6 +346,12 @@ skip_patterns = [
     "main.py", "app.py", "server.py", "run.py", "wsgi.py", "asgi.py",
     # Test infrastructure
     "conftest.py", "test_*.py", "*_test.py",
+    # Standalone example/demo scripts — not part of the importable package
+    "examples/*.py", "*/examples/*.py",
+    # Sphinx/MkDocs config — run by docs tooling, not imported
+    "docs/conf.py", "*/conf.py",
+    # Noxfile / task runners at project root
+    "noxfile.py", "tasks.py",
 ]
 
 # ── ca init config ────────────────────────────────────────────────────

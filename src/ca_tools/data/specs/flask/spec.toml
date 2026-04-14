@@ -3,7 +3,7 @@ category = "web"
 detect = { deps = ["flask"] }
 
 [checkers.side_effects.calls]
-skip = ["Flask", "Blueprint", "from_object", "from_envvar"]
+skip = ["Flask", "Blueprint", "from_object", "from_envvar", "register_blueprint"]
 
 [checkers.side_effects.patterns]
 debug = ["extensions.py", "factory.py"]

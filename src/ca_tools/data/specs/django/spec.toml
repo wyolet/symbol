@@ -2,8 +2,24 @@ name = "django"
 category = "web"
 detect = { deps = ["django"] }
 
-[orphan]
-patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
+[checkers.orphan]
+patterns = [
+    # Django loads these by convention via INSTALLED_APPS / settings — never imported directly
+    "admin.py",
+    "apps.py",
+    "urls.py",
+    "middleware.py",
+    "backends.py",
+    "context_processors.py",
+    "signals.py",
+    "receivers.py",
+    "checks.py",
+    "tasks.py",
+    # Discovered by path pattern
+    "*/migrations/*.py",
+    "*/management/commands/*.py",
+    "*/templatetags/*.py",
+]
 
 [checkers.side_effects.calls]
 skip = ["setup"]
