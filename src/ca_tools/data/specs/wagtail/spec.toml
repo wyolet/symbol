@@ -1,0 +1,22 @@
+name = "wagtail"
+category = "web"
+detect = { deps = ["wagtail"] }
+
+[checkers.orphan]
+patterns = [
+    # Loaded by Wagtail's hook autodiscovery (search_for_hooks scans INSTALLED_APPS)
+    "wagtail_hooks.py",
+    "*/wagtail_hooks.py",
+    # Jinja2 extensions loaded via template engine config
+    "jinja2tags.py",
+    "*/jinja2tags.py",
+]
+
+[checkers.side_effects.calls]
+skip = [
+    # Wagtail registry registrations — always intentional at module level
+    "register",
+    "register_form_field_override",
+    "register_filter_adapter_class",
+    "register_comparison_class",
+]

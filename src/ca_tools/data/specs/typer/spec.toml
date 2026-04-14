@@ -1,2 +1,11 @@
 name = "typer"
 category = "cli"
+detect = { deps = ["typer"] }
+
+[checkers.side_effects.calls]
+skip = [
+    # Typer app composition — always intentional module-level registration
+    "add_typer",
+    "add_command",
+    "command",
+]

@@ -139,7 +139,24 @@ class ProjectConfig:
 
 
 def load_project_config(project_root: Path) -> ProjectConfig:
-    """Load [tool.ca-tools] from the target project's pyproject.toml."""
+    """Load ca-tools config from the target project.
+
+    Discovery order (first match wins):
+      1. ca-tools.toml at project root — standalone config, no pyproject needed
+      2. [tool.ca-tools] in pyproject.toml
+    """
+    # 1. Standalone ca-tools.toml
+    standalone = project_root / "ca-tools.toml"
+    if standalone.exists():
+        try:
+            with open(standalone, "rb") as f:
+                ca = tomllib.load(f)
+            if ca:
+                return _parse_config(ca)
+        except (OSError, tomllib.TOMLDecodeError):
+            pass
+
+    # 2. pyproject.toml [tool.ca-tools]
     pyproject = project_root / "pyproject.toml"
     if not pyproject.exists():
         return ProjectConfig()
@@ -154,6 +171,11 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     if not ca:
         return ProjectConfig()
 
+    return _parse_config(ca)
+
+
+def _parse_config(ca: dict) -> ProjectConfig:
+    """Parse a ca-tools config dict into a ProjectConfig."""
     config = ProjectConfig()
 
     checker_raw = ca.get("checker", {})

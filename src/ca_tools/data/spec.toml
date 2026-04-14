@@ -99,7 +99,7 @@ include = [
     "aiohttp", "httplib2", "treq", "subprocess", "socket", "os",
     "urllib", "pydantic", "pydantic-settings", "marshmallow", "cerberus", "attrs",
     "cattrs", "msgpack", "orjson", "ujson", "protobuf", "avro-python3",
-    "msgspec", "pyyaml", "toml", "tomli", "click", "typer",
+    "msgspec", "pyyaml", "toml", "tomli", "click", "typer", "wagtail",
     "argparse", "fire", "rich", "textual", "sentry-sdk", "prometheus-client",
     "opentelemetry-api", "opentelemetry-sdk", "structlog", "loguru", "datadog", "newrelic",
     "statsd", "pyjwt", "python-jose", "authlib", "passlib", "bcrypt",
@@ -204,18 +204,28 @@ severity = "warning"
 # Only stdlib/builtins here — framework-specific entries belong in their package specs.
 [checkers.side_effects.calls]
 skip = [
+    # Logging
     "getLogger",
     "basicConfig",
+    # Type system
     "TypeVar",
     "NewType",
     "ParamSpec",
     "TypeVarTuple",
     "namedtuple",
+    # Path constructors
     "Path",
     "PurePath",
+    # Enums
     "Enum",
     "IntEnum",
     "StrEnum",
+    # Deprecation warnings — standard shim pattern on import
+    "warn",
+    # Warning filter suppression — common in __init__.py
+    "filterwarnings",
+    # Type checker directive — not real runtime call
+    "reveal_type",
 ]
 error = [
     "configure",
@@ -348,10 +358,28 @@ skip_patterns = [
     "conftest.py", "test_*.py", "*_test.py",
     # Standalone example/demo scripts — not part of the importable package
     "examples/*.py", "*/examples/*.py",
-    # Sphinx/MkDocs config — run by docs tooling, not imported
+    "demos/*.py", "*/demos/*.py",
+    # Sphinx/MkDocs config and extensions — run/loaded by docs tooling, not imported
     "docs/conf.py", "*/conf.py",
+    "*sphinxext.py", "docs/**/_ext/*.py",
     # Noxfile / task runners at project root
     "noxfile.py", "tasks.py",
+    # MkDocs hooks — loaded by mkdocs via hooks: config key
+    "mkdocs_hooks.py", "*_hooks.py",
+    # PyInstaller hooks — loaded by build tooling by filename
+    "hook-*.py",
+    # Snapshot test fixtures — loaded by syrupy/inline-snapshot by path, not import
+    "*/snapshots/**/*.py",
+    # Vendored libraries — high false positive rate, not part of project import graph
+    "_vendor/**/*.py", "*/vendor/**/*.py",
+    # Tests data/fixtures read as text, never imported
+    "tests/data/**/*.py", "*/tests/data/**/*.py",
+    # Benchmark scripts
+    "benchmarks/*.py", "*/benchmarks/*.py",
+    # pytest also discovers tests_ prefix (not just test_)
+    "tests_*.py",
+    # Hatch build hooks
+    "hatch_build.py",
 ]
 
 # ── ca init config ────────────────────────────────────────────────────

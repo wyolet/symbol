@@ -15,6 +15,10 @@ patterns = [
     "receivers.py",
     "checks.py",
     "tasks.py",
+    # Jinja2 extensions loaded via template engine TEMPLATES config
+    "jinja2tags.py",
+    # Django locale format modules — loaded dynamically via import_module()
+    "*/locale/*/formats.py",
     # Discovered by path pattern
     "*/migrations/*.py",
     "*/management/commands/*.py",
@@ -22,7 +26,15 @@ patterns = [
 ]
 
 [checkers.side_effects.calls]
-skip = ["setup"]
+skip = [
+    "setup",
+    # Django signal wiring — always intentional at module level
+    "connect",
+    # Django ORM lookup / filter / admin registration — idiomatic
+    "register_lookup",
+    "register",
+    "autodiscover_modules",
+]
 
 [checkers.side_effects.patterns]
 debug = ["apps.py", "admin.py", "signals.py", "manage.py", "urls.py"]
