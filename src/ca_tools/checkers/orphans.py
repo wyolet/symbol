@@ -15,17 +15,6 @@ from ca_tools.shared.registry import register, views
 
 I1, I2 = "  ", "    "
 
-# Files Python/tooling treat as implicit entry points — always skip
-_DEFAULT_SKIP = [
-    "__init__.py",
-    "__main__.py",
-    "setup.py",
-    "manage.py",
-    "conftest.py",
-    "test_*.py",
-    "*_test.py",
-]
-
 
 @dataclass
 class OrphanFile:
@@ -59,7 +48,7 @@ def detect(ctx: AnalysisContext) -> list[OrphanFile]:
         if tree and _has_main_guard(tree):
             entry_point_files.add(filepath)
 
-    skip_patterns = _DEFAULT_SKIP + list(ctx.resolved.skip_orphan_patterns)
+    skip_patterns = list(ctx.spec.orphan.skip_patterns) + list(ctx.resolved.skip_orphan_patterns)
 
     orphans: list[OrphanFile] = []
     for py_file in graph.files:

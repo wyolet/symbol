@@ -146,6 +146,7 @@ type = "tool"
 [packages.gunicorn]
 category = "web"
 type = "tool"
+runtime_only = true
 
 [packages.hypercorn]
 category = "web"
@@ -196,19 +197,23 @@ category = "orm"
 
 [packages.psycopg2]
 category = "database_driver"
+runtime_only = true
 
 [packages.psycopg2-binary]
 category = "database_driver"
 import_name = "psycopg2"
+runtime_only = true
 
 [packages.psycopg]
 category = "database_driver"
+runtime_only = true
 
 [packages.asyncpg]
 category = "database_driver"
 
 [packages.mysqlclient]
 category = "database_driver"
+runtime_only = true
 
 [packages.pymysql]
 category = "database_driver"
@@ -728,6 +733,7 @@ category = "data_science"
 [packages.python-dotenv]
 category = "config"
 import_name = "dotenv"
+runtime_only = true
 
 [packages.environs]
 category = "config"
@@ -823,9 +829,23 @@ stdlib = true
 
 [packages.uvloop]
 category = "async"
+runtime_only = true
 
 [packages.greenlet]
 category = "async"
+runtime_only = true
+
+[packages.httptools]
+category = "async"
+runtime_only = true
+
+[packages.watchfiles]
+category = "async"
+runtime_only = true
+
+[packages.gevent]
+category = "async"
+runtime_only = true
 
 # ── Caching ───────────────────────────────────────────────────────────
 [packages.cachetools]
@@ -1169,6 +1189,27 @@ starter_names = [
 # Linguist (LOC) is unaffected — it scans files independently.
 # Projects can extend this list via [tool.ca-tools] skip_dirs = [...].
 
+# ── Stack checker config ──────────────────────────────────────────────
+# Categories that count as "primary stack" in audit output.
+# Must match keys defined in [categories].
+
+[stack]
+primary_categories = [
+    "web", "orm", "database_driver", "task_queue", "llm", "migration",
+]
+
+# ── Orphan checker defaults ───────────────────────────────────────────
+# Files skipped from orphan detection globally. Framework packages extend
+# this via [packages.X.orphan] patterns.
+
+[orphan]
+skip_patterns = [
+    # Python implicit entry points — always reachable by convention
+    "__init__.py", "__main__.py", "setup.py", "manage.py",
+    # Test infrastructure
+    "conftest.py", "test_*.py", "*_test.py",
+]
+
 [files]
 skip_dirs = [
     # Python environment noise — never production code
@@ -1182,4 +1223,26 @@ skip_dirs = [
     "scripts", "bin", "tools",
     # Demo / example code
     "examples", "example",
+]
+
+skip_patterns = [
+    # Test files — add noise to import graph analysis
+    "tests/**/*.py", "test/**/*.py",
+    "test_*.py", "*_test.py",
+    "conftest.py",
+]
+
+# ── ca init config ────────────────────────────────────────────────────
+# Patterns used by ca init to auto-generate ignore lists.
+
+[init]
+# Side-effect call patterns considered expected/intentional — auto-added to ignore list.
+safe_side_effect_patterns = [
+    "*.include_router()",
+    "*.add_middleware()",
+    "*.add_route()",
+    "*.add_event_handler()",
+    "*.register_blueprint()",
+    "*.add_url_rule()",
+    "*.register()",
 ]

@@ -25,9 +25,10 @@ class ASTCache:
         include: list[str] | None = None,
         exclude: list[str] | None = None,
         skip_dirs: frozenset[str] | None = None,
+        skip_patterns: tuple[str, ...] | None = None,
     ):
         self.project_root = project_root
-        self._files = collect_py_files(project_root, include, exclude, skip_defaults=True, skip_dirs=skip_dirs)
+        self._files = collect_py_files(project_root, include, exclude, skip_patterns=skip_patterns, skip_dirs=skip_dirs)
         self._cache: dict[Path, ast.Module | None] = {}
         self.failed: list[tuple[Path, str]] = []  # (filepath, error message)
 

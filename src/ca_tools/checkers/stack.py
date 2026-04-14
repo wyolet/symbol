@@ -6,12 +6,8 @@ from rich.text import Text
 from ca_tools.shared.context import AnalysisContext
 from ca_tools.shared.pkg_registry import lookup
 from ca_tools.shared.registry import register, views
-from ca_tools.shared.spec import Spec
 
 I1, I2 = "  ", "    "
-
-# Categories that represent the core architecture
-_PRIMARY_CATEGORIES = {"web", "orm", "database_driver", "task_queue", "llm", "migration"}
 
 
 @register(
@@ -75,7 +71,7 @@ def rich_view(stack: dict[str, list[str]], ctx: AnalysisContext, console: Consol
                 continue
             label = spec.categories.get(cat, cat)
             pkgs = _collapse_packages(stack[cat])
-            if cat in _PRIMARY_CATEGORIES:
+            if cat in ctx.spec.stack.primary_categories:
                 shown.append((label, pkgs))
             else:
                 others.extend(pkgs)

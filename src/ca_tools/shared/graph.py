@@ -103,7 +103,7 @@ def analyze_map(
     if thresholds is None:
         thresholds = MapThresholds()
 
-    graph = build_import_graph(project_root, include, exclude, cache=cache, skip_defaults=False, propagate_init=False)
+    graph = build_import_graph(project_root, include, exclude, cache=cache, propagate_init=False)
     result = MapResult()
     result.total_files = len(graph.files)
     result.total_edges = sum(len(targets) for targets in graph.resolved_edges.values())
@@ -152,7 +152,7 @@ def analyze_blast(
     exclude: list[str] | None = None,
 ) -> BlastResult:
     """Find everything that depends on a given file (direct + transitive)."""
-    graph = build_import_graph(project_root, include, exclude, skip_defaults=False, propagate_init=False)
+    graph = build_import_graph(project_root, include, exclude, propagate_init=False)
     edges = _relativize(graph, project_root)
 
     # Build reverse graph: module → set of modules that import it

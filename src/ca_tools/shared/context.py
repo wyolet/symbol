@@ -99,7 +99,7 @@ def build_context(
     skip_dirs = spec.files.skip_dirs | frozenset(config.skip_dirs)
 
     if cache is None:
-        cache = ASTCache(project_root, inc, exc, skip_dirs=skip_dirs)
+        cache = ASTCache(project_root, inc, exc, skip_dirs=skip_dirs, skip_patterns=spec.files.skip_patterns or None)
 
     deps = detect_deps(project_root)
     frameworks = detect_active_frameworks(deps, spec, project_root)

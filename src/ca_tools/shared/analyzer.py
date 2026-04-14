@@ -76,7 +76,7 @@ def analyze_file(
     If cache is provided, uses it for AST parsing (avoids re-parsing).
     """
     if graph is None:
-        graph = build_import_graph(project_root, cache=cache, skip_defaults=False, propagate_init=False)
+        graph = build_import_graph(project_root, cache=cache, propagate_init=False)
 
     # Resolve target to a file
     target_path = _resolve_target(project_root, target, graph.files)
@@ -172,7 +172,7 @@ def analyze_all(
     cache: "ASTCache | None" = None,
 ) -> list[FileAnalysis]:
     """Analyze all Python files in a project. Builds the graph once."""
-    graph = build_import_graph(project_root, cache=cache, skip_defaults=False, propagate_init=False)
+    graph = build_import_graph(project_root, cache=cache, propagate_init=False)
     results: list[FileAnalysis] = []
     for py_file in graph.files:
         rel = str(py_file.relative_to(project_root))

@@ -2,16 +2,6 @@
 
 from pathlib import Path, PurePath
 
-# Default exclude patterns for import graph analysis.
-# Applied unless skip_defaults=True. Pyproject [tool.ca-tools].exclude adds on top.
-DEFAULT_EXCLUDE = [
-    "tests/**/*.py",
-    "test/**/*.py",
-    "test_*.py",
-    "*_test.py",
-    "conftest.py",
-]
-
 
 def _matches(rel_path: str, pattern: str) -> bool:
     """Match a relative path against a glob pattern, supporting ** for recursive."""
@@ -22,18 +12,20 @@ def collect_py_files(
     project_root: Path,
     include: list[str] | None = None,
     exclude: list[str] | None = None,
-    skip_defaults: bool = False,
+    skip_patterns: tuple[str, ...] | None = None,
     skip_dirs: frozenset[str] | None = None,
 ) -> list[Path]:
     """Collect Python files respecting include/exclude glob patterns.
 
-    skip_dirs — directory names to skip entirely (no AST, no analysis).
-                Comes from spec.toml [files] skip_dirs, merged with project config.
-                Linguist LOC counting is unaffected (it scans files independently).
+    skip_patterns — extra glob patterns to exclude (e.g. from spec.toml [files] skip_patterns).
+                    When None, no extra patterns are applied.
+    skip_dirs     — directory names to skip entirely (no AST, no analysis).
+                    Comes from spec.toml [files] skip_dirs, merged with project config.
+                    Linguist LOC counting is unaffected (it scans files independently).
     """
     all_excludes = list(exclude or [])
-    if not skip_defaults:
-        all_excludes.extend(DEFAULT_EXCLUDE)
+    if skip_patterns:
+        all_excludes.extend(skip_patterns)
 
     effective_skip = skip_dirs or frozenset()
 

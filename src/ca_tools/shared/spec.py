@@ -34,6 +34,7 @@ class PackageInfo:
     detect_deps: frozenset[str] = frozenset()
     detect_config_files: frozenset[str] = frozenset()
     orphan: PackageOrphanSpec = None  # type: ignore[assignment]
+    runtime_only: bool = False
 
     def __post_init__(self) -> None:
         if self.side_effects is None:
@@ -65,9 +66,28 @@ class EntrypointSpec:
 
 
 @dataclass(frozen=True)
+class OrphanSpec:
+    """Orphan checker defaults from [orphan] in spec.toml."""
+    skip_patterns: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class FilesSpec:
     """File collection defaults from [files] in spec.toml."""
     skip_dirs: frozenset[str] = frozenset()
+    skip_patterns: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class StackSpec:
+    """Stack checker config from [stack] in spec.toml."""
+    primary_categories: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class InitSpec:
+    """ca init command config from [init] in spec.toml."""
+    safe_side_effect_patterns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -79,10 +99,19 @@ class Spec:
     side_effects: SideEffectSpec
     entrypoints: EntrypointSpec
     files: FilesSpec = None  # type: ignore[assignment]
+    stack: StackSpec = None  # type: ignore[assignment]
+    orphan: OrphanSpec = None  # type: ignore[assignment]
+    init: InitSpec = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.files is None:
             object.__setattr__(self, "files", FilesSpec())
+        if self.stack is None:
+            object.__setattr__(self, "stack", StackSpec())
+        if self.orphan is None:
+            object.__setattr__(self, "orphan", OrphanSpec())
+        if self.init is None:
+            object.__setattr__(self, "init", InitSpec())
 
 
 def load_spec() -> Spec:
@@ -129,6 +158,7 @@ def _parse_spec(raw: dict) -> Spec:
             detect_deps=frozenset(detect_raw.get("deps", [])),
             detect_config_files=frozenset(detect_raw.get("config_files", [])),
             orphan=pkg_orphan,
+            runtime_only=info.get("runtime_only", False),
         )
 
     se = raw["side_effects"]
@@ -150,5 +180,11 @@ def _parse_spec(raw: dict) -> Spec:
             starters=frozenset(ep["starters"]),
             starter_names=frozenset(ep["starter_names"]),
         ),
-        files=FilesSpec(skip_dirs=frozenset(f.get("skip_dirs", []))),
+        files=FilesSpec(
+            skip_dirs=frozenset(f.get("skip_dirs", [])),
+            skip_patterns=tuple(f.get("skip_patterns", [])),
+        ),
+        stack=StackSpec(primary_categories=frozenset(raw.get("stack", {}).get("primary_categories", []))),
+        orphan=OrphanSpec(skip_patterns=tuple(raw.get("orphan", {}).get("skip_patterns", []))),
+        init=InitSpec(safe_side_effect_patterns=tuple(raw.get("init", {}).get("safe_side_effect_patterns", []))),
     )
