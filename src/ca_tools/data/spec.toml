@@ -212,29 +212,17 @@ safe_calls = [
     "Enum",
     "IntEnum",
     "StrEnum",
-    "FastAPI",
-    "Flask",
-    "Celery",
-    "APIRouter",
-    "Router",
-    "Blueprint",
-    "Namespace",
 ]
 
 # Leaf function names known to have real side effects — always flagged even if uppercase.
+# Only stdlib/builtins here — framework-specific entries belong in their package specs.
 known_effects = [
-    "load_dotenv",
-    "create_engine",
     "configure",
     "setup",
     "init",
     "register",
     "connect",
     "patch",
-    "monkey_patch",
-    "monkey.patch_all",
-    "eventlet.monkey_patch",
-    "gevent.monkey.patch_all",
 ]
 
 # File roles — maps severity level to list of basenames.

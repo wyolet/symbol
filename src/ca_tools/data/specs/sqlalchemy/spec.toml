@@ -1,2 +1,5 @@
 name = "sqlalchemy"
 category = "orm"
+
+[side_effects]
+known_effects = ["create_engine", "create_async_engine"]

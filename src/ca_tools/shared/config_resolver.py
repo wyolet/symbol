@@ -18,8 +18,11 @@ def resolve_config(
     for fw in frameworks:
         safe_calls.update(fw.safe_calls)
 
-    # --- known_effects: spec only (no framework/project override) ---
-    known_effects = spec.side_effects.known_effects
+    # --- known_effects: spec baseline + active package additions ---
+    known_effects = set(spec.side_effects.known_effects)
+    for pkg_info in spec.packages.values():
+        known_effects.update(pkg_info.side_effects.known_effects)
+    known_effects = frozenset(known_effects)
 
     # --- skip_orphan_patterns: frameworks + checker ignore + per-package orphan overrides ---
     skip_patterns: list[str] = []

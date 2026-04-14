@@ -3,7 +3,7 @@ category = "task_queue"
 detect = { deps = ["celery"] }
 
 [side_effects]
-safe_calls = ["update"]
+safe_calls = ["Celery", "update"]
 
 [side_effects.file_roles]
 debug = ["tasks.py", "celery.py", "celeryconf.py", "beat.py", "worker.py"]

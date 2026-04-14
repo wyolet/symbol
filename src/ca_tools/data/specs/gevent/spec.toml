@@ -1,3 +1,5 @@
 name = "gevent"
 category = "async"
-runtime_only = true
+
+[side_effects]
+known_effects = ["monkey_patch", "monkey.patch_all"]

@@ -3,7 +3,7 @@ category = "web"
 detect = { deps = ["flask"] }
 
 [side_effects]
-safe_calls = ["from_object", "from_envvar"]
+safe_calls = ["Flask", "Blueprint", "from_object", "from_envvar"]
 
 [side_effects.file_roles]
 debug = ["extensions.py", "factory.py"]

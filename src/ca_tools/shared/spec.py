@@ -11,6 +11,7 @@ from ca_tools.shared.findings import Severity
 class PackageSideEffectsSpec:
     module_level: Severity = Severity.WARNING
     safe_calls: frozenset[str] = frozenset()
+    known_effects: frozenset[str] = frozenset()
     # basename → Severity overrides for this package's framework files
     file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
 
@@ -202,6 +203,7 @@ def _load_package_spec(raw: dict, categories: dict[str, str]) -> "tuple[str, Pac
     pkg_se = PackageSideEffectsSpec(
         module_level=Severity(se_raw.get("module_level", "warning")),
         safe_calls=frozenset(se_raw.get("safe_calls", [])),
+        known_effects=frozenset(se_raw.get("known_effects", [])),
         file_roles=_parse_roles(se_raw.get("file_roles", {})),
     )
     pkg_orphan = PackageOrphanSpec(patterns=tuple(orphan_raw.get("patterns", [])))

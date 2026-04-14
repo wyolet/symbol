@@ -1,4 +1,6 @@
 name = "python-dotenv"
 category = "config"
 import_name = "dotenv"
-runtime_only = true
+
+[side_effects]
+known_effects = ["load_dotenv", "dotenv_values"]
