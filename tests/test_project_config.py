@@ -12,12 +12,8 @@ def test_defaults_when_no_pyproject(tmp_path: Path):
     config = load_project_config(tmp_path)
     assert config.include == []
     assert config.exclude == []
-    assert config.severity_orphans == Severity.ERROR
-    assert config.severity_side_effects == Severity.WARNING
-    assert config.severity_unused_deps == Severity.ERROR
-    assert config.ignore_deps == []
-    assert config.ignore_orphans == []
-    assert config.ignore_side_effects == []
+    assert config.checkers == {}
+    assert config.packages == {}
 
 
 def test_defaults_when_no_ca_tools_section(tmp_path: Path):
@@ -37,36 +33,44 @@ exclude = ["tests/*", "scripts/*"]
     assert config.exclude == ["tests/*", "scripts/*"]
 
 
-def test_loads_severity_overrides(tmp_path: Path):
+def test_loads_checker_severity(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.severity]
-orphans = "warning"
-side_effects = "info"
-unused_deps = "warning"
+[tool.ca-tools.checkers.orphans]
+severity = "warning"
+
+[tool.ca-tools.checkers.side_effects]
+severity = "info"
+
+[tool.ca-tools.checkers.unused_deps]
+severity = "warning"
 """)
     config = load_project_config(tmp_path)
-    assert config.severity_orphans == Severity.WARNING
-    assert config.severity_side_effects == Severity.INFO
-    assert config.severity_unused_deps == Severity.WARNING
+    assert config.checkers["orphans"].severity == Severity.WARNING
+    assert config.checkers["side_effects"].severity == Severity.INFO
+    assert config.checkers["unused_deps"].severity == Severity.WARNING
 
 
-def test_loads_ignore_lists(tmp_path: Path):
+def test_loads_checker_ignore(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.ignore]
-deps = ["greenlet", "psycopg"]
-orphans = ["alembic/*", "src/main.py"]
-side_effects = ["*.include_router()", "*.add_middleware()"]
+[tool.ca-tools.checkers.unused_deps]
+ignore = ["greenlet", "psycopg"]
+
+[tool.ca-tools.checkers.orphans]
+ignore = ["alembic/*", "src/main.py"]
+
+[tool.ca-tools.checkers.side_effects]
+ignore = ["*.include_router()", "*.add_middleware()"]
 """)
     config = load_project_config(tmp_path)
-    assert config.ignore_deps == ["greenlet", "psycopg"]
-    assert config.ignore_orphans == ["alembic/*", "src/main.py"]
-    assert config.ignore_side_effects == ["*.include_router()", "*.add_middleware()"]
+    assert config.checkers["unused_deps"].ignore == ["greenlet", "psycopg"]
+    assert config.checkers["orphans"].ignore == ["alembic/*", "src/main.py"]
+    assert config.checkers["side_effects"].ignore == ["*.include_router()", "*.add_middleware()"]
 
 
 def test_invalid_severity_raises(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.severity]
-orphans = "nonsense"
+[tool.ca-tools.checkers.orphans]
+severity = "nonsense"
 """)
     with pytest.raises(ValueError, match="Invalid severity"):
         load_project_config(tmp_path)
@@ -74,13 +78,11 @@ orphans = "nonsense"
 
 def test_partial_config(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.ignore]
-deps = ["greenlet"]
+[tool.ca-tools.checkers.unused_deps]
+ignore = ["greenlet"]
 """)
     config = load_project_config(tmp_path)
-    assert config.ignore_deps == ["greenlet"]
-    # Everything else stays default
-    assert config.severity_orphans == Severity.ERROR
+    assert config.checkers["unused_deps"].ignore == ["greenlet"]
     assert config.exclude == []
 
 

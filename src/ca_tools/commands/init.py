@@ -95,30 +95,24 @@ def _generate_toml(
         lines.append(f"exclude = [{items}]")
 
     lines.append("")
-    lines.append("[tool.ca-tools.severity]")
-    lines.append('orphans = "warning"')
-    lines.append('side_effects = "info"')
-
-    lines.append("")
-    lines.append("[tool.ca-tools.ignore]")
-
-    if ignore_deps:
-        items = ", ".join(f'"{d}"' for d in ignore_deps)
-        lines.append(f"deps = [{items}]")
-    else:
-        lines.append("deps = []")
-
+    lines.append("[tool.ca-tools.checkers.orphans]")
+    lines.append('severity = "warning"')
     if ignore_orphans:
         items = ", ".join(f'"{p}"' for p in ignore_orphans)
-        lines.append(f"orphans = [{items}]")
-    else:
-        lines.append("orphans = []")
+        lines.append(f"ignore = [{items}]")
 
+    lines.append("")
+    lines.append("[tool.ca-tools.checkers.side_effects]")
+    lines.append('severity = "info"')
     if ignore_side_effects:
         items = ", ".join(f'"{p}"' for p in ignore_side_effects)
-        lines.append(f"side_effects = [{items}]")
-    else:
-        lines.append("side_effects = []")
+        lines.append(f"ignore = [{items}]")
+
+    lines.append("")
+    lines.append("[tool.ca-tools.checkers.unused_deps]")
+    if ignore_deps:
+        items = ", ".join(f'"{d}"' for d in ignore_deps)
+        lines.append(f"ignore = [{items}]")
 
     return "\n".join(lines) + "\n"
 

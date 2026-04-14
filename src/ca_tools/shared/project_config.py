@@ -79,21 +79,22 @@ class PackageProjectConfig:
 
 
 @dataclass
+class CheckerProjectConfig:
+    """Per-checker overrides from [tool.ca-tools.checkers.NAME]."""
+    severity: Severity | None = None
+    ignore: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ProjectConfig:
     """Configuration from the target project's [tool.ca-tools] section."""
 
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
-
-    severity_orphans: Severity = Severity.ERROR
-    severity_side_effects: Severity = Severity.WARNING
-    severity_unused_deps: Severity = Severity.ERROR
-
-    ignore_deps: list[str] = field(default_factory=list)
-    ignore_orphans: list[str] = field(default_factory=list)
-    ignore_side_effects: list[str] = field(default_factory=list)
-
     disabled_checkers: list[str] = field(default_factory=list)
+
+    # Per-checker overrides: [tool.ca-tools.checkers.NAME]
+    checkers: dict[str, CheckerProjectConfig] = field(default_factory=dict)
 
     # Per-package overrides: [tool.ca-tools.packages.X]
     packages: dict[str, PackageProjectConfig] = field(default_factory=dict)
@@ -125,18 +126,16 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     config.exclude = ca.get("exclude", [])
     config.disabled_checkers = ca.get("disable", [])
 
-    severity = ca.get("severity", {})
-    if "orphans" in severity:
-        config.severity_orphans = _parse_severity(severity["orphans"])
-    if "side_effects" in severity:
-        config.severity_side_effects = _parse_severity(severity["side_effects"])
-    if "unused_deps" in severity:
-        config.severity_unused_deps = _parse_severity(severity["unused_deps"])
-
-    ignore = ca.get("ignore", {})
-    config.ignore_deps = ignore.get("deps", [])
-    config.ignore_orphans = ignore.get("orphans", [])
-    config.ignore_side_effects = ignore.get("side_effects", [])
+    # Per-checker config: [tool.ca-tools.checkers.NAME]
+    for checker_name, checker_data in ca.get("checkers", {}).items():
+        if not isinstance(checker_data, dict):
+            continue
+        cfg = CheckerProjectConfig()
+        if "severity" in checker_data:
+            cfg.severity = _parse_severity(checker_data["severity"])
+        if "ignore" in checker_data:
+            cfg.ignore = list(checker_data["ignore"])
+        config.checkers[checker_name] = cfg
 
     # Map config: [tool.ca-tools.map]
     map_section = ca.get("map", {})
