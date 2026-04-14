@@ -263,10 +263,6 @@ error = [
     "validators.py",
     "mixins.py",
     "decorators.py",
-    # Web layer
-    "forms.py",
-    "filters.py",
-    "permissions.py",
     # Error handling
     "exceptions.py",
     "errors.py",

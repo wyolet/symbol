@@ -10,3 +10,4 @@ safe_calls = ["setup"]
 
 [side_effects.file_roles]
 debug = ["apps.py", "admin.py", "signals.py", "manage.py", "urls.py"]
+error = ["forms.py", "filters.py", "permissions.py"]
