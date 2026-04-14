@@ -2,8 +2,14 @@
 
 from pathlib import Path, PurePath
 
-# Always excluded directories
-ALWAYS_SKIP = {"__pycache__", "venv", ".venv", "node_modules", "env", ".git", ".hg", ".svn"}
+# Always excluded directories — never parse these, not even for import graph
+ALWAYS_SKIP = {
+    "__pycache__", "venv", ".venv", "node_modules", "env",
+    ".git", ".hg", ".svn",
+    "docs", "doc", "docs_src",   # documentation — standalone snippets, not production code
+    "scripts", "bin", "tools",   # one-off scripts — not part of the import graph
+    "examples", "example",       # demo code
+}
 
 # Default exclude patterns — test files add noise to import graph analysis.
 # These are always applied; pyproject [tool.ca-tools].exclude adds on top.
