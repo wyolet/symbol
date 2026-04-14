@@ -48,6 +48,7 @@ def resolve_config(
 
     # --- severity overrides from project config ---
     severity_overrides: dict = {}
+    severity_overrides["orphans"] = project_config.severity_orphans
     severity_overrides["side_effects"] = project_config.severity_side_effects
     severity_overrides["unused_deps"] = project_config.severity_unused_deps
 
