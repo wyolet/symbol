@@ -1,8 +1,26 @@
-# ca-tools spec — all detection patterns in one place.
-# Community contributions: edit this file, not Python code.
+# ca-tools built-in spec — community-maintained detection patterns.
+# Full schema reference: docs/spec-schema.md
 #
-# Format modeled after GitHub's linguist languages.yml.
-# Each section defines patterns for a specific detection module.
+# To contribute: add packages, checker configs, or framework rules here.
+# No Python code changes needed — the spec is the extension point.
+#
+# Loading order (later overrides earlier):
+#   1. This file (built-in)
+#   2. Plugin specs (installed packages via entry points)
+#   3. Project spec (ca-tools.spec.toml at project root)
+#
+# ── Package entry shape ───────────────────────────────────────────────
+# [packages.NAME]
+#   category    = "..."        # required, must match a [categories] key
+#   type        = "lib|tool|app"  # required
+#   stdlib      = false        # true for stdlib modules
+#   import_name = "..."        # only when import name differs from package name
+#
+# [packages.NAME.side_effects]
+#   module_level = "debug|info|warning|error|critical"
+#                              # severity when called at module level
+#                              # default: warning
+# ─────────────────────────────────────────────────────────────────────
 
 # ── Categories ────────────────────────────────────────────────────────
 # Maps internal category keys to display-friendly labels.
@@ -425,16 +443,13 @@ terraform = "infrastructure as code"
 ".terraform" = "infrastructure as code"
 
 # ── Side effects ──────────────────────────────────────────────────────
-# Controls what gets flagged as a module-level side effect.
+# Global rules for the side_effects checker.
+# Per-package overrides live under [packages.X.side_effects].
 #
-# Severity is determined by three layered rules (highest wins):
-#   1. module_level_critical package prefix → CRITICAL regardless of file
-#   2. File basename in pure_files          → ERROR
-#   3. File basename in skip_files          → DEBUG (silent by default)
-#   4. Everything else                      → WARNING (default)
-#
-# Framework sections can extend skip_files for their own patterns.
-# Projects can extend all lists via [tool.ca-tools] in pyproject.toml.
+# Severity resolution order (highest wins):
+#   1. [packages.X.side_effects] module_level  — package-specific
+#   2. [side_effects.file_roles]               — file basename role
+#   3. default WARNING
 
 [side_effects]
 # Leaf function names that are safe / expected at module level — never flagged.
@@ -580,10 +595,14 @@ starter_names = [
 ]
 
 # ── Frameworks ───────────────────────────────────────────────────────
-# Framework-specific rules: skip patterns, safe calls, detection criteria.
-# Detectors use these to adjust behavior per-framework.
-# detect.deps: activate when any of these packages are in declared deps.
-# detect.config_files: activate when any of these files exist at project root.
+# Framework-specific overrides — activated when framework is detected in deps.
+#
+# Fields:
+#   detect.deps         — activate when any of these packages are declared
+#   detect.config_files — activate when any of these files exist at root
+#   skip_orphan_patterns — globs to exclude from orphan detection
+#   safe_calls          — leaf names safe at module level for this framework
+#   file_roles          — severity overrides by file basename (merged over global)
 
 [frameworks.django]
 detect = { deps = ["django"] }
