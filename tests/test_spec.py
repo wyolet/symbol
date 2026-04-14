@@ -9,8 +9,8 @@ def test_load_spec():
     assert len(spec.packages) > 0
     assert len(spec.config_files) > 0
     assert len(spec.config_dirs) > 0
-    assert len(spec.side_effects.safe_calls) > 0
-    assert len(spec.side_effects.known_effects) > 0
+    assert len(spec.side_effects.skip_calls) > 0
+    assert len(spec.side_effects.known_error_calls) > 0
     assert len(spec.entrypoints.starters) > 0
     assert len(spec.entrypoints.starter_names) > 0
 

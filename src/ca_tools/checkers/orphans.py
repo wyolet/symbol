@@ -54,7 +54,7 @@ def detect(ctx: AnalysisContext) -> list[OrphanFile]:
             if tree and _has_main_guard(tree):
                 entry_point_files.add(filepath)
 
-    skip_patterns = list(ctx.spec.orphan.skip_patterns) + list(ctx.resolved.skip_orphan_patterns)
+    skip_patterns = list(ctx.spec.orphan.patterns) + list(ctx.resolved.skip_orphan_patterns)
 
     orphans: list[OrphanFile] = []
     for py_file in graph.files:

@@ -26,7 +26,7 @@ def resolve_config(
     for pkg_info in spec.packages.values():
         safe_calls.update(pkg_info.side_effects.skip_calls)
     for fw in frameworks:
-        safe_calls.update(fw.safe_calls)
+        safe_calls.update(fw.skip_calls)
     safe_calls.update(se_project.calls.get("skip", []))
 
     # --- error_calls (known error severity) ---
@@ -50,7 +50,7 @@ def resolve_config(
     for pkg_info in spec.packages.values():
         patterns.update(pkg_info.side_effects.patterns)
     for fw in frameworks:
-        patterns.update(fw.file_roles)
+        patterns.update(fw.patterns)
     patterns.update(se_project.patterns)
 
     # --- side effect package roles: spec baseline → per-package spec → project overrides ---

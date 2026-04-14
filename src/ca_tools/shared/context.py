@@ -15,12 +15,12 @@ class ActiveFramework:
 
     name: str
     skip_orphan_patterns: tuple[str, ...]
-    safe_calls: frozenset[str]
-    file_roles: dict[str, "Severity"] = None  # type: ignore[assignment]
+    skip_calls: frozenset[str]
+    patterns: dict[str, "Severity"] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        if self.file_roles is None:
-            object.__setattr__(self, "file_roles", {})
+        if self.patterns is None:
+            object.__setattr__(self, "patterns", {})
 
 
 @dataclass
@@ -44,14 +44,6 @@ class ResolvedConfig:
         if self.side_effect_package_roles is None:
             object.__setattr__(self, "side_effect_package_roles", {})
 
-    # backward-compat alias
-    @property
-    def known_effects(self) -> frozenset[str]:
-        return self.error_calls
-
-    @property
-    def side_effect_file_roles(self) -> dict[str, Severity]:
-        return self.side_effect_patterns
 
 
 @dataclass

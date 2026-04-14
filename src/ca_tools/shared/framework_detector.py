@@ -31,8 +31,8 @@ def detect_active_frameworks(
             active.append(ActiveFramework(
                 name=pkg_name,
                 skip_orphan_patterns=pkg_info.orphan.patterns,
-                safe_calls=pkg_info.side_effects.safe_calls,
-                file_roles=pkg_info.side_effects.file_roles,
+                skip_calls=pkg_info.side_effects.skip_calls,
+                patterns=pkg_info.side_effects.patterns,
             ))
 
     return active

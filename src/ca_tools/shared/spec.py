@@ -27,15 +27,6 @@ class PackageSideEffectsSpec:
     def error_calls(self) -> frozenset[str]:
         return self.calls.get("error", frozenset())
 
-    # --- backward-compat properties used by framework_detector and config_resolver ---
-    @property
-    def safe_calls(self) -> frozenset[str]:
-        return self.skip_calls
-
-    @property
-    def file_roles(self) -> dict[str, Severity]:
-        return self.patterns if self.patterns is not None else {}
-
 
 @dataclass(frozen=True)
 class PackageOrphanSpec:
@@ -88,18 +79,6 @@ class SideEffectSpec:
     def known_error_calls(self) -> frozenset[str]:
         return self.calls.get("error", frozenset())
 
-    # --- backward-compat properties ---
-    @property
-    def safe_calls(self) -> frozenset[str]:
-        return self.skip_calls
-
-    @property
-    def known_effects(self) -> frozenset[str]:
-        return self.known_error_calls
-
-    @property
-    def file_roles(self) -> dict[str, Severity]:
-        return self.patterns if self.patterns is not None else {}
 
 
 @dataclass(frozen=True)
@@ -110,8 +89,8 @@ class EntrypointSpec:
 
 @dataclass(frozen=True)
 class OrphanSpec:
-    """Orphan checker defaults from [orphan] in spec.toml."""
-    skip_patterns: tuple[str, ...] = ()
+    """Orphan checker defaults from [checkers.orphan] in spec.toml."""
+    patterns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -236,7 +215,7 @@ def _load_package_spec(raw: dict, categories: dict[str, str]) -> "tuple[str, Pac
     if cat not in categories:
         raise ValueError(f"Package {pkg_name!r} references unknown category {cat!r}")
     detect_raw = raw.get("detect", {})
-    orphan_raw = raw.get("orphan", {})
+    orphan_raw = raw.get("checkers", {}).get("orphan", raw.get("orphan", {}))
     # Support both old [side_effects] shape and new [checkers.side_effects] shape
     old_se_raw = raw.get("side_effects", {})
     new_se_raw = raw.get("checkers", {}).get("side_effects", {})
@@ -344,7 +323,7 @@ def _parse_spec(raw: dict, packages: "dict[str, PackageInfo]") -> "Spec":
             exclude=tuple(s.get("exclude", [])),
         ),
         stack=StackSpec(primary_categories=frozenset(raw.get("stack", {}).get("primary_categories", []))),
-        orphan=OrphanSpec(skip_patterns=tuple(
+        orphan=OrphanSpec(patterns=tuple(
             raw.get("checkers", {}).get("orphan", raw.get("orphan", {})).get("skip_patterns", [])
         )),
         init=InitSpec(safe_side_effect_patterns=tuple(raw.get("init", {}).get("safe_side_effect_patterns", []))),
