@@ -86,13 +86,13 @@ include = [
     "psycopg", "asyncpg", "mysqlclient", "pymysql", "aiomysql", "sqlite3",
     "aiosqlite", "redis", "aioredis", "pymongo", "motor", "cassandra-driver",
     "elasticsearch", "opensearch-py", "clickhouse-driver", "neo4j", "cx-oracle", "oracledb",
-    "pyodbc", "celery", "rq", "dramatiq", "huey", "arq",
+    "pyodbc", "celery", "rq", "dramatiq", "huey", "arq", "scrapy",
     "taskiq", "openai", "anthropic", "langchain", "langchain-core", "langchain-community",
     "langchain-openai", "langchain-anthropic", "llama-index", "transformers", "huggingface-hub", "cohere",
     "google-generativeai", "litellm", "vllm", "ollama", "instructor", "chromadb",
     "pinecone-client", "weaviate-client", "qdrant-client", "tiktoken", "tokenizers", "sentence-transformers",
     "guidance", "dspy-ai", "langgraph", "crewai", "autogen", "alembic",
-    "yoyo-migrations", "pytest", "pytest-cov", "pytest-asyncio", "pytest-mock",
+    "yoyo-migrations", "pytest", "pytest-cov", "pytest-asyncio", "pytest-mock", "mypy",
     "pytest-xdist", "pytest-django", "unittest", "hypothesis", "factory-boy", "faker",
     "coverage", "tox", "nox", "responses", "respx", "vcrpy",
     "freezegun", "time-machine", "polyfactory", "requests", "httpx", "urllib3",
@@ -226,6 +226,8 @@ skip = [
     "filterwarnings",
     # Type checker directive — not real runtime call
     "reveal_type",
+    # atexit cleanup registration — stdlib, always intentional
+    "atexit",
 ]
 error = [
     "configure",

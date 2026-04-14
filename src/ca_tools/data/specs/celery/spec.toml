@@ -2,8 +2,19 @@ name = "celery"
 category = "task_queue"
 detect = { deps = ["celery"] }
 
+[checkers.orphan]
+patterns = [
+    # Test fixture apps loaded dynamically via string path, not imported
+    "*/t/unit/**/proj/*.py",
+]
+
 [checkers.side_effects.calls]
-skip = ["Celery", "update"]
+skip = [
+    "Celery",
+    "update",
+    # CLI command registration
+    "add_command",
+]
 
 [checkers.side_effects.patterns]
 debug = ["tasks.py", "celery.py", "celeryconf.py", "beat.py", "worker.py"]

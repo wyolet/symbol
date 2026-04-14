@@ -1,0 +1,16 @@
+name = "mypy"
+category = "testing"
+type = "tool"
+detect = { deps = ["mypy"] }
+
+[checkers.orphan]
+patterns = [
+    # Mypy plugins — loaded via [mypy] plugins = ... config, never imported directly
+    "mypy.py",
+    "*mypy_plugin.py",
+    "*/mypy.py",
+    # Mypy test fixtures — run by mypy as type-check targets, not by Python
+    "*/mypy/modules/*.py",
+    "*/test/mypy/*.py",
+    "*/tests/mypy/*.py",
+]

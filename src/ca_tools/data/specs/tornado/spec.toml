@@ -1,2 +1,9 @@
 name = "tornado"
 category = "web"
+detect = { deps = ["tornado"] }
+
+[checkers.side_effects.calls]
+skip = [
+    # Tornado's canonical option declaration idiom — always at module level
+    "define",
+]

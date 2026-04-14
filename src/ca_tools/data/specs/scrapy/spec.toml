@@ -1,0 +1,14 @@
+name = "scrapy"
+category = "http_client"
+detect = { deps = ["scrapy"] }
+
+[checkers.orphan]
+patterns = [
+    # All loaded via settings dicts (EXTENSIONS, COMMANDS_MODULE, etc.) — never statically imported
+    "*/scrapy/commands/*.py",
+    "*/scrapy/extensions/*.py",
+    "*/scrapy/spidermiddlewares/*.py",
+    "*/scrapy/downloadermiddlewares/*.py",
+    "*/scrapy/pipelines/*.py",
+    "*/scrapy/core/downloader/handlers/*.py",
+]
