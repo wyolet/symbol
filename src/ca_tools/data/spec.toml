@@ -246,9 +246,6 @@ debug = [
     # WSGI/ASGI adapters
     "wsgi.py",
     "asgi.py",
-    # Task queue config
-    "celeryconf.py",
-    "celery.py",
     # Test infrastructure
     "conftest.py",
 ]

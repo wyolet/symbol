@@ -13,18 +13,29 @@ def resolve_config(
 ) -> ResolvedConfig:
     """Build a ResolvedConfig by layering spec -> frameworks -> project config."""
 
-    # --- safe_calls: spec baseline + framework additions ---
+    # Merge order for all side_effects config:
+    #   1. spec global baseline
+    #   2. active package specs (additive)
+    #   3. framework specs (additive, framework = detected active package)
+    #   4. project [tool.ca-tools.side_effects] (wins last — full override)
+
+    se_project = project_config.side_effects
+
+    # --- safe_calls ---
     safe_calls = set(spec.side_effects.safe_calls)
+    for pkg_info in spec.packages.values():
+        safe_calls.update(pkg_info.side_effects.safe_calls)
     for fw in frameworks:
         safe_calls.update(fw.safe_calls)
+    safe_calls.update(se_project.safe_calls)
 
-    # --- known_effects: spec baseline + active package additions ---
-    known_effects = set(spec.side_effects.known_effects)
+    # --- known_effects ---
+    known_effects: set[str] = set(spec.side_effects.known_effects)
     for pkg_info in spec.packages.values():
         known_effects.update(pkg_info.side_effects.known_effects)
-    known_effects = frozenset(known_effects)
+    known_effects.update(se_project.known_effects)
 
-    # --- skip_orphan_patterns: frameworks + checker ignore + per-package orphan overrides ---
+    # --- skip_orphan_patterns ---
     skip_patterns: list[str] = []
     for fw in frameworks:
         skip_patterns.extend(fw.skip_orphan_patterns)
@@ -34,10 +45,13 @@ def resolve_config(
     for pkg_cfg in project_config.packages.values():
         skip_patterns.extend(pkg_cfg.orphan.patterns)
 
-    # --- side effect file roles: spec baseline + framework additions ---
+    # --- side effect file roles: spec → packages → frameworks → project ---
     file_roles: dict[str, "Severity"] = dict(spec.side_effects.file_roles)
+    for pkg_info in spec.packages.values():
+        file_roles.update(pkg_info.side_effects.file_roles)
     for fw in frameworks:
-        file_roles.update(fw.file_roles)  # framework overrides spec
+        file_roles.update(fw.file_roles)
+    file_roles.update(se_project.file_roles)
 
     # --- side effect package roles: spec baseline → per-package spec → project overrides ---
     package_roles: dict[str, Severity] = dict(spec.side_effects.package_roles)
@@ -73,7 +87,7 @@ def resolve_config(
         severity_overrides=severity_overrides,
         ignore_patterns=ignore,
         safe_calls=frozenset(safe_calls),
-        known_effects=known_effects,
+        known_effects=frozenset(known_effects),
         skip_orphan_patterns=skip_patterns,
         side_effect_file_roles=file_roles,
         side_effect_package_roles=package_roles,

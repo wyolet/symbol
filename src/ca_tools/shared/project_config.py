@@ -79,6 +79,18 @@ class PackageProjectConfig:
 
 
 @dataclass
+class SideEffectsProjectConfig:
+    """Project-level overrides for [tool.ca-tools.side_effects].
+
+    Wins over spec and package defaults — use to silence or add calls project-wide.
+    """
+    safe_calls: list[str] = field(default_factory=list)
+    known_effects: list[str] = field(default_factory=list)
+    # basename → severity: overrides file role for specific files in this project
+    file_roles: dict[str, "Severity"] = field(default_factory=dict)
+
+
+@dataclass
 class CheckerProjectConfig:
     """Per-checker overrides from [tool.ca-tools.checkers.NAME]."""
     severity: Severity | None = None
@@ -103,6 +115,7 @@ class ProjectConfig:
 
     checker: CheckerConfig = field(default_factory=CheckerConfig)
     scanner: ScannerConfig = field(default_factory=ScannerConfig)
+    side_effects: SideEffectsProjectConfig = field(default_factory=SideEffectsProjectConfig)
     disabled_checkers: list[str] = field(default_factory=list)
 
     # Paths to custom checker modules — loaded before running checkers
@@ -151,6 +164,18 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     config.disabled_checkers = ca.get("disable", [])
     config.custom_checkers = ca.get("custom_checkers", [])
     config.extra_specs = ca.get("extra_specs", [])
+
+    # [tool.ca-tools.side_effects] — project-level overrides, win over all spec layers
+    se_raw = ca.get("side_effects", {})
+    if se_raw:
+        config.side_effects.safe_calls = list(se_raw.get("safe_calls", []))
+        config.side_effects.known_effects = list(se_raw.get("known_effects", []))
+        raw_roles = se_raw.get("file_roles", {})
+        config.side_effects.file_roles = {
+            name: _parse_severity(sev_str)
+            for sev_str, names in raw_roles.items()
+            for name in names
+        }
 
     # Per-checker config: [tool.ca-tools.checkers.NAME]
     for checker_name, checker_data in ca.get("checkers", {}).items():
