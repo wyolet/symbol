@@ -42,7 +42,7 @@ def detect(
     tree=None,
 ) -> list[TodoItem]:
     try:
-        source = filepath.read_text()
+        source = filepath.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
 
