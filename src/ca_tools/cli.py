@@ -155,15 +155,28 @@ def map_command(
 
 @app.command()
 def search(
-    query: Annotated[str, typer.Argument(help="Symbol name or qualified path — returns candidates with signatures + previews")],
+    patterns: Annotated[list[str], typer.Argument(help="One or more symbol patterns. Multiple patterns = AND (all must match).")],
     path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
     kind: Annotated[str | None, typer.Option("--kind", help="Filter by kind: class, function, async_function")] = None,
     file: Annotated[str | None, typer.Option("--file", help="Restrict to one file (repo-relative path)")] = None,
+    regex: Annotated[bool, typer.Option("--regex", "-E", help="Treat patterns as Python regex (unanchored)")] = False,
+    fixed: Annotated[bool, typer.Option("--fixed", "-F", help="Treat patterns as literal substrings")] = False,
+    ignore_case: Annotated[bool, typer.Option("--ignore-case", "-i", help="Case-insensitive matching")] = False,
     limit: Annotated[int, typer.Option("--limit", help="Max candidates to return")] = 100,
     format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
 ) -> None:
-    """Narrow candidates by name. Returns signature + preview, no bodies."""
-    search_cmd(query, path=path, kind=kind, file=file, limit=limit, format=format)
+    """Narrow candidates by name. Returns signatures, no bodies."""
+    search_cmd(
+        patterns,
+        path=path,
+        kind=kind,
+        file=file,
+        regex=regex,
+        fixed=fixed,
+        ignore_case=ignore_case,
+        limit=limit,
+        format=format,
+    )
 
 
 @app.command()
