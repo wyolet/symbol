@@ -26,6 +26,8 @@ class ASTCache:
         exclude: list[str] | None = None,
     ):
         self.project_root = project_root
+        self._include_patterns = tuple(include or ())
+        self._exclude_patterns = tuple(exclude or ())
         self._files = collect_py_files(project_root, include, exclude)
         self._cache: dict[Path, ast.Module | None] = {}
         self.failed: list[tuple[Path, str]] = []  # (filepath, error message)

@@ -11,3 +11,4 @@ wheels/
 
 # Survey: cloned repos and audit output
 survey/
+.ca-tools/

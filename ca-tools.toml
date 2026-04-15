@@ -1,0 +1,5 @@
+[checker]
+exclude = ["survey/**"]
+
+[scanner]
+exclude = ["survey/**"]

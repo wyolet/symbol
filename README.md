@@ -2,7 +2,7 @@
 
 Codebase audit toolkit for Python projects.
 
-Point at a directory, get the full picture — what frameworks it uses, where the entry points are, which files are dead, what executes on import, and how everything is wired together.
+Point at a directory, get the full picture — what frameworks it uses, where the entry points are, which files are dead, what executes on import, where the TODOs and swallowed exceptions hide, and how everything is wired together.
 
 ## Install
 
@@ -14,7 +14,7 @@ pip install ca-tools
 
 ### `ca audit <path>` — Full codebase audit
 
-Detect stack, entry points, orphan files, side effects, config files, unused deps.
+Runs all registered checkers: stack detection, entry points, orphan files, side effects, swallowed exceptions, TODOs, unused deps, code structure metrics.
 
 ```bash
 ca audit /path/to/project
@@ -24,7 +24,7 @@ ca /path/to/project            # shortcut — defaults to audit
 
 ### `ca loc <path>` — Lines of code
 
-GitHub Linguist-powered language detection with colored bar chart.
+GitHub Linguist-powered language detection with colored bar chart. 500+ languages, multi-strategy detection (modeline, shebang, filename, extension, XML, manpage).
 
 ```bash
 ca loc /path/to/project
@@ -32,14 +32,18 @@ ca loc /path/to/project
 
 ### `ca map <path>` — Import graph analysis
 
-Find circular imports, hotspots, fragile modules, deep chains, leaf modules.
+Find circular imports, hotspots, fragile modules, deep chains, leaf modules, blast radius.
 
 ```bash
 ca map /path/to/project
 ca map /path/to/project --blast src/models.py      # blast radius
-ca map /path/to/project --min-chain 3               # show shorter chains
-ca map /path/to/project --min-fan-in 3              # lower hotspot threshold
+ca map /path/to/project --min-chain 3              # show shorter chains
+ca map /path/to/project --min-fan-in 3             # lower hotspot threshold
 ```
+
+### `ca analyze <file>` / `ca dump <path>` — Per-file AST analysis
+
+Inspect imports, definitions, and call sites for one file, or dump the full parsed graph.
 
 ### `ca init <path>` — Generate config
 
@@ -59,7 +63,10 @@ ca update-linguist
 
 ## Configuration
 
-Add `[tool.ca-tools]` to the target project's `pyproject.toml`:
+Two ways to configure ca-tools for a target project:
+
+1. **`ca-tools.toml`** at the project root — standalone, works even if you don't own the project
+2. **`[tool.ca-tools]`** in `pyproject.toml`
 
 ```toml
 [tool.ca-tools]
@@ -76,6 +83,8 @@ orphans = ["alembic/*", "src/main.py"]
 side_effects = ["*.include_router()", "*.add_middleware()"]
 ```
 
+See `docs/spec-schema.md` for the full spec schema.
+
 ## Global options
 
 ```
@@ -89,10 +98,10 @@ side_effects = ["*.include_router()", "*.add_middleware()"]
 
 Most Python audit tools find problems *inside* files (lint, types, dead code). ca-tools finds problems *between* files — the architecture-level view:
 
-- **knip** does this for JavaScript/TypeScript. Python doesn't have an equivalent. ca-tools fills that gap.
-- **GitHub Linguist** ported to Python — accurate language detection with 500+ languages, multi-strategy detection (modeline, shebang, filename, extension), real GitHub colors.
-- **scc-style** LOC counting with language breakdown and GitHub-style colored bar.
-- **Import graph analysis** — circular imports, hotspots, blast radius. Things no other Python tool shows.
+- **knip** does this for JavaScript/TypeScript. Python didn't have an equivalent. ca-tools fills that gap.
+- **GitHub Linguist** ported to Python — accurate language detection with 500+ languages and real GitHub colors.
+- **scc-style** LOC counting with language breakdown and colored bar.
+- **Import graph analysis** — circular imports, hotspots, blast radius. Things no other Python tool surfaces.
 - First thing you run on an unfamiliar codebase, before reading a single line of code.
 - Static analysis only — never imports or executes the target code.
 
@@ -101,36 +110,41 @@ Most Python audit tools find problems *inside* files (lint, types, dead code). c
 ```
 src/ca_tools/
 ├── cli.py                  Typer root CLI
-├── shared/                 Shared utilities
-│   ├── files.py            File collection with include/exclude
-│   ├── findings.py         Severity system (error/warning/info)
-│   ├── project_config.py   [tool.ca-tools] config loader
-│   └── spec.py             Detection spec loader
-├── data/
-│   └── spec.toml           Community-editable detection patterns
-├── audit/                  ca audit
-│   ├── cli.py
-│   ├── stack.py            Stack detection from deps
-│   ├── entrypoints.py      Entry point detection
-│   ├── orphans.py          Import graph + orphans
-│   ├── sideeffects.py      Side effect detection
-│   ├── config.py           Config file detection
-│   ├── unused_deps.py      Unused dep detection
-│   └── registry.py         Package name lookup
-├── loc/                    ca loc
-│   ├── cli.py
-│   └── linguist/           GitHub Linguist port
-│       ├── linguist.py     Detection engine
-│       ├── language.py     Language registry (500+ langs)
-│       ├── blob.py         File abstraction
-│       ├── strategy/       Detection strategies
-│       └── config/         YAML language definitions
-├── map/                    ca map
-│   ├── cli.py
-│   └── analyzer.py         Cycles, hotspots, blast radius
-└── init/                   ca init
-    └── cli.py              Config generator
+├── commands/               Thin command views
+│   ├── audit.py            runs all checkers
+│   ├── loc.py              language stats
+│   ├── map.py              import graph
+│   ├── analyze.py          per-file / dump
+│   └── init.py             config generator
+├── checkers/               @register'd checkers
+│   ├── stack.py            tech stack from deps
+│   ├── entrypoints.py      __main__ guards
+│   ├── orphans.py          unreachable files
+│   ├── side_effects.py     bare module-level calls
+│   ├── swallowed.py        silenced exceptions
+│   ├── todos.py            TODO/FIXME/HACK/XXX
+│   ├── unused_deps.py      declared but unimported
+│   └── code_structure.py   functions, classes, type coverage
+├── shared/                 Core infrastructure
+│   ├── context.py          AnalysisContext (root, spec, cache, config)
+│   ├── ast_cache.py        parse once, share across checkers
+│   ├── registry.py         @register + views()
+│   ├── runner.py           dispatches file/project checkers
+│   ├── spec.py             spec loader
+│   ├── config_resolver.py  spec → packages → project-config layering
+│   ├── framework_detector.py
+│   ├── pipeline.py         @hook(pipeline, priority)
+│   ├── graph.py            import graph primitives
+│   └── linguist/           GitHub Linguist port (500+ langs)
+└── data/
+    ├── spec.toml           Global baseline spec
+    └── specs/NAME/         Per-package specs (200+ packages:
+                            django, fastapi, celery, sqlalchemy, ...)
 ```
+
+## Contributing
+
+Adding detection for a new package? Drop a spec in `src/ca_tools/data/specs/NAME/spec.toml` — no Python changes required. See `CONTRIBUTING.md` and `docs/spec-schema.md`.
 
 ## License
 

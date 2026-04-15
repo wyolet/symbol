@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "chardet>=7.4.1",
+    "msgpack>=1.1.2",
     "pyyaml>=6.0.3",
     "typer>=0.24.1",
+    "zstandard>=0.25.0",
 ]
 
 [project.optional-dependencies]

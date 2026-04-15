@@ -10,10 +10,15 @@ from rich.console import Console
 
 from .commands.analyze import analyze_cmd, analyze_dump
 from .commands.audit import audit_cmd
+from .commands.callers import callers_cmd
+from .commands.code import code_cmd
+from .commands.index import index_cmd
 from .commands.init import init_cmd
+from .commands.search import search_cmd
 from .commands.loc import loc_cmd
 from .shared.linguist.config.load import update_from_github
 from .commands.map import map_cmd
+from .commands.outline import outline_cmd
 
 console = Console()
 
@@ -28,10 +33,15 @@ def _maybe_default_audit() -> None:
     known = {
         "analyze",
         "audit",
+        "callers",
+        "code",
         "dump",
+        "index",
         "init",
         "loc",
         "map",
+        "outline",
+        "search",
         "update-linguist",
         "--help",
         "-h",
@@ -141,6 +151,58 @@ def map_command(
         limit=limit,
         format=format,
     )
+
+
+@app.command()
+def search(
+    query: Annotated[str, typer.Argument(help="Symbol name or qualified path — returns candidates with signatures + previews")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    kind: Annotated[str | None, typer.Option("--kind", help="Filter by kind: class, function, async_function")] = None,
+    file: Annotated[str | None, typer.Option("--file", help="Restrict to one file (repo-relative path)")] = None,
+    limit: Annotated[int, typer.Option("--limit", help="Max candidates to return")] = 100,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
+) -> None:
+    """Narrow candidates by name. Returns signature + preview, no bodies."""
+    search_cmd(query, path=path, kind=kind, file=file, limit=limit, format=format)
+
+
+@app.command()
+def code(
+    target: Annotated[str, typer.Argument(help="file:start-end or fully qualified symbol path")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    no_refs: Annotated[bool, typer.Option("--no-refs", help="Skip reference list in output")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
+) -> None:
+    """Retrieve exact body at a known address. Use after ca search."""
+    code_cmd(target, path=path, include_refs=not no_refs, format=format)
+
+
+@app.command()
+def index(
+    path: Annotated[str, typer.Argument(help="Project root")] = ".",
+) -> None:
+    """Build the symbol lookup table and write to .ca-tools/symbol_index.pkl."""
+    index_cmd(path)
+
+
+@app.command()
+def outline(
+    file: Annotated[str, typer.Argument(help="File to outline")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
+) -> None:
+    """Show a file's symbols as a parent-child tree."""
+    outline_cmd(file, path=path, format=format)
+
+
+@app.command()
+def callers(
+    name: Annotated[str, typer.Argument(help="Name to search for (last segment matched)")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
+) -> None:
+    """Tier-1 textual reference scan — name-match only, unresolved."""
+    callers_cmd(name, path=path, format=format)
 
 
 @app.command("update-linguist")
