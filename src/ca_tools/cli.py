@@ -45,6 +45,7 @@ def _maybe_default_audit() -> None:
         "init",
         "loc",
         "map",
+        "mcp",
         "delete-symbol",
         "insert-symbol",
         "outline",
@@ -363,6 +364,15 @@ def replace_symbol(
         agent=agent,
         format=format,
     )
+
+
+@app.command()
+def mcp(
+    root: Annotated[str, typer.Option("--root", "-r", help="Project root to serve")] = ".",
+) -> None:
+    """Run the MCP server (stdio) exposing ca-tools as agent tools."""
+    from ca_tools.mcp.server import serve
+    serve(root)
 
 
 @app.command("update-linguist")
