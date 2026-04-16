@@ -352,17 +352,54 @@ Post-op checks are additive. If a check fails to run (bug, unexpected AST), it's
 
 ---
 
-## `ca delete-symbol` (brief)
+## `ca delete-symbol`
 
-Remove a symbol. Trivial layer on top of the transaction machinery:
+### v1 scope (shipping)
 
 ```
-ca delete <path>
-ca delete <path> --with-refs       # also remove call sites (dangerous)
-ca delete <path> --with-imports    # clean up now-unused imports in same file
+ca delete-symbol <qualified-path>
+  --force     skip the caller check, delete anyway
+  --dry-run   preview only
 ```
 
-Refuses to delete a symbol with live refs unless `--with-refs` or `--force`. Reports what would be orphaned.
+Single-file write. No cache check (symbol-level op — byte identity is not the contract; identity is the name). Uses `ca patch` engine underneath with empty content.
+
+**Behavior:**
+1. Resolve qualified path via index. Refuse if unresolved (`symbol_not_found`) or ambiguous (`symbol_ambiguous`).
+2. `get_or_build_index` auto-refreshes staleness, so byte ranges are current.
+3. Find callers via index's refs table.
+4. If callers exist and no `--force` → refuse with `error_code: has_live_references` and list callers in response.
+5. Otherwise → splice empty content over the symbol's byte range.
+6. Report: deleted location, list of callers (which are now broken), pointer to `ca callers` / `ca patch` for fix-up.
+
+Agent handles call-site cleanup. We delete the thing, we tell you what broke. That's the contract.
+
+### Deferred: `--with-refs` and `--with-imports`
+
+Not in v1. Listed here so the design isn't lost when we add them.
+
+**Reference removal rules (when `--with-refs` lands):**
+- `x = foo()` → replace with `x = None` (preserve assignment target).
+- `foo()` alone on a line → remove the line.
+- `return foo()` → replace with `return None` (preserve control flow).
+- `f(foo())` inside an expression → **refuse / warn**; can't rewrite safely without type and position analysis.
+- Attribute access inside expressions (`x.foo + 1`) → same, refuse.
+
+**Import cleanup rules (when `--with-imports` lands):**
+- Run *after* all ref removal.
+- Check whether the imported name still appears anywhere in the file.
+- If unused → remove the import line, preserving other names in grouped imports (`from x import a, b, c` where only `b` is now unused).
+- If still used → leave alone.
+
+**Strict order:**
+1. Resolve all refs (requires tier-2 semantic resolution or our existing module-scope analysis).
+2. Rewrite each call site per rules above.
+3. Rewrite import statements per rules above.
+4. Delete the declaration.
+5. Parse-verify each file touched.
+6. Refuse the whole transaction if any step can't be done cleanly — multi-file atomic via git checkpoint.
+
+These come later, gated on better reference resolution. For now, agents chain patches.
 
 ---
 

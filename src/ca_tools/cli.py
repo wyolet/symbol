@@ -18,6 +18,7 @@ from .commands.search import search_cmd
 from .commands.loc import loc_cmd
 from .shared.linguist.config.load import update_from_github
 from .commands.map import map_cmd
+from .commands.delete_symbol import delete_symbol_cmd
 from .commands.outline import outline_cmd
 from .commands.patch import patch_cmd
 
@@ -41,6 +42,7 @@ def _maybe_default_audit() -> None:
         "init",
         "loc",
         "map",
+        "delete-symbol",
         "outline",
         "patch",
         "search",
@@ -240,6 +242,31 @@ def patch(
         file=file,
         range=range_,
         content=content,
+        project_root=path,
+        force=force,
+        dry_run=dry_run,
+        context=context,
+        agent=agent,
+        format=format,
+    )
+
+
+@app.command("delete-symbol")
+def delete_symbol(
+    qualified_path: Annotated[str, typer.Argument(help="Fully qualified symbol path (e.g. services.user.UserService)")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    force: Annotated[bool, typer.Option("--force", help="Delete even if callers exist")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Compute diff but don't write")] = False,
+    context: Annotated[int, typer.Option("--context", "-C", help="Lines of diff context")] = 5,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Remove a named symbol from its file. Refuses if callers exist (use --force)."""
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    delete_symbol_cmd(
+        qualified_path=qualified_path,
         project_root=path,
         force=force,
         dry_run=dry_run,
