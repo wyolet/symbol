@@ -11,17 +11,22 @@ from ca_tools.protocols.language import (
 from ca_tools.protocols.read_cache import CachedRead, ReadCache
 from ca_tools.protocols.types import (
     BindingResolution,
+    FileScan,
     ParseResult,
     RawImport,
     RawRef,
     RawSymbol,
     ReferenceResult,
+    ScannedImport,
+    ScannedRef,
+    ScannedSymbol,
     SymbolPath,
 )
 
 __all__ = [
     "BindingResolution",
     "CachedRead",
+    "FileScan",
     "LanguageAdapter",
     "ParseResult",
     "RawImport",
@@ -29,6 +34,9 @@ __all__ = [
     "RawSymbol",
     "ReadCache",
     "ReferenceResult",
+    "ScannedImport",
+    "ScannedRef",
+    "ScannedSymbol",
     "SemanticLanguageAdapter",
     "SymbolPath",
 ]

@@ -18,6 +18,7 @@ from typing import Protocol, runtime_checkable
 
 from ca_tools.protocols.types import (
     BindingResolution,
+    FileScan,
     ParseResult,
     RawImport,
     RawRef,
@@ -54,6 +55,15 @@ class LanguageAdapter(Protocol):
 
     def validate_syntax(self, source: bytes) -> ParseResult:
         """Check whether bytes form a syntactically valid document."""
+        ...
+
+    def scan_file(self, path: Path, source: bytes) -> FileScan:
+        """Single-call scan for the symbol index builder.
+
+        Returns language + imports (per-binding) + symbols (nested tree,
+        each carrying its own refs). Drives index construction; write
+        engines use the piecewise methods above instead.
+        """
         ...
 
     def invalidate(self, path: Path) -> None:

@@ -14,11 +14,15 @@ import hashlib
 from pathlib import Path
 
 from ca_tools.protocols import (
+    FileScan,
     LanguageAdapter,
     ParseResult,
     RawImport,
     RawRef,
     RawSymbol,
+    ScannedImport,
+    ScannedRef,
+    ScannedSymbol,
 )
 
 _BUILTINS: frozenset[str] = frozenset(dir(_builtins))
@@ -115,6 +119,90 @@ class PythonAstAdapter(LanguageAdapter):
                 byte_offset = _line_col_to_byte(sub.lineno, sub.col_offset, line_offsets)
                 out.append(RawRef(name=name, line=sub.lineno, byte_offset=byte_offset))
 
+        return out
+
+    def scan_file(
+        self,
+        path: Path,
+        source: bytes,
+        *,
+        module_prefix: str | None = None,
+    ) -> FileScan:
+        """Single-pass scan: imports + nested symbols + per-symbol refs.
+
+        ``module_prefix`` prepends to every qualified path. The symbol
+        index builder passes its layout-aware module name (e.g.
+        ``ca_tools.shared.symbol_index``); standalone callers can omit
+        it and get file-stem-rooted paths instead.
+        """
+        try:
+            tree = self._parse(path, source)
+        except SyntaxError as e:
+            return FileScan(
+                language=self.lang, ok=False, error=f"line {e.lineno}: {e.msg}"
+            )
+
+        line_offsets = _line_offsets(source)
+        prefix = module_prefix if module_prefix is not None else _module_name(path)
+
+        imports: list[ScannedImport] = []
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    local = alias.asname or alias.name.split(".", 1)[0]
+                    imports.append(
+                        ScannedImport(local=local, source=alias.name, line=node.lineno)
+                    )
+            elif isinstance(node, ast.ImportFrom):
+                source_mod = node.module or ""
+                for alias in node.names:
+                    local = alias.asname or alias.name
+                    imports.append(
+                        ScannedImport(local=local, source=source_mod, line=node.lineno)
+                    )
+
+        symbols = self._scan_scope(tree, path_prefix=prefix, line_offsets=line_offsets)
+        return FileScan(
+            language=self.lang,
+            imports=tuple(imports),
+            symbols=tuple(symbols),
+        )
+
+    def _scan_scope(
+        self,
+        node: ast.AST,
+        *,
+        path_prefix: str,
+        line_offsets: list[int],
+    ) -> list[ScannedSymbol]:
+        out: list[ScannedSymbol] = []
+        for child in ast.iter_child_nodes(node):
+            kind = _SYMBOL_KINDS.get(type(child))
+            if kind is None:
+                continue
+            name = child.name  # type: ignore[attr-defined]
+            qpath = f"{path_prefix}.{name}" if path_prefix else name
+            start_line = child.lineno  # type: ignore[attr-defined]
+            end_line = getattr(child, "end_lineno", start_line) or start_line
+            start_byte = _line_col_to_byte(start_line, 0, line_offsets)
+            end_byte = _line_col_to_byte(
+                end_line, getattr(child, "end_col_offset", 0) or 0, line_offsets
+            )
+            refs = _scan_refs(child)
+            children = self._scan_scope(
+                child, path_prefix=qpath, line_offsets=line_offsets
+            )
+            out.append(
+                ScannedSymbol(
+                    kind=kind,
+                    name=name,
+                    qualified_path=qpath,
+                    byte_range=(start_byte, end_byte),
+                    line_range=(start_line, end_line),
+                    refs=tuple(refs),
+                    children=tuple(children),
+                )
+            )
         return out
 
     def validate_syntax(self, source: bytes) -> ParseResult:
@@ -291,6 +379,35 @@ def _slice(source: bytes, node: ast.AST, line_offsets: list[int]) -> str:
 def _module_name(path: Path) -> str:
     """Best-effort module name from a path (no project-root awareness yet)."""
     return path.stem
+
+
+def _scan_refs(node: ast.AST) -> list[ScannedRef]:
+    """Refs from a scope's own body: name + attribute, deduped.
+
+    Drops locals/params/builtins and stops at nested def/class/lambda
+    boundaries — those have their own symbol rows with their own refs.
+    """
+    locals_ = _collect_local_names(node)
+    seen: set[tuple[str, str, int]] = set()
+    out: list[ScannedRef] = []
+    for sub in _walk_own(node):
+        if isinstance(sub, ast.Name):
+            if not isinstance(sub.ctx, ast.Load):
+                continue
+            if sub.id in locals_ or sub.id in _BUILTINS:
+                continue
+            key = ("name", sub.id, sub.lineno)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(ScannedRef(name=sub.id, kind="name", line=sub.lineno))
+        elif isinstance(sub, ast.Attribute):
+            key = ("attr", sub.attr, sub.lineno)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(ScannedRef(name=sub.attr, kind="attr", line=sub.lineno))
+    return out
 
 
 def _walk_own(node: ast.AST):

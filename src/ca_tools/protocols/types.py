@@ -63,6 +63,67 @@ class RawRef:
 
 
 @dataclass(frozen=True)
+class ScannedRef:
+    """A name reference inside a symbol's body, with ref kind.
+
+    kind ∈ {"name", "attr"}. Attribute refs capture the dotted tail
+    (``foo`` in ``x.foo``) — essential for tier-1 callers lookup of
+    method-style calls.
+    """
+
+    name: str
+    kind: str
+    line: int
+
+
+@dataclass(frozen=True)
+class ScannedSymbol:
+    """A declared symbol plus the refs from its direct scope.
+
+    Drives the symbol index. Richer than RawSymbol: each scanned symbol
+    carries its own ref list so the builder doesn't have to recurse back
+    into the adapter for every row.
+    """
+
+    kind: str
+    name: str
+    qualified_path: SymbolPath
+    byte_range: tuple[int, int]
+    line_range: tuple[int, int]
+    refs: tuple[ScannedRef, ...] = ()
+    children: tuple["ScannedSymbol", ...] = ()
+
+
+@dataclass(frozen=True)
+class ScannedImport:
+    """One import binding in a file. Per-alias, not per-statement.
+
+    ``local`` is the name visible in the importing file (alias or first
+    segment). ``source`` is the module it came from — for ``import a.b``
+    it's ``"a.b"``; for ``from x import y`` it's ``"x"``.
+    """
+
+    local: str
+    source: str
+    line: int
+
+
+@dataclass(frozen=True)
+class FileScan:
+    """Full scan of one file produced by ``LanguageAdapter.scan_file``.
+
+    ``ok=False`` with an ``error`` means the file couldn't be parsed;
+    the builder treats it as a skipped file (no symbols, no imports).
+    """
+
+    language: str
+    imports: tuple[ScannedImport, ...] = ()
+    symbols: tuple[ScannedSymbol, ...] = ()
+    ok: bool = True
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class ParseResult:
     """Result of a syntax validation check on a byte blob."""
 

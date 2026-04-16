@@ -11,8 +11,6 @@ Python builtins, so the list is the agent-relevant name dependencies only.
 Persistence: msgpack + zstd. Safe (no code execution), portable, fast.
 """
 
-import ast
-import builtins as _builtins
 import subprocess
 from pathlib import Path
 
@@ -36,15 +34,6 @@ _REBUILD_THRESHOLD = 200
 _COMPACT_RATIO = 0.30
 _COMPACT_MIN = 100
 
-_BUILTINS: frozenset[str] = frozenset(dir(_builtins))
-_SCOPE_BOUNDARY = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
-_SYMBOL_KINDS = {
-    ast.FunctionDef: "function",
-    ast.AsyncFunctionDef: "async_function",
-    ast.ClassDef: "class",
-}
-
-
 # ---------------------------------------------------------- ref bit-packing
 
 def _pack_ref(name_id: int, kind: int) -> int:
@@ -53,67 +42,6 @@ def _pack_ref(name_id: int, kind: int) -> int:
 
 def _unpack_ref(packed: int) -> tuple[int, int]:
     return packed >> 1, packed & 1
-
-
-# ---------------------------------------------------------- AST helpers
-
-def _walk_own(node: ast.AST):
-    """Descendants of `node` not crossing into nested def/class/lambda."""
-    stack = list(ast.iter_child_nodes(node))
-    while stack:
-        n = stack.pop()
-        yield n
-        if not isinstance(n, _SCOPE_BOUNDARY):
-            stack.extend(ast.iter_child_nodes(n))
-
-
-def _extract_bound_names(target: ast.AST):
-    if isinstance(target, ast.Name):
-        yield target.id
-    elif isinstance(target, (ast.Tuple, ast.List)):
-        for elt in target.elts:
-            yield from _extract_bound_names(elt)
-    elif isinstance(target, ast.Starred):
-        yield from _extract_bound_names(target.value)
-
-
-def _collect_local_names(node: ast.AST) -> set[str]:
-    locals_: set[str] = set()
-
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-        args = node.args
-        for a in (*args.args, *args.posonlyargs, *args.kwonlyargs):
-            locals_.add(a.arg)
-        if args.vararg:
-            locals_.add(args.vararg.arg)
-        if args.kwarg:
-            locals_.add(args.kwarg.arg)
-
-    for sub in _walk_own(node):
-        if isinstance(sub, ast.Assign):
-            for tgt in sub.targets:
-                locals_.update(_extract_bound_names(tgt))
-        elif isinstance(sub, ast.AnnAssign):
-            locals_.update(_extract_bound_names(sub.target))
-        elif isinstance(sub, ast.AugAssign):
-            locals_.update(_extract_bound_names(sub.target))
-        elif isinstance(sub, (ast.For, ast.AsyncFor)):
-            locals_.update(_extract_bound_names(sub.target))
-        elif isinstance(sub, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
-            for gen in sub.generators:
-                locals_.update(_extract_bound_names(gen.target))
-        elif isinstance(sub, ast.withitem) and sub.optional_vars is not None:
-            locals_.update(_extract_bound_names(sub.optional_vars))
-        elif isinstance(sub, ast.NamedExpr) and isinstance(sub.target, ast.Name):
-            locals_.add(sub.target.id)
-        elif isinstance(sub, ast.ExceptHandler) and sub.name:
-            locals_.add(sub.name)
-
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            locals_.add(child.name)
-
-    return locals_
 
 
 # ---------------------------------------------------------- index
@@ -218,117 +146,78 @@ class SymbolIndex:
             return
         assert self.cache is not None, "build() requires an ASTCache"
         for path in self.cache.files:
-            tree = self.cache.get_ast(path)
-            if tree is None:
-                continue
-            self._walk_file(path, tree)
+            self._walk_file(path)
         self._build_by_name_id()
         self._built = True
 
-    def _walk_file(self, path: Path, tree: ast.Module) -> None:
+    def _walk_file(self, path: Path) -> None:
+        """Ingest one file into the index via the language adapter.
+
+        Reads bytes, runs ``adapter.scan_file`` with a layout-aware module
+        prefix, then flattens the resulting ``FileScan`` into the columnar
+        tables. The adapter owns all AST work; this method is pure I/O +
+        bookkeeping.
+        """
+        from ca_tools.adapters import default_registry
+
         rel = str(path.relative_to(self.project_root))
-        file_id = self._file_id(rel)
-        module_name = self._module_name(rel)
-        lang_id = self._lang("python")
+        try:
+            source = path.read_bytes()
+        except OSError:
+            return
 
-        for node in ast.iter_child_nodes(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    local = alias.asname or alias.name.split(".", 1)[0]
-                    imp_idx = len(self.imports)
-                    self.imports.append(
-                        (file_id, self._str(local), self._str(alias.name), node.lineno)
-                    )
-                    self.imps_by_file.setdefault(file_id, []).append(imp_idx)
-            elif isinstance(node, ast.ImportFrom):
-                source = node.module or ""
-                for alias in node.names:
-                    local = alias.asname or alias.name
-                    imp_idx = len(self.imports)
-                    self.imports.append(
-                        (file_id, self._str(local), self._str(source), node.lineno)
-                    )
-                    self.imps_by_file.setdefault(file_id, []).append(imp_idx)
+        try:
+            adapter = default_registry().for_file(path)
+        except Exception:
+            return
+        scan = adapter.scan_file(path, source, module_prefix=self._module_name(rel))
+        if not scan.ok:
+            return
 
-        self._walk_scope(
-            tree,
-            file_id=file_id,
-            path_prefix=module_name,
-            parent_row=-1,
-            source_path=path,
-            lang_id=lang_id,
+        file_id = self._file_id(rel, language=scan.language)
+        lang_id = self._lang(scan.language)
+
+        for imp in scan.imports:
+            imp_idx = len(self.imports)
+            self.imports.append(
+                (file_id, self._str(imp.local), self._str(imp.source), imp.line)
+            )
+            self.imps_by_file.setdefault(file_id, []).append(imp_idx)
+
+        for top in scan.symbols:
+            self._ingest_symbol(top, file_id=file_id, parent_row=-1, lang_id=lang_id)
+
+    def _ingest_symbol(self, sym, *, file_id: int, parent_row: int, lang_id: int) -> None:
+        row_idx = len(self.symbols)
+        start_byte, end_byte = sym.byte_range
+        start_line, end_line = sym.line_range
+
+        self.symbols.append(
+            (
+                self._str(sym.qualified_path),
+                file_id,
+                start_line,
+                end_line,
+                start_byte,
+                end_byte,
+                self._kind(sym.kind),
+                lang_id,
+                parent_row,
+            )
         )
 
-    def _walk_scope(self, node, file_id, path_prefix, parent_row, source_path, lang_id):
-        for child in ast.iter_child_nodes(node):
-            kind_name = _SYMBOL_KINDS.get(type(child))
-            if kind_name is None:
-                continue
-            name = child.name
-            qpath = f"{path_prefix}.{name}" if path_prefix else name
-            row_idx = len(self.symbols)
-            start_line = child.lineno
-            end_line = getattr(child, "end_lineno", start_line) or start_line
-            # Start at col 0 so the first line's leading indentation is included
-            # in the symbol's byte range (needed for body/signature extraction).
-            start_byte = _line_col_to_byte(source_path, start_line, 0)
-            end_byte = _line_col_to_byte(
-                source_path, end_line, getattr(child, "end_col_offset", 0) or 0
+        packed_refs: list[tuple[int, int]] = []
+        for r in sym.refs:
+            kind_bit = REF_NAME if r.kind == "name" else REF_ATTR
+            packed_refs.append((_pack_ref(self._str(r.name), kind_bit), r.line))
+        self.refs_of.append(packed_refs)
+        self.by_path.setdefault(sym.qualified_path, []).append(row_idx)
+        self.by_file.setdefault(file_id, []).append(row_idx)
+
+        for child in sym.children:
+            self._ingest_symbol(
+                child, file_id=file_id, parent_row=row_idx, lang_id=lang_id
             )
-
-            self.symbols.append(
-                (
-                    self._str(qpath),
-                    file_id,
-                    start_line,
-                    end_line,
-                    start_byte,
-                    end_byte,
-                    self._kind(kind_name),
-                    lang_id,
-                    parent_row,
-                )
-            )
-            self.refs_of.append(self._collect_refs(child))
-            self.by_path.setdefault(qpath, []).append(row_idx)
-            self.by_file.setdefault(file_id, []).append(row_idx)
-
-            self._walk_scope(
-                child,
-                file_id=file_id,
-                path_prefix=qpath,
-                parent_row=row_idx,
-                source_path=source_path,
-                lang_id=lang_id,
-            )
-
-    def _collect_refs(self, node: ast.AST) -> list[tuple[int, int]]:
-        """Refs for one symbol's direct scope: externals only, deduped.
-
-        Returns list of (packed_name_kind, line). Locals, params, builtins,
-        and nested-def bindings are skipped.
-        """
-        locals_ = _collect_local_names(node)
-        seen: set[tuple[int, str, int]] = set()
-        out: list[tuple[int, int]] = []
-        for sub in _walk_own(node):
-            if isinstance(sub, ast.Name):
-                if not isinstance(sub.ctx, ast.Load):
-                    continue
-                if sub.id in locals_ or sub.id in _BUILTINS:
-                    continue
-                key = (REF_NAME, sub.id, sub.lineno)
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append((_pack_ref(self._str(sub.id), REF_NAME), sub.lineno))
-            elif isinstance(sub, ast.Attribute):
-                key = (REF_ATTR, sub.attr, sub.lineno)
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append((_pack_ref(self._str(sub.attr), REF_ATTR), sub.lineno))
-        return out
 
     def _build_by_name_id(self) -> None:
         by: dict[int, list[tuple[int, int, int]]] = {}
@@ -726,12 +615,7 @@ class SymbolIndex:
             path = self.project_root / rel
             if not path.exists():
                 continue
-            try:
-                source = path.read_bytes().decode("utf-8", errors="replace")
-                tree = ast.parse(source, filename=str(path))
-            except (OSError, SyntaxError):
-                continue
-            self._walk_file(path, tree)
+            self._walk_file(path)
 
         self._build_by_name_id()
 
@@ -933,28 +817,3 @@ def _full_build(project_root: Path, tag: str = "build") -> tuple["SymbolIndex", 
     return idx, tag
 
 
-# ---------------------------------------------------------- byte offsets
-
-_BYTE_CACHE: dict[Path, list[int]] = {}
-
-
-def _line_starts(path: Path) -> list[int]:
-    cached = _BYTE_CACHE.get(path)
-    if cached is not None:
-        return cached
-    with open(path, "rb") as f:
-        data = f.read()
-    starts = [0]
-    for i, byte in enumerate(data):
-        if byte == 0x0A:
-            starts.append(i + 1)
-    _BYTE_CACHE[path] = starts
-    return starts
-
-
-def _line_col_to_byte(path: Path, line: int, col: int) -> int:
-    starts = _line_starts(path)
-    idx = max(0, line - 1)
-    if idx >= len(starts):
-        return starts[-1] if starts else 0
-    return starts[idx] + col
