@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
 
+from ca_tools.caches import build_read_cache, record_served
 from ca_tools.queries.code import CodeAmbiguous, CodeNotFound, code as code_query
 from ca_tools.shared.symbol_index import get_or_build_index
 
@@ -46,6 +47,14 @@ def code_cmd(
             table.add_row(c["signature"], f"{c['file']}:{c['start_line']}-{c['end_line']}")
         console.print(table)
         return
+
+    record_served(
+        build_read_cache(),
+        project_root=project_root,
+        file_rel=hit["file"],
+        start_line=hit["start_line"],
+        end_line=hit["end_line"],
+    )
 
     if format == "json":
         print(_json.dumps(hit, indent=2))
