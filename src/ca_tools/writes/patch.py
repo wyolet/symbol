@@ -436,14 +436,14 @@ def _number_diff_lines(diff: str) -> str:
         elif line.startswith("---") or line.startswith("+++"):
             out.append(line)
         elif line.startswith(" "):
-            out.append(f"  {new_line:>5}  {line[1:]}")
+            out.append(f"  {new_line:>4} {line[1:]}")
             old_line += 1
             new_line += 1
         elif line.startswith("-"):
-            out.append(f"- {old_line:>5}  {line[1:]}")
+            out.append(f"- {old_line:>4} {line[1:]}")
             old_line += 1
         elif line.startswith("+"):
-            out.append(f"+ {new_line:>5}  {line[1:]}")
+            out.append(f"+ {new_line:>4} {line[1:]}")
             new_line += 1
         else:
             out.append(line)
