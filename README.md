@@ -45,6 +45,52 @@ ca map /path/to/project --min-fan-in 3             # lower hotspot threshold
 
 Inspect imports, definitions, and call sites for one file, or dump the full parsed graph.
 
+### `ca search <pattern>` — Find symbols by name
+
+Columnar symbol index over the whole project. Multiple patterns are AND-ed. Returns signatures + locations, no bodies.
+
+```bash
+ca search UserService                  # exact or suffix match on qualified path
+ca search user service --fixed         # all patterns must appear as substrings
+ca search '^get_' --regex              # Python regex
+ca search save --kind method
+```
+
+### `ca code <address>` — Fetch exact body
+
+Retrieve a symbol's body by qualified path or `file:start-end` range. Also populates the read cache consumed by `ca patch`.
+
+```bash
+ca code services.user.UserService         # by symbol path
+ca code services.user.UserService.save    # method
+ca code src/services/user.py:120-145      # by explicit line range
+```
+
+### `ca outline <file>` — Symbol tree of a file
+
+Parent-child tree of classes, functions, methods in one file.
+
+### `ca callers <name>` — Tier-1 textual reference scan
+
+Find plausible call sites for a name. Textual match; may include false positives. Use `ca code` to verify each hit.
+
+### `ca patch <file>` — Byte-range edit
+
+Edit an existing file by line range. Replace (with content), delete (empty content), or insert (zero-width range). Token-efficient alternative to raw `Edit` for agents: no `old_string` payload.
+
+```bash
+ca patch src/foo.py --range 10-20 --content 'new body'    # replace
+ca patch src/foo.py --range 10-20 --content ''            # delete
+ca patch src/foo.py --range 10-10 --content 'import os'   # insert before line 10
+
+ca patch src/foo.py --range 10-20 --content '...' --dry-run   # preview diff
+ca patch src/foo.py --range 10-20 --content '...' --force     # skip read-cache check
+ca patch src/foo.py --range 10-20 --content '...' --agent     # plain text for LLMs
+ca patch src/foo.py --range 10-20 --content '...' --format json
+```
+
+Exit codes: `0` applied/dry-run, `1` error, `2` needs_read_confirmation.
+
 ### `ca init <path>` — Generate config
 
 Analyze a project and generate a recommended `[tool.ca-tools]` config.
