@@ -264,7 +264,9 @@ class SymbolIndex:
             row_idx = len(self.symbols)
             start_line = child.lineno
             end_line = getattr(child, "end_lineno", start_line) or start_line
-            start_byte = _line_col_to_byte(source_path, start_line, child.col_offset)
+            # Start at col 0 so the first line's leading indentation is included
+            # in the symbol's byte range (needed for body/signature extraction).
+            start_byte = _line_col_to_byte(source_path, start_line, 0)
             end_byte = _line_col_to_byte(
                 source_path, end_line, getattr(child, "end_col_offset", 0) or 0
             )

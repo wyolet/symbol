@@ -156,7 +156,8 @@ class PythonAstAdapter(LanguageAdapter):
 
         start_line = node.lineno  # type: ignore[attr-defined]
         end_line = getattr(node, "end_lineno", start_line) or start_line
-        start_byte = _line_col_to_byte(start_line, node.col_offset, line_offsets)  # type: ignore[attr-defined]
+        # Start at col 0 so leading indentation is part of the symbol's byte range.
+        start_byte = _line_col_to_byte(start_line, 0, line_offsets)
         end_byte = _line_col_to_byte(
             end_line, getattr(node, "end_col_offset", 0) or 0, line_offsets
         )
