@@ -23,6 +23,7 @@ from .commands.insert_symbol import insert_symbol_cmd
 from .commands.outline import outline_cmd
 from .commands.patch import patch_cmd
 from .commands.rename_symbol import rename_symbol_cmd
+from .commands.replace_symbol import replace_symbol_cmd
 
 console = Console()
 
@@ -49,6 +50,7 @@ def _maybe_default_audit() -> None:
         "outline",
         "patch",
         "rename-symbol",
+        "replace-symbol",
         "search",
         "update-linguist",
         "--help",
@@ -327,6 +329,33 @@ def rename_symbol(
     rename_symbol_cmd(
         qualified_path=qualified_path,
         new_name=new_name,
+        project_root=path,
+        dry_run=dry_run,
+        allow_dirty=allow_dirty,
+        force_no_vcs=force_no_vcs,
+        agent=agent,
+        format=format,
+    )
+
+
+@app.command("replace-symbol")
+def replace_symbol(
+    qualified_path: Annotated[str, typer.Argument(help="Fully qualified symbol path to replace")],
+    content: Annotated[str, typer.Option("--content", help="Full new symbol definition")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without writing")] = False,
+    allow_dirty: Annotated[bool, typer.Option("--allow-dirty", help="Proceed with uncommitted changes")] = False,
+    force_no_vcs: Annotated[bool, typer.Option("--force-no-vcs", help="Proceed on a non-git project")] = False,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Replace a symbol's full definition. If content declares a new name, callers are updated too."""
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    replace_symbol_cmd(
+        qualified_path=qualified_path,
+        content=content,
         project_root=path,
         dry_run=dry_run,
         allow_dirty=allow_dirty,
