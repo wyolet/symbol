@@ -9,7 +9,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 
 from ca_tools.caches import build_read_cache, record_served
-from ca_tools.queries.code import CodeAmbiguous, CodeNotFound, code as code_query
+from ca_tools.reads.code import CodeAmbiguous, CodeNotFound, code as code_query
 from ca_tools.shared.symbol_index import get_or_build_index
 
 console = Console()

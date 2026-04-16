@@ -6,7 +6,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.tree import Tree
 
-from ca_tools.queries.outline import outline as outline_query
+from ca_tools.reads.outline import outline as outline_query
 from ca_tools.shared.symbol_index import get_or_build_index
 
 console = Console()

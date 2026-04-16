@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from ca_tools.adapters import PythonAstAdapter
+from ca_tools.adapters import default_registry
 from ca_tools.shared.symbol_index import SymbolIndex
 from ca_tools.shared.symbol import S_EBYTE, S_SBYTE
 from ca_tools.writes.transaction import FileEdit, commit_edits
@@ -113,7 +113,7 @@ def resolve_replace_symbol(
     content_bytes = content.encode("utf-8")
     parse_bytes = textwrap.dedent(content).encode("utf-8")
 
-    adapter = PythonAstAdapter()
+    adapter = default_registry().for_file(declaring_file_abs)
     parse = adapter.validate_syntax(parse_bytes)
     if not parse.ok:
         return ReplaceSymbolResult(

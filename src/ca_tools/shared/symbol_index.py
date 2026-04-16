@@ -28,7 +28,7 @@ from ca_tools.shared.symbol import (
 )
 
 _INDEX_PATH = Path(".ca-tools") / "symbol_index.msgpack.zst"
-_INDEX_VERSION = 5
+_INDEX_VERSION = 6
 _ZSTD_LEVEL = 3
 # If more files than this are stale, full rebuild is cheaper than patching.
 _REBUILD_THRESHOLD = 200
@@ -137,6 +137,10 @@ class SymbolIndex:
         # Dimension tables.
         self.files: list[str] = []
         self._file_ids: dict[str, int] = {}
+        # Per-file language: parallel to self.files. Each entry indexes into
+        # self.langs. Reuses the existing intern pool — effectively one byte
+        # per file for a codebase with <256 distinct languages.
+        self.file_langs: list[int] = []
         self.kinds: list[str] = []
         self._kind_ids: dict[str, int] = {}
         self.langs: list[str] = []
@@ -198,12 +202,13 @@ class SymbolIndex:
             self._lang_ids[l] = lid
         return lid
 
-    def _file_id(self, rel: str) -> int:
+    def _file_id(self, rel: str, language: str = "python") -> int:
         fid = self._file_ids.get(rel)
         if fid is None:
             fid = len(self.files)
             self.files.append(rel)
             self._file_ids[rel] = fid
+            self.file_langs.append(self._lang(language))
         return fid
 
     # ---------------------------------------------------------- build
@@ -372,6 +377,13 @@ class SymbolIndex:
     def file_of(self, row: int) -> str:
         return self.files[self.symbols[row][S_FILE]]
 
+    def language_of_file(self, path: str) -> str | None:
+        """Language for a repo-relative path, or None if not indexed."""
+        fid = self._file_ids.get(path)
+        if fid is None:
+            return None
+        return self.langs[self.file_langs[fid]]
+
     def parent_of(self, row: int) -> int:
         return self.symbols[row][S_PARENT]
 
@@ -453,6 +465,104 @@ class SymbolIndex:
             i += 1
         first = text.splitlines()[0] if text else ""
         return first.strip()
+
+    # ---------------------------------------------------------- composite row ops
+    #
+    # Shaping helpers: tree building, payload assembly, raw file slicing.
+    # Language-agnostic — operate on index rows, not AST. Language-specific
+    # text work (preview, docstring stripping) lives on the adapter.
+
+    def descendants_of(self, root: int) -> list[int]:
+        """Every row reachable via parent chain from `root` (excludes root)."""
+        out: list[int] = []
+        stack = [root]
+        seen = {root}
+        while stack:
+            parent = stack.pop()
+            for i, sym in enumerate(self.symbols):
+                if sym[S_PARENT] == parent and i not in seen:
+                    seen.add(i)
+                    out.append(i)
+                    stack.append(i)
+        return out
+
+    def build_tree(self, row_ids: list[int], root_row: int | None = None) -> list[dict]:
+        """Turn a flat list of row ids into nested dicts via parent pointers."""
+        nodes: dict[int, dict] = {}
+        roots: list[dict] = []
+        for row in row_ids:
+            s, e = self.range_of(row)
+            node = {
+                "path": self.path_of(row),
+                "kind": self.kind_of(row),
+                "signature": self.signature(row),
+                "start_line": s,
+                "end_line": e,
+                "children": [],
+            }
+            nodes[row] = node
+            parent_row = self.parent_of(row)
+            parent = nodes.get(parent_row)
+            if parent is None or row == root_row:
+                roots.append(node)
+            else:
+                parent["children"].append(node)
+        return roots
+
+    def row_payload(self, row: int) -> dict:
+        """Full payload for a symbol row: body + imports + refs, deduped."""
+        s, e = self.range_of(row)
+
+        raw_refs = self.refs_for(row)
+        ref_index: dict[tuple[str, str], dict] = {}
+        for n, k, ln in raw_refs:
+            key = (n, k)
+            existing = ref_index.get(key)
+            if existing is None:
+                ref_index[key] = {"name": n, "kind": k, "line": ln, "lines": [ln]}
+            else:
+                existing["lines"].append(ln)
+
+        used_names = {n for n, k, _ in raw_refs if k == "name"}
+        file_id = self.symbols[row][S_FILE]
+        imports = [
+            {"name": n, "source": src, "line": ln}
+            for n, src, ln in self.imports_for(file_id)
+            if n in used_names
+        ]
+
+        return {
+            "path": self.path_of(row),
+            "file": self.file_of(row),
+            "start_line": s,
+            "end_line": e,
+            "kind": self.kind_of(row),
+            "language": self.language_of(row),
+            "signature": self.signature(row),
+            "body": self.body(row),
+            "imports": imports,
+            "refs": list(ref_index.values()),
+        }
+
+    def raw_slice(self, file: str, start: int, end: int) -> dict:
+        """Payload for a line range with no matching indexed symbol."""
+        abs_path = self.project_root / file
+        with open(abs_path, "rb") as f:
+            data = f.read()
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        body = "\n".join(lines[start - 1 : end])
+        return {
+            "path": None,
+            "file": file,
+            "start_line": start,
+            "end_line": end,
+            "kind": "slice",
+            "language": "python",
+            "signature": None,
+            "body": body,
+            "imports": [],
+            "refs": [],
+        }
 
     @property
     def stats(self) -> dict:
@@ -670,6 +780,7 @@ class SymbolIndex:
             "root": str(self.project_root),
             "strings": self.strings,
             "files": self.files,
+            "file_langs": self.file_langs,
             "kinds": self.kinds,
             "langs": self.langs,
             "symbols": self.symbols,
@@ -723,6 +834,7 @@ class SymbolIndex:
         idx._str_id = {s: i for i, s in enumerate(idx.strings)}
         idx.files = payload["files"]
         idx._file_ids = {f: i for i, f in enumerate(idx.files)}
+        idx.file_langs = list(payload["file_langs"])
         idx.kinds = payload["kinds"]
         idx._kind_ids = {k: i for i, k in enumerate(idx.kinds)}
         idx.langs = payload["langs"]

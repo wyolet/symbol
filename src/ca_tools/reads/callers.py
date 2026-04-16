@@ -1,4 +1,4 @@
-"""`callers` query — tier-1 name-based reference scan."""
+"""`callers` read — tier-1 name-based reference scan."""
 
 from ca_tools.shared.symbol_index import SymbolIndex
 

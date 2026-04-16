@@ -128,6 +128,56 @@ class PythonAstAdapter(LanguageAdapter):
                 error_message=e.msg,
             )
 
+    def preview(self, body: str, signature: str, max_lines: int = 3) -> str:
+        """First few meaningful code lines after the signature.
+
+        Skips leading docstrings and comment-only lines. Preserves indentation
+        relative to the first picked line. Python-specific: triple-quote
+        detection and ``#`` comments live here, not in the reads layer.
+        """
+        lines = body.splitlines()
+
+        joined = ""
+        consumed = 0
+        for i, line in enumerate(lines):
+            joined = (joined + " " + line.strip()).strip()
+            if joined.replace(" ", "").endswith(signature.replace(" ", "")):
+                consumed = i + 1
+                break
+        body_lines = lines[consumed:]
+
+        i = 0
+        while i < len(body_lines) and not body_lines[i].strip():
+            i += 1
+        if i < len(body_lines):
+            stripped = body_lines[i].strip()
+            for quote in ('"""', "'''", '"', "'"):
+                if stripped.startswith(quote):
+                    if stripped.count(quote) >= 2 and len(stripped) > len(quote):
+                        i += 1
+                    else:
+                        i += 1
+                        while i < len(body_lines) and quote not in body_lines[i]:
+                            i += 1
+                        i += 1
+                    break
+
+        start = None
+        for j, line in enumerate(body_lines[i:], start=i):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            start = j
+            break
+        if start is None:
+            return ""
+
+        picked = body_lines[start : start + max_lines]
+        base_indent = len(picked[0]) - len(picked[0].lstrip())
+        return "\n".join(
+            line[base_indent:] if len(line) >= base_indent else line for line in picked
+        )
+
     def invalidate(self, path: Path) -> None:
         key_prefix = str(path)
         self._cache = {k: v for k, v in self._cache.items() if k[0] != key_prefix}

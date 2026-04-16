@@ -41,8 +41,10 @@ src/ca_tools/
 
 ## Conventions
 
-- Python 3.11+ (stdlib `tomllib`). **Never** `from __future__ import annotations`.
+- Python 3.13. **Never** `from __future__ import annotations` — use native annotations only.
 - CLI: Typer. Package manager: uv.
+- **Never hand-edit `pyproject.toml` for deps** — use `uv add`, `uv remove`, `uv sync --all-groups`.
+- **No inline scripts** — save to `.tmp/<name>.py` and run `uv run .tmp/<name>.py`.
 - Static analysis only — never import or execute target code.
 - Terminology: **checker** (matches ruff/pylint), not "detector".
 - Package-specific filenames (admin.py, urls.py) belong in package specs, never in global spec. Global is Python/community conventions only (app.py, main.py, conftest.py, etc.).

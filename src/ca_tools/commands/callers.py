@@ -6,7 +6,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from ca_tools.queries.callers import callers as callers_query
+from ca_tools.reads.callers import callers as callers_query
 from ca_tools.shared.symbol_index import get_or_build_index
 
 console = Console()

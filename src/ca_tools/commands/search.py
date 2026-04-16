@@ -5,7 +5,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from ca_tools.queries.search import search as search_query
+from ca_tools.reads.search import search as search_query
 from ca_tools.shared.symbol_index import get_or_build_index
 
 console = Console()

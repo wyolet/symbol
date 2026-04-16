@@ -7,5 +7,15 @@ pyright client, etc.).
 """
 
 from ca_tools.adapters.python_ast import PythonAstAdapter
+from ca_tools.adapters.registry import (
+    LanguageRegistry,
+    UnsupportedLanguage,
+    default_registry,
+)
 
-__all__ = ["PythonAstAdapter"]
+__all__ = [
+    "LanguageRegistry",
+    "PythonAstAdapter",
+    "UnsupportedLanguage",
+    "default_registry",
+]
