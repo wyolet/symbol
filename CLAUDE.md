@@ -10,6 +10,15 @@ Codebase audit toolkit for Python projects. Point at a directory, get the full p
 - **`ca analyze` / `ca dump`** — Per-file AST analysis
 - **`ca init`** — Generate recommended `[tool.ca-tools]` config
 - **`ca update-linguist`** — Pull latest language definitions from GitHub
+- **`ca mcp [--root PATH]`** — Run the MCP server (stdio) exposing 9 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol
+
+## MCP
+
+`.mcp.json` at the repo root registers the server for Claude Code (project scope). `.claude/skills/ca-tools/SKILL.md` steers tool selection away from native Read/Grep/Edit. To install in another project, add this block to that project's `.mcp.json`:
+
+```json
+{"mcpServers": {"ca-tools": {"command": "uv", "args": ["run", "--directory", "/path/to/ca-tools", "ca", "mcp", "--root", "/path/to/target-project"]}}}
+```
 
 ## Structure
 

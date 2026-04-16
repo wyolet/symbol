@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "ca-tools": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/abror/projects/ca-tools",
+        "ca",
+        "mcp",
+        "--root",
+        "/Users/abror/projects/ca-tools"
+      ],
+      "env": {}
+    }
+  }
+}
