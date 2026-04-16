@@ -2,7 +2,7 @@
 
 The read cache tracks what content we've served to an agent, so `ca patch` can apply edits without forcing a re-read. It's the safety rail that makes the write surface token-efficient.
 
-Status: design only. Nothing implemented yet.
+Status: shipped. See `src/ca_tools/caches/` for implementations and `src/ca_tools/protocols/read_cache.py` for the contract.
 
 ## What the cache is for
 

@@ -2,7 +2,7 @@
 
 The write surface is built protocol-first: define interfaces, implement concretely for Python/tier-1, swap in new languages and resolution tiers without touching the pipeline or commands.
 
-Status: design in progress. This doc starts from the highest level (operations and their semantics) and works down to protocols and implementations.
+Status: shipped. `ca patch`, `ca delete-symbol`, `ca insert-symbol`, `ca rename-symbol`, `ca replace-symbol` all live. Protocols in `src/ca_tools/protocols/`, adapter in `src/ca_tools/adapters/python_ast.py`, engines in `src/ca_tools/writes/`, caches in `src/ca_tools/caches/`. `ca move-symbol` remains unshipped (see refactoring.md).
 
 ## Design principle
 
@@ -745,12 +745,9 @@ During migration, `PythonAstAdapter` and direct `ast` usage coexist. The adapter
 
 ---
 
-## Next levels to define
+## Out of scope (future work)
 
-This doc continues top-down:
-
-- **Level 1: Protocols** — `LanguageAdapter`, `ReferenceResolver`, `WriteResolver`, `Validator`, `PostOpAnalyzer`. The interfaces that the pipeline talks to.
-- **Level 2: Pipeline** — The 9-stage driver that composes protocols. Transaction manager. Registry wiring.
-- **Level 3: Implementations** — `PythonAstAdapter`, `TextualResolver`, concrete validators and analyzers. What we actually build for v1.
-
-Each level is defined in terms of the level above it. Implementations never leak upward.
+- **`ca move-symbol`** — relocate a symbol across files. See `refactoring.md` for the design.
+- **Tier-2 semantic resolution** — `PyrightAdapter` / `JediAdapter` implementing `SemanticLanguageAdapter` for correct local-scope rename and cross-file reference resolution. v1 ships tier-1 textual via `PythonAstAdapter` which supports module-level binding.
+- **Tree-sitter adapters** for non-Python languages (TypeScript, Go, etc.). Protocol ready, adapter implementations not written.
+- **MCP server** — wrap the CLI surface for agent consumption via the native MCP transport.
