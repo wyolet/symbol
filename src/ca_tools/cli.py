@@ -19,6 +19,7 @@ from .commands.loc import loc_cmd
 from .shared.linguist.config.load import update_from_github
 from .commands.map import map_cmd
 from .commands.outline import outline_cmd
+from .commands.patch import patch_cmd
 
 console = Console()
 
@@ -41,6 +42,7 @@ def _maybe_default_audit() -> None:
         "loc",
         "map",
         "outline",
+        "patch",
         "search",
         "update-linguist",
         "--help",
@@ -216,6 +218,33 @@ def callers(
 ) -> None:
     """Tier-1 textual reference scan — name-match only, unresolved."""
     callers_cmd(name, path=path, format=format)
+
+
+@app.command()
+def patch(
+    file: Annotated[str, typer.Argument(help="File to patch")],
+    range_: Annotated[str, typer.Option("--range", "-r", help="Line range A-B (inclusive, 1-indexed)")],
+    content: Annotated[str | None, typer.Option("--content", help="New content (use '' or omit for delete)")] = None,
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    force: Annotated[bool, typer.Option("--force", help="Skip read-cache check")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Compute diff but don't write")] = False,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Byte-range edit primitive. Replace, delete (empty content), or insert (zero-width range)."""
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    patch_cmd(
+        file=file,
+        range=range_,
+        content=content,
+        project_root=path,
+        force=force,
+        dry_run=dry_run,
+        agent=agent,
+        format=format,
+    )
 
 
 @app.command("update-linguist")
