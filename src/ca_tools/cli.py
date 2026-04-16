@@ -19,6 +19,7 @@ from .commands.loc import loc_cmd
 from .shared.linguist.config.load import update_from_github
 from .commands.map import map_cmd
 from .commands.delete_symbol import delete_symbol_cmd
+from .commands.insert_symbol import insert_symbol_cmd
 from .commands.outline import outline_cmd
 from .commands.patch import patch_cmd
 
@@ -43,6 +44,7 @@ def _maybe_default_audit() -> None:
         "loc",
         "map",
         "delete-symbol",
+        "insert-symbol",
         "outline",
         "patch",
         "search",
@@ -269,6 +271,35 @@ def delete_symbol(
         qualified_path=qualified_path,
         project_root=path,
         force=force,
+        dry_run=dry_run,
+        context=context,
+        agent=agent,
+        format=format,
+    )
+
+
+@app.command("insert-symbol")
+def insert_symbol(
+    anchor: Annotated[str, typer.Argument(help="Anchor symbol qualified path")],
+    position: Annotated[str, typer.Option("--position", help="before | after | start | end")],
+    content: Annotated[str | None, typer.Option("--content", help="New content")] = None,
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    no_reindent: Annotated[bool, typer.Option("--no-reindent", help="Send content as-is, don't auto-indent")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Compute diff but don't write")] = False,
+    context: Annotated[int, typer.Option("--context", "-C", help="Lines of diff context")] = 5,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Insert code at a position anchored to a symbol (before/after/start/end)."""
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    insert_symbol_cmd(
+        anchor=anchor,
+        position=position,
+        content=content,
+        project_root=path,
+        reindent=not no_reindent,
         dry_run=dry_run,
         context=context,
         agent=agent,
