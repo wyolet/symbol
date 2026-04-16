@@ -228,6 +228,7 @@ def patch(
     path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
     force: Annotated[bool, typer.Option("--force", help="Skip read-cache check")] = False,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Compute diff but don't write")] = False,
+    context: Annotated[int, typer.Option("--context", "-C", help="Lines of diff context around the edit")] = 5,
     agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
     format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
 ) -> None:
@@ -242,6 +243,7 @@ def patch(
         project_root=path,
         force=force,
         dry_run=dry_run,
+        context=context,
         agent=agent,
         format=format,
     )

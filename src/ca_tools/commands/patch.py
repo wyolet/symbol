@@ -37,6 +37,7 @@ def patch_cmd(
     project_root: str = ".",
     force: bool = False,
     dry_run: bool = False,
+    context: int = 5,
     agent: bool = False,
     format: str = "rich",
 ) -> None:
@@ -70,7 +71,7 @@ def patch_cmd(
         sys.exit(1)
 
     # Stage 2: apply.
-    result = apply_patch(req, cache=cache, dry_run=dry_run)
+    result = apply_patch(req, cache=cache, dry_run=dry_run, diff_context=context)
     _render_result(result, format=format, agent=agent)
 
     if result.status == "error":
@@ -155,10 +156,9 @@ def _render_result_agent(result: PatchResult) -> None:
     verb = "would apply" if result.status == "dry_run" else "applied"
     print(f"status: {result.status}")
     print(f"file: {result.file_rel}")
-    print(f"{verb}: bytes {result.before_range[0]}-{result.before_range[1]} → {result.after_range[0]}-{result.after_range[1]}")
-    print(f"lines: -{result.lines_removed} +{result.lines_added}")
+    print(f"{verb}: -{result.lines_removed} +{result.lines_added} lines")
     if result.status == "applied":
-        print("undo: git reset --hard HEAD~0  # nothing committed yet; revert via git checkout")
+        print("undo: git checkout -- <file>  # revert uncommitted change")
     print()
     if result.diff:
         print("--- DIFF ---")
@@ -172,8 +172,7 @@ def _render_result_rich(result: PatchResult) -> None:
     summary = (
         f"[{color}]{title}[/{color}]  "
         f"[dim]{result.file_rel}[/dim]  "
-        f"[dim]bytes {result.before_range[0]}-{result.before_range[1]} → {result.after_range[0]}-{result.after_range[1]}[/dim]  "
-        f"[dim]-{result.lines_removed} +{result.lines_added}[/dim]"
+        f"[dim]-{result.lines_removed} +{result.lines_added} lines[/dim]"
     )
     console.print(summary)
     if result.diff:

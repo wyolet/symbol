@@ -286,6 +286,7 @@ def apply_patch(
     *,
     cache: ReadCache,
     dry_run: bool = False,
+    diff_context: int = 5,
 ) -> PatchResult:
     """Splice new content into the file at the request's byte range.
 
@@ -313,7 +314,7 @@ def apply_patch(
     new_source = source[:start] + request.content + source[end:]
     old_slice = source[start:end]
 
-    diff = _unified_diff(request.file_rel, source, new_source)
+    diff = _unified_diff(request.file_rel, source, new_source, context=diff_context)
     lines_removed = _count_lines(old_slice)
     lines_added = _count_lines(request.content)
     after_range = (start, start + len(request.content))
@@ -384,18 +385,66 @@ def _atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
-def _unified_diff(file_rel: str, old_source: bytes, new_source: bytes) -> str:
-    """Full-file unified diff. Hunk headers carry absolute line numbers from
-    the real file, and context windows extend beyond the edited region so
-    agents can spot problems in the surrounding code (duplicate defs,
-    joined lines, etc.)."""
+def _unified_diff(
+    file_rel: str,
+    old_source: bytes,
+    new_source: bytes,
+    *,
+    context: int = 5,
+) -> str:
+    """Full-file unified diff. Hunk headers carry absolute file line numbers
+    and each diff line is prefixed with its absolute line number so agents
+    can reason about lines without confusion from relative positions.
+
+    Format per line: `{sign} {line}  {content}`. Signs are ` ` (context),
+    `-` (removed, old-file line number), `+` (added, new-file line number).
+    """
     old_text = old_source.decode("utf-8", errors="replace").splitlines(keepends=True)
     new_text = new_source.decode("utf-8", errors="replace").splitlines(keepends=True)
-    diff_lines = difflib.unified_diff(
-        old_text,
-        new_text,
-        fromfile=f"{file_rel} (before)",
-        tofile=f"{file_rel} (after)",
-        n=5,
+    raw = "".join(
+        difflib.unified_diff(
+            old_text,
+            new_text,
+            fromfile=f"{file_rel} (before)",
+            tofile=f"{file_rel} (after)",
+            n=context,
+        )
     )
-    return "".join(diff_lines)
+    return _number_diff_lines(raw)
+
+
+_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+
+
+def _number_diff_lines(diff: str) -> str:
+    """Prefix each diff line with its absolute file line number.
+
+    Context and `+` lines get the new-file line number.
+    `-` lines get the old-file line number.
+    Hunk headers and file headers are passed through unchanged.
+    """
+    out: list[str] = []
+    old_line = 0
+    new_line = 0
+    for line in diff.splitlines(keepends=True):
+        if line.startswith("@@"):
+            m = _HUNK_RE.match(line.rstrip())
+            if m:
+                old_line = int(m.group(1))
+                new_line = int(m.group(2))
+            out.append(line)
+        elif line.startswith("---") or line.startswith("+++"):
+            out.append(line)
+        elif line.startswith(" "):
+            out.append(f"  {new_line:>5}  {line[1:]}")
+            old_line += 1
+            new_line += 1
+        elif line.startswith("-"):
+            out.append(f"- {old_line:>5}  {line[1:]}")
+            old_line += 1
+        elif line.startswith("+"):
+            out.append(f"+ {new_line:>5}  {line[1:]}")
+            new_line += 1
+        else:
+            out.append(line)
+    return "".join(out)
