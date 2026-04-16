@@ -313,7 +313,7 @@ def apply_patch(
     new_source = source[:start] + request.content + source[end:]
     old_slice = source[start:end]
 
-    diff = _unified_diff(request.file_rel, old_slice, request.content, start_line=request.line_range[0])
+    diff = _unified_diff(request.file_rel, source, new_source)
     lines_removed = _count_lines(old_slice)
     lines_added = _count_lines(request.content)
     after_range = (start, start + len(request.content))
@@ -384,14 +384,18 @@ def _atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
-def _unified_diff(file_rel: str, old: bytes, new: bytes, *, start_line: int) -> str:
-    old_text = old.decode("utf-8", errors="replace").splitlines(keepends=True)
-    new_text = new.decode("utf-8", errors="replace").splitlines(keepends=True)
+def _unified_diff(file_rel: str, old_source: bytes, new_source: bytes) -> str:
+    """Full-file unified diff. Hunk headers carry absolute line numbers from
+    the real file, and context windows extend beyond the edited region so
+    agents can spot problems in the surrounding code (duplicate defs,
+    joined lines, etc.)."""
+    old_text = old_source.decode("utf-8", errors="replace").splitlines(keepends=True)
+    new_text = new_source.decode("utf-8", errors="replace").splitlines(keepends=True)
     diff_lines = difflib.unified_diff(
         old_text,
         new_text,
         fromfile=f"{file_rel} (before)",
         tofile=f"{file_rel} (after)",
-        n=3,
+        n=5,
     )
     return "".join(diff_lines)
