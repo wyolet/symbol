@@ -19,6 +19,11 @@ class NullReadCache:
     def lookup(self, file: Path, byte_range: tuple[int, int]) -> CachedRead | None:
         return None
 
+    def find_covering(
+        self, file: Path, byte_range: tuple[int, int]
+    ) -> CachedRead | None:
+        return None
+
     def invalidate(self, file: Path) -> None:
         return
 

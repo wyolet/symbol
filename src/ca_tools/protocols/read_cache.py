@@ -35,7 +35,18 @@ class ReadCache(Protocol):
         ...
 
     def lookup(self, file: Path, byte_range: tuple[int, int]) -> CachedRead | None:
-        """Return the most recent record covering this exact range, or None."""
+        """Return the most recent record for this exact range, or None."""
+        ...
+
+    def find_covering(
+        self, file: Path, byte_range: tuple[int, int]
+    ) -> CachedRead | None:
+        """Return a cached entry whose byte range contains the requested range.
+
+        Used by `ca patch`: if agent read lines 10-50 (bytes 100-500) and
+        now wants to patch bytes 150-200, the larger cached entry covers
+        it. Returns the most recently recorded covering entry.
+        """
         ...
 
     def invalidate(self, file: Path) -> None:

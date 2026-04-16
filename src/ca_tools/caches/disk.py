@@ -41,10 +41,24 @@ class DiskReadCache:
         raw = entries.get(_key(str(file), byte_range))
         if raw is None:
             return None
-        # JSON turns tuples into lists; restore.
-        raw = dict(raw)
-        raw["byte_range"] = tuple(raw["byte_range"])
-        return CachedRead(**raw)
+        return _from_raw(raw)
+
+    def find_covering(
+        self, file: Path, byte_range: tuple[int, int]
+    ) -> CachedRead | None:
+        target = str(file)
+        req_start, req_end = byte_range
+        entries = self._read()
+        best: CachedRead | None = None
+        for raw in entries.values():
+            if raw["file"] != target:
+                continue
+            s, e = raw["byte_range"][0], raw["byte_range"][1]
+            if s <= req_start and e >= req_end:
+                entry = _from_raw(raw)
+                if best is None or entry.served_at > best.served_at:
+                    best = entry
+        return best
 
     def invalidate(self, file: Path) -> None:
         target = str(file)
@@ -82,3 +96,10 @@ class DiskReadCache:
 
 def _key(file: str, byte_range: tuple[int, int]) -> str:
     return f"{file}:{byte_range[0]}-{byte_range[1]}"
+
+
+def _from_raw(raw: dict) -> CachedRead:
+    """Rehydrate a CachedRead from JSON-deserialized dict (tuples become lists)."""
+    raw = dict(raw)
+    raw["byte_range"] = tuple(raw["byte_range"])
+    return CachedRead(**raw)

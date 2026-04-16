@@ -26,6 +26,21 @@ class InMemoryReadCache:
         with self._lock:
             return self._entries.get(key)
 
+    def find_covering(
+        self, file: Path, byte_range: tuple[int, int]
+    ) -> CachedRead | None:
+        target = str(file)
+        req_start, req_end = byte_range
+        best: CachedRead | None = None
+        with self._lock:
+            for (f, (s, e)), entry in self._entries.items():
+                if f != target:
+                    continue
+                if s <= req_start and e >= req_end:
+                    if best is None or entry.served_at > best.served_at:
+                        best = entry
+        return best
+
     def invalidate(self, file: Path) -> None:
         target = str(file)
         with self._lock:
