@@ -22,6 +22,7 @@ from .commands.delete_symbol import delete_symbol_cmd
 from .commands.insert_symbol import insert_symbol_cmd
 from .commands.outline import outline_cmd
 from .commands.patch import patch_cmd
+from .commands.rename_symbol import rename_symbol_cmd
 
 console = Console()
 
@@ -47,6 +48,7 @@ def _maybe_default_audit() -> None:
         "insert-symbol",
         "outline",
         "patch",
+        "rename-symbol",
         "search",
         "update-linguist",
         "--help",
@@ -302,6 +304,33 @@ def insert_symbol(
         reindent=not no_reindent,
         dry_run=dry_run,
         context=context,
+        agent=agent,
+        format=format,
+    )
+
+
+@app.command("rename-symbol")
+def rename_symbol(
+    qualified_path: Annotated[str, typer.Argument(help="Fully qualified symbol path (e.g. services.user.UserService)")],
+    new_name: Annotated[str, typer.Argument(help="New leaf name (no dots)")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Plan rename, don't write")] = False,
+    allow_dirty: Annotated[bool, typer.Option("--allow-dirty", help="Proceed even with uncommitted changes")] = False,
+    force_no_vcs: Annotated[bool, typer.Option("--force-no-vcs", help="Proceed on a non-git project")] = False,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Rename a symbol (tier-1 textual) and update references across the project."""
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    rename_symbol_cmd(
+        qualified_path=qualified_path,
+        new_name=new_name,
+        project_root=path,
+        dry_run=dry_run,
+        allow_dirty=allow_dirty,
+        force_no_vcs=force_no_vcs,
         agent=agent,
         format=format,
     )
