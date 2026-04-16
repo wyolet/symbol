@@ -14,7 +14,7 @@ Read side is done and measurably saves tokens on real tasks (fastapi, ca-tools).
 
 ## Architectural principle
 
-**One primitive, many resolvers.** `ca patch` is the single write engine. AST-based commands (`rename`, `delete`, `move`, `insert-after`, `extract`, etc.) are thin layers that resolve symbols to line/byte ranges and call `patch`.
+**One primitive, many resolvers.** `ca patch` is the single write engine. AST-based commands (`rename-symbol`, `delete-symbol`, `move-symbol`, `insert-after`, `extract`, etc.) are thin layers that resolve symbols to line/byte ranges and call `patch`.
 
 Same discipline as the read side: `queries/` are pure functions returning data; `commands/` are thin views. For writes: `writes/` are resolvers returning `(file, range, content)` tuples; `patch` is the engine.
 

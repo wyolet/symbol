@@ -1,6 +1,6 @@
 # Refactoring commands — design notes
 
-AST-aware commands that mutate code across one or more files: `rename`, `move`, `delete`, `insert-symbol`. All compose on top of `ca patch` (the universal write primitive — see `write-surface.md`) and share one transactional foundation.
+AST-aware commands that mutate code across one or more files: `rename-symbol`, `replace-symbol`, `move-symbol`, `delete-symbol`, `insert-symbol`. All compose on top of `ca patch` (the universal write primitive — see `write-surface.md`) and share one transactional foundation.
 
 **What we deliberately don't ship:** `extract`, `inline`, `signature`, and similar IDE-style refactors. These compose from `ca patch` calls driven by the agent — the hard part of each is generating the new code text, which the agent does better than any scope-analysis machinery we'd build. Keeping the surface small means fewer commands to learn and fewer ways to misuse them. The universal `patch` is the escape hatch.
 
@@ -88,7 +88,7 @@ Deferred: cross-file locking, Phase 2 resume (`ca patch --resume <tx-id>`), part
 
 ---
 
-## `ca rename`
+## `ca rename-symbol`
 
 Change every occurrence of a symbol and update its references.
 
@@ -194,7 +194,7 @@ Text is the default for agent-facing responses — ~2-3x token savings vs JSON o
 
 ---
 
-## `ca move`
+## `ca move-symbol`
 
 Relocate a symbol from one file to another. v1 does not rewrite imports — it reports what will need to be fixed and lets the agent drive the cleanup.
 
@@ -343,16 +343,16 @@ Per-command checks:
 
 | Command | Source-side | Destination-side |
 |---|---|---|
-| `rename` | unresolved refs that look like they should've been renamed (textual near-misses) | — |
-| `move` | orphaned imports, empty-file detection | unresolved names in moved body, suggested imports |
-| `delete` | orphaned imports | — |
+| `rename-symbol` | unresolved refs that look like they should've been renamed (textual near-misses) | — |
+| `move-symbol` | orphaned imports, empty-file detection | unresolved names in moved body, suggested imports |
+| `delete-symbol` | orphaned imports | — |
 | `insert-symbol` | — | — (nothing to analyze) |
 
 Post-op checks are additive. If a check fails to run (bug, unexpected AST), it's silently skipped. The op's correctness does not depend on them.
 
 ---
 
-## `ca delete` (brief)
+## `ca delete-symbol` (brief)
 
 Remove a symbol. Trivial layer on top of the transaction machinery:
 
