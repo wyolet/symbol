@@ -1,0 +1,43 @@
+{
+  "name": "symbol",
+  "version": "0.1.0",
+  "description": "AST-native code navigation and editing for Python — symbol search, body fetch, structural rewrites — exposed as MCP tools and a soft-nudge hook that points agents to symbol-aware tools when they reach for Grep/Read on indexed files.",
+  "author": {
+    "name": "Abror Aliboyev",
+    "email": "abror@aliboyev.com"
+  },
+  "license": "MIT",
+  "keywords": ["python", "ast", "symbol-index", "mcp", "static-analysis", "code-navigation"],
+  "skills": "./skills/",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Grep|Read|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "symbol hook"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "symbol hook"
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "symbol": {
+      "type": "stdio",
+      "command": "symbol",
+      "args": ["mcp", "--root", "."]
+    }
+  }
+}

@@ -12,3 +12,12 @@ wheels/
 # Survey: cloned repos and audit output
 survey/
 .ca/
+
+# IDE
+.idea/
+
+# macOS
+.DS_Store
+
+# Local scratchpad (per CLAUDE.md convention)
+.tmp/
