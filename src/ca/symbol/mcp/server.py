@@ -45,7 +45,43 @@ from ca.symbol.writes.replace_symbol import (
     resolve_replace_symbol,
 )
 
+import contextlib
+import io
+
+from ca.symbol.commands.delete_symbol import (
+    _render_agent as _render_delete_agent,
+    _render_error as _render_delete_error,
+)
+from ca.symbol.commands.insert_symbol import _render as _render_insert
+from ca.symbol.commands.patch import (
+    _render_error as _render_patch_error,
+    _render_needs_confirmation_agent as _render_patch_needs_read,
+    _render_result_agent as _render_patch_agent,
+)
+from ca.symbol.commands.rename_symbol import (
+    _render_agent as _render_rename_agent,
+    _render_error as _render_rename_error,
+)
+from ca.symbol.commands.replace_symbol import (
+    _render_agent as _render_replace_agent,
+    _render_error as _render_replace_error,
+)
+
 mcp = FastMCP("symbol")
+
+
+def _capture_text(fn, *args, **kwargs) -> str:
+    """Run a print-based renderer and return what it printed.
+
+    The CLI agent renderers (`_render_*_agent`, `_render_error(...,agent=True)`)
+    print to stdout. MCP needs them as a string so we can return that to the
+    agent. This is the cheapest way to share the same render layer across
+    CLI (--agent flag) and MCP (always agent format).
+    """
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        fn(*args, **kwargs)
+    return buf.getvalue().rstrip("\n")
 
 
 class _State:
@@ -270,8 +306,7 @@ def patch(
     content: str | None = None,
     force: bool = False,
     dry_run: bool = False,
-    diff_lines: int = 50,
-) -> dict:
+) -> str:
     root = _State.require_root()
     cache = _State.require_cache()
 
@@ -283,49 +318,22 @@ def patch(
         force=force,
     )
     if isinstance(req, PatchPreflight):
-        return {
-            "ok": False,
-            "error_code": req.error_code,
-            "message": req.message,
-        }
+        return _capture_text(_render_patch_error, req.error_code, req.message, agent=True)
 
     preflight = preflight_patch(req, cache=cache)
     if preflight.status == "needs_read_confirmation":
-        return {
-            "ok": False,
-            "error_code": "needs_read_confirmation",
-            "message": (
-                f"{req.file_rel} lines {req.line_range[0]}-{req.line_range[1]} "
-                "haven't been read in this session"
-            ),
-            "hint": "Call SymbolBody or Read on this range, then retry.",
-        }
+        return _capture_text(_render_patch_needs_read, preflight)
 
     result = apply_patch(req, cache=cache, dry_run=dry_run)
     if result.status == "error":
-        return {
-            "ok": False,
-            "error_code": result.error_code,
-            "message": result.message,
-        }
+        return _capture_text(_render_patch_error, result.error_code, result.message, agent=True)
 
     # Refresh in-RAM index so the next MCP call sees updated byte offsets.
     if result.status == "applied":
         _State.invalidate_file(result.file_rel)
 
-    diff_payload = _truncate_diff(result.diff, diff_lines)
-    return {
-        "ok": True,
-        "status": result.status,
-        "file": result.file_rel,
-        "before_range": list(result.before_range),
-        "after_range": list(result.after_range),
-        "new_line_range": list(result.new_line_range),
-        "new_content": result.new_content,
-        "lines_removed": result.lines_removed,
-        "lines_added": result.lines_added,
-        "diff": diff_payload,
-    }
+    return _capture_text(_render_patch_agent, result)
+
 
 
 
@@ -336,18 +344,22 @@ def delete_symbol(
     qualified_path: str,
     force: bool = False,
     dry_run: bool = False,
-) -> dict:
+) -> str:
     root = _State.require_root()
     index = _State.require_index()
     cache = _State.require_cache()
 
     req = resolve_delete_symbol(index, qualified_path, root, force=force)
     if not isinstance(req, DeleteSymbolRequest):
-        return _dc(req)
+        # req is a DeleteSymbolResult with error.
+        return _capture_text(_render_delete_error, req, agent=True)
     result = apply_delete_symbol(req, cache=cache, dry_run=dry_run)
+    if result.status == "error":
+        return _capture_text(_render_delete_error, result, agent=True)
     if result.status == "applied" and result.file_rel:
         _State.invalidate_file(result.file_rel)
-    return _dc(result)
+    return _capture_text(_render_delete_agent, result)
+
 
 
 
@@ -358,13 +370,13 @@ def insert_symbol(
     content: str,
     reindent: bool = True,
     dry_run: bool = False,
-) -> dict:
+) -> str:
     if position not in ("before", "after", "start", "end"):
-        return {
-            "ok": False,
-            "error_code": "invalid_argument",
-            "message": f"position must be one of before|after|start|end, got {position!r}",
-        }
+        return (
+            "status: error\n"
+            "error_code: invalid_argument\n"
+            f"message: position must be one of before|after|start|end, got {position!r}"
+        )
     # Auto-append trailing newline so inserted symbols don't jam against the
     # next line. Patch is left raw — bytes there are user-controlled.
     if content and not content.endswith("\n"):
@@ -378,11 +390,13 @@ def insert_symbol(
         index, anchor, position, content, root, reindent=reindent  # type: ignore[arg-type]
     )
     if not isinstance(req, InsertSymbolRequest):
-        return _dc(req)
+        # req is an InsertSymbolResult with error.
+        return _capture_text(_render_insert, req, format="rich", agent=True)
     result = apply_insert_symbol(req, cache=cache, dry_run=dry_run)
     if result.status == "applied" and result.file_rel:
         _State.invalidate_file(result.file_rel)
-    return _dc(result)
+    return _capture_text(_render_insert, result, format="rich", agent=True)
+
 
 
 
@@ -393,13 +407,13 @@ def rename_symbol(
     dry_run: bool = False,
     allow_dirty: bool = False,
     force_no_vcs: bool = False,
-) -> dict:
+) -> str:
     root = _State.require_root()
     index = _State.require_index()
 
     req = resolve_rename_symbol(index, qualified_path, new_name, root)
     if not isinstance(req, RenameSymbolRequest):
-        return _dc(req)
+        return _capture_text(_render_rename_error, req, agent=True)
     result = apply_rename_symbol(
         req,
         project_root=root,
@@ -407,12 +421,15 @@ def rename_symbol(
         allow_dirty=allow_dirty,
         force_no_vcs=force_no_vcs,
     )
+    if result.status == "error":
+        return _capture_text(_render_rename_error, result, agent=True)
     if result.status == "applied":
         touched = {pf.file for pf in result.per_file if getattr(pf, "file", None)}
         if not touched and result.declaring_file:
             touched = {result.declaring_file}
         _State.invalidate_file(touched)
-    return _dc(result)
+    return _capture_text(_render_rename_agent, result)
+
 
 
 
@@ -423,7 +440,7 @@ def replace_symbol(
     dry_run: bool = False,
     allow_dirty: bool = False,
     force_no_vcs: bool = False,
-) -> dict:
+) -> str:
     # Auto-append trailing newline so the replacement doesn't jam against the
     # next sibling symbol if the agent omits it.
     if content and not content.endswith("\n"):
@@ -434,7 +451,7 @@ def replace_symbol(
 
     req = resolve_replace_symbol(index, qualified_path, content, root)
     if not isinstance(req, ReplaceSymbolRequest):
-        return _dc(req)
+        return _capture_text(_render_replace_error, req, agent=True)
     result = apply_replace_symbol(
         req,
         project_root=root,
@@ -442,12 +459,15 @@ def replace_symbol(
         allow_dirty=allow_dirty,
         force_no_vcs=force_no_vcs,
     )
+    if result.status == "error":
+        return _capture_text(_render_replace_error, result, agent=True)
     if result.status == "applied":
         touched = {pf.file for pf in result.per_file if getattr(pf, "file", None)}
         if not touched and result.declaring_file:
             touched = {result.declaring_file}
         _State.invalidate_file(touched)
-    return _dc(result)
+    return _capture_text(_render_replace_agent, result)
+
 
 
 
