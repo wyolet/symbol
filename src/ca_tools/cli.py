@@ -19,6 +19,7 @@ from .commands.loc import loc_cmd
 from .shared.linguist.config.load import update_from_github
 from .commands.map import map_cmd
 from .commands.delete_symbol import delete_symbol_cmd
+from .commands.hook import run as hook_run
 from .commands.insert_symbol import insert_symbol_cmd
 from .commands.outline import outline_cmd
 from .commands.patch import patch_cmd
@@ -47,6 +48,7 @@ def _maybe_default_audit() -> None:
         "map",
         "mcp",
         "delete-symbol",
+        "hook",
         "insert-symbol",
         "outline",
         "patch",
@@ -364,6 +366,12 @@ def replace_symbol(
         agent=agent,
         format=format,
     )
+
+
+@app.command(hidden=True)
+def hook() -> None:
+    """PreToolUse hook entry — reads Claude Code hook JSON from stdin, suggests MCP alternatives."""
+    hook_run()
 
 
 @app.command()
