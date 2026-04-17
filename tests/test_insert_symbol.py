@@ -79,6 +79,39 @@ def test_insert_before_module_function(project):
 
     text = (project / "services.py").read_text()
     assert text.index("def prelude") < text.index("def helper")
+def test_insert_before_decorated_function(tmp_path):
+    """Regression: insert 'before' a decorated function must land ABOVE the
+    decorator, not between the decorator and `def` (which would silently
+    re-bind the decorator to the inserted function).
+    """
+    (tmp_path / "services.py").write_text(
+        "import functools\n"
+        "\n"
+        "\n"
+        "@functools.lru_cache\n"
+        "def cached_op():\n"
+        "    return 1\n"
+    )
+    idx, _ = get_or_build_index(tmp_path)
+    req = resolve_insert_symbol(
+        idx, "services.cached_op", "before",
+        "def prelude():\n    return 0\n\n\n",
+        tmp_path,
+    )
+    assert isinstance(req, InsertSymbolRequest)
+    result = apply_insert_symbol(req, cache=NullReadCache())
+    assert result.status == "applied"
+
+    text = (tmp_path / "services.py").read_text()
+    # The decorator must still immediately precede `def cached_op`.
+    cached_def_line = text.index("def cached_op")
+    decorator_line = text.index("@functools.lru_cache")
+    prelude_line = text.index("def prelude")
+    # prelude lands above the decorator, decorator immediately above def.
+    assert prelude_line < decorator_line < cached_def_line
+    # No code between decorator and def cached_op (only whitespace allowed).
+    between = text[text.index("@functools.lru_cache") : cached_def_line]
+    assert between.strip() == "@functools.lru_cache"
 
 
 # ---------------------------------------------------------- start/end (class body)

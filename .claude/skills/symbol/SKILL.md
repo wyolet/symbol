@@ -1,76 +1,80 @@
 ---
 name: symbol
-description: Use whenever the user asks about, edits, or navigates a Python symbol in this repo — questions like "how is X used", "who calls X", "where is X defined", "explain X", "rename X", "delete X", "rewrite X". Triggers on intent, not file type. If the MCP tools listed below aren't in your tool list, the server isn't running — fall back to native tools silently.
+description: Use whenever the user asks about, edits, or navigates a Python symbol in this repo — questions like "how is X used", "who calls X", "where is X defined", "explain X", "rename X", "delete X", "rewrite X", "add a method to X", "refactor X". Triggers on intent, not file type. The MCP tools here are the FIRST choice for any work on indexed Python files; Grep/Read/Edit/Write are last-resort fallbacks for the narrow cases listed below.
 ---
 
 # symbol — AST-native operations for Python
 
+The MCP tools below are **the default tools** for any work on indexed Python files in this repo. Native Grep/Read/Edit/Write are **last-resort fallbacks** for a small set of cases listed at the bottom.
+
+## Scenario → tool chain
+
+The agent's task usually maps to one of these. Pick the chain by intent:
+
+| What the user/task wants | Tool chain |
+|---|---|
+| "Where is X defined?" / "Find X" | **SearchSymbol(`X`)** |
+| "Show me the code for X" | **SymbolBody(`<qualified.path>`)** |
+| "Show me lines A-B of file" | **SymbolBody(`file:A-B`)** |
+| "What's in this file?" / overview | **SymbolOutline(`file`)** → **SymbolBody(picked)** |
+| "Who calls X?" / "Where is X used?" | **SymbolCallers(`X`)** |
+| "Explain how X works" | **SearchSymbol(`X`)** → **SymbolBody(`<path>`)** → **SymbolCallers(`X`)** |
+| "Change a few lines inside Y" | **SymbolBody(`Y`)** → **Patch(`file`, `range`, content)** |
+| "Rewrite function/class X" | **ReplaceSymbol(`X`, content)** |
+| "Add a method to class C" | **InsertSymbol(`C`, position=`end`, content)** |
+| "Add a sibling function next to F" | **InsertSymbol(`F`, position=`after`, content)** |
+| "Delete X" | **SymbolCallers(`X`)** (verify) → **DeleteSymbol(`X`)** |
+| "Rename X to Y" | **SymbolCallers(`X`)** (preview) → **RenameSymbol(`X`, `Y`)** |
+| "Refactor X to do Z" | **SymbolBody(`X`)** → **ReplaceSymbol(`X`, new content)** |
+| "Add a new file at path P" | **Write(`P`, content)** ← only legitimate Write usage |
+
+## Two roundtrips beat one — token math
+
+The MCP tools require pairs (locate-then-fetch, read-then-edit). It feels like more calls. It is not — it is *less data per call*, and the totals come out lower:
+
+- **SearchSymbol + SymbolBody** vs **Grep + Read**:
+  Grep returns raw line matches mixed with comments, strings, unrelated identifiers. Read returns the entire file. The MCP pair returns only real declarations + only the relevant symbol's body with structural metadata. **Net: 5–20× fewer tokens** on typical "find X and show me" tasks, plus you get the symbol's used imports and refs for free.
+
+- **SymbolBody + Patch** vs **Read + Edit**:
+  Edit requires re-sending the existing content for disambiguation (~200 tokens per call). Patch addresses by line range — no `old_string` round-trip. The SymbolBody call also marks the range as "seen", satisfying Patch's read-confirmation check on the next call. **Net: ~200 tokens saved per write, plus byte-exact range targeting.**
+
+- **SymbolOutline + SymbolBody** vs **Read** for "understand a file":
+  Outline returns < 5% of the file's tokens. You see the structure, pick the relevant 1–2 symbols, fetch only those. **Net: typical 10–50× reduction** on "show me what's in this file."
+
+These multipliers are the reason MCP wins on token cost despite needing more calls.
+
 ## The naming test
 
-Before reaching for Grep, Read, or Edit on a Python file, ask:
+When in doubt, apply this single rule:
 
-> **Can I name the thing I'm touching as an identifier or a known line range?**
+> **Can I name the thing I'm touching as a Python identifier or a known line range?**
 
-- **Yes** → use the MCP tools below. Examples: `ASTCache`, `services.user.UserService.save`, `src/app.py:120-145`.
+- **Yes** → use the MCP tools above. Examples: `ASTCache`, `services.user.UserService.save`, `src/app.py:120-145`.
 - **No** → native tools are correct. Examples: TODO scans, regex across comments, hunting a string literal, non-Python files.
 
-This is the only rule. Every routing decision in this skill derives from it. You don't need to memorize phrasings — apply the test.
+This is the generative rule the scenario table derives from.
 
-## The wrong first move (read)
+## What write tools uniquely guarantee (cannot be matched by Edit)
 
-User: *"explain how ASTCache is used"*
-
-❌ `Grep "ASTCache"` then `Read ast_cache.py`
-- Grep returns raw line matches in any file (comments, strings, unrelated names).
-- Read dumps the whole file when you only needed the class.
-- You miss callers that import the symbol but reference it through an alias or attribute.
-
-✅ `SymbolCallers("ASTCache")` + `SymbolBody("ca.symbol.shared.ast_cache.ASTCache")`
-- Returns every containing symbol that references the name, grouped by qualified path.
-- Returns just the class body with its used imports and external refs.
-- Two calls, complete picture, no file scan.
-
-## The wrong first move (write)
-
-User: *"rename ASTCache to ParseCache"*
-
-❌ Multi-file `Edit` campaign
-- Misses references in untracked files.
-- Risks rewriting unrelated string literals containing the substring.
-- No checkpoint to revert if the rename goes wrong.
-
-✅ `RenameSymbol(qualified_path="...ASTCache", new_name="ParseCache")`
-- Atomic across the project, identifier-bounded (won't touch strings/comments).
-- Creates a git checkpoint commit first — full rollback with `git reset --hard HEAD^`.
-- `dry_run=true` previews per-file deltas before committing.
-
-## What the write tools uniquely guarantee
-
-These aren't cheaper alternatives to `Edit` — they provide guarantees `Edit` cannot:
-
-- **Patch** — byte-range replacement on an already-seen range. No re-sending old content for disambiguation.
+- **Patch** — byte-range replacement on an already-seen range. No `old_string` round-trip, no string-matching ambiguity.
 - **ReplaceSymbol** — parses new content before committing; rejects syntax breaks. Rewrites callers automatically if the leaf name changes.
-- **InsertSymbol** — places code by structural position (`before`/`after` a sibling, `start`/`end` of a class), auto-indented to scope. No line-number arithmetic.
-- **RenameSymbol** — atomic, identifier-bounded, git-checkpointed. Multi-file Edit cannot match this.
+- **InsertSymbol** — places code by structural position (`before`/`after` a sibling, `start`/`end` of a class), auto-indented to scope.
+- **RenameSymbol** — atomic across files, identifier-bounded (won't touch strings/comments), git-checkpointed (one-line undo).
 - **DeleteSymbol** — refuses if callers exist (forces you to think). Returns the caller list so you can fix them first.
 
-If your edit aligns to a symbol or a known range, one of these is the safe move. `Edit` is correct when the change crosses symbol boundaries or lives in non-symbol regions (comments, config dicts, strings).
+If your edit aligns to a symbol or a known range, one of these is the safe move. Edit's only correctness advantage is on *non-Python* files.
 
-## Canonical workflow
+## When native tools win (last-resort fallbacks)
 
-```
-1. SearchSymbol <name>          → shortlist with qualified paths
-2. SymbolBody <qualified.path>  → exact body + refs + used imports
-   (the range is now "seen" — Patch on it skips read-confirmation)
-3. Before risky changes:
-   SymbolCallers <name>         → every containing symbol that references it
-4. Pick the write tool by what's changing:
-   - Few lines inside, range known → Patch
-   - Whole definition rewritten     → ReplaceSymbol
-   - Add a sibling/method           → InsertSymbol
-   - Remove entirely                → DeleteSymbol
-   - Rename across files            → RenameSymbol
-```
+Use Grep / Read / Edit / Write only when one of these applies. There are not many cases:
+
+- **Non-Python files** — markdown, TOML, JSON, shell scripts, YAML, etc. The index doesn't cover them; MCP tools won't help.
+- **Text-pattern search across non-identifier content** — TODO/FIXME hunts, regex across comments and docstrings, hunting a specific string literal. Use Grep.
+- **Genuinely needing the whole file as raw bytes** — top-level constants, module-level comments, or non-symbol regions when there's no way to bound them as a line range. Rare. Use Read.
+- **Creating a new file** — Write. (For overwriting an existing indexed file, use ReplaceSymbol or Patch instead.)
+- **Small Python files (< ~80 lines)** — the hook bypasses the nudge automatically; native tools are fine because MCP overhead exceeds the win at that size.
+
+If you're reaching for a native tool for any other reason, you're probably bypassing rather than choosing — re-check against the scenario table above.
 
 ## Addressing symbols
 
@@ -97,19 +101,4 @@ For file-range addressing (`SymbolBody`, `Patch`), use repo-relative paths with 
 
 - **Tier-1 textual only.** `SymbolCallers save` matches `other.save` and any `.save` attribute access — disambiguate with `SymbolBody`.
 - **Python only** in v1. TypeScript adapter is future work.
-- **No file creation.** Adding a new module still needs native `Write`.
 - **No write-path parse validation in Patch.** Use `ReplaceSymbol` when you need that guarantee.
-
-## Reference: routing table
-
-| Task | Tool |
-|---|---|
-| Find symbol declarations by name | SearchSymbol |
-| Fetch a class/function body | SymbolBody |
-| See a file's structure | SymbolOutline |
-| Find "who calls X" | SymbolCallers |
-| Replace a known line range | Patch |
-| Rewrite a full function/class | ReplaceSymbol |
-| Rename across files | RenameSymbol |
-| Delete a full symbol | DeleteSymbol |
-| Insert a new method/function | InsertSymbol |

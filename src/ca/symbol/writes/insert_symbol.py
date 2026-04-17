@@ -16,6 +16,7 @@ scope — before/after use the anchor's own indent, start/end use one
 indent step deeper. Agents can pass --no-reindent to send content as-is.
 """
 
+import ast
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -117,8 +118,12 @@ def resolve_insert_symbol(
     body_indent = anchor_indent + "    "   # one step deeper
 
     if position == "before":
-        insert_line = start_line
-        insert_byte = _line_start_byte(source, start_line)
+        # If anchor has decorators, insert above the first decorator — not
+        # between decorator(s) and `def`, which would break the binding.
+        # (start_line from the index is the def/class line.)
+        anchor_top = _first_decorator_line(source, start_line) or start_line
+        insert_line = anchor_top
+        insert_byte = _line_start_byte(source, anchor_top)
         target_indent = anchor_indent
     elif position == "after":
         insert_line = end_line + 1
@@ -155,6 +160,7 @@ def resolve_insert_symbol(
         insert_byte=insert_byte,
         content=payload,
     )
+
 
 
 def apply_insert_symbol(
@@ -225,6 +231,23 @@ def _line_end_byte(data: bytes, line: int) -> int:
             if seen == line:
                 return i + 1
     return len(data)
+def _first_decorator_line(source: bytes, def_line: int) -> int | None:
+    """Line number of the topmost decorator on the def/class at `def_line`.
+
+    Returns None when the symbol has no decorators or when source can't be
+    parsed — callers fall back to `def_line`. Uses ast (not textual walk) so
+    `@` characters inside string literals or inside decorator argument
+    expressions don't fool us.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.lineno == def_line and node.decorator_list:
+                return min(d.lineno for d in node.decorator_list)
+    return None
 
 
 def _indent_of_line(data: bytes, line: int) -> str:

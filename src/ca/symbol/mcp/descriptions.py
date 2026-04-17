@@ -1,22 +1,25 @@
 """Tool descriptions shown to the agent at tool-list time.
 
-Each description states what the tool uniquely does and guarantees. We
-deliberately avoid comparative claims against native tools (Grep/Read/Edit) —
-those tools may not be present, and the comparison creates noise when they
-are. Routing decisions live in the symbol skill, not in tool descriptions.
+Each description leads with the user-task verb the agent will pattern-match
+on (locate, fetch, show, who-uses, replace, etc.) — not with the tool's
+internal mechanism. We deliberately avoid comparative claims against native
+tools (Grep/Read/Edit) inside individual descriptions, because those make
+the descriptions confusing when MCP is absent. Pair-level claims (like
+"SymbolBody+Patch covers Read+Edit") live in the SKILL, not here.
 """
 
 SEARCH_SYMBOL = """\
-Find symbol declarations (classes, functions, methods, async functions) \
-by name across the indexed Python project. Returns a list of hits with \
-qualified path, kind, file:line-range location, and a short non-docstring \
-code preview. Bodies are not returned — follow up with SymbolBody for those.
+Locate where a class, function, method, or async function is declared by \
+name. Returns a list of declarations with qualified path, kind, \
+file:line-range, and a short non-docstring code preview. Bodies are not \
+returned — chain SymbolBody for those.
 
-Resolves against a pre-built AST index, so results are always real \
-declarations with their kind. Comments, docstrings, string literals, and \
-variable references are never matched. The qualified path returned is the \
-canonical address you pass to SymbolBody, SymbolCallers, RenameSymbol, \
-DeleteSymbol, and ReplaceSymbol.
+USE WHEN the user mentions a symbol by name and wants to find, explore, \
+rename, delete, or modify it. The standard two-call chain is \
+SearchSymbol(name) → SymbolBody(qualified_path): the first narrows to real \
+declarations, the second fetches the exact code with structural awareness. \
+This pair is what an agent reaches for whenever it would otherwise grep \
+for a name and read whatever file matches.
 
 Parameters: patterns is a list of strings that AND together — every \
 pattern must match the qualified path. By default, patterns match \
@@ -28,21 +31,29 @@ file restricts to a single repo-relative path. limit caps results \
 (default 100).
 
 Returns declarations only — not bodies, not call graphs, not docstrings. \
-For occurrences inside comments or string literals, this tool will not \
-find them; that is a different kind of search.
+For occurrences inside comments or string literals, this is the wrong tool.
 """
 
 SYMBOL_BODY = """\
-Retrieve the exact source body of a symbol or an arbitrary line range, \
-plus the symbol's external refs and the imports it actually uses. Returns \
-body text, file:line-range, declared kind, used imports, and a per-ref \
-list with kind ("name" or "attr") and line numbers.
+Get the exact source code of a function, class, method, OR an arbitrary \
+line range in a file. Returns the source text, file:line-range, declared \
+kind, the imports it actually uses, and the names it references.
 
-Scoped to the declaration, not the file: a 30-line method in a 2000-line \
-module returns only those 30 lines and the imports they touch. Calling \
-this also records the returned range as "seen" in the session's \
-read-cache, which lets a subsequent Patch on the same range proceed \
-without the needs_read_confirmation safety check.
+Two address modes:
+  • Qualified path ("services.user.UserService.save") — fetches one named symbol
+  • file:start-end ("src/app.py:120-145") — any line range, raw slice
+
+For named symbols, returns ONLY the declaration's lines (a 30-line method \
+in a 2000-line module returns 30 lines + its imports). For the file:range \
+mode, returns the exact slice — the same content a partial Read would, \
+plus the structural metadata (refs, used imports) at no extra cost.
+
+USE WHEN you know the symbol or line range you want. Pair with \
+SearchSymbol when you know only the name. Pair with SymbolOutline when \
+you want to preview a file's shape first. Pair with Patch for the \
+read-then-edit workflow — SymbolBody marks the returned range as "seen" \
+in the session's read-cache, which lets a subsequent Patch on the same \
+range proceed without the needs_read_confirmation safety check.
 
 Parameters: target is either a qualified path ("services.user.UserService.save") \
 or a "file:start-end" address ("src/app.py:120-145"). Qualified paths \
@@ -52,20 +63,23 @@ the refs list when you only need the body.
 
 If a qualified path is ambiguous (multiple symbols match), returns \
 error_code="ambiguous" with a candidates list — pick one and pass its \
-file:range instead. Returns error_code="not_found" if nothing matches. \
-Tier-1 textual: refs are listed by declared usage inside the body, not \
-by import resolution.
+file:range instead. Returns error_code="not_found" if nothing matches.
 """
 
 SYMBOL_OUTLINE = """\
-Show a file's symbols or a symbol's descendants as a parent-child tree. \
-Each node carries its qualified path, kind, line range, and children \
-nested inside. Bodies are not returned; this is purely the structural \
-shape.
+Show a file's symbols (classes, functions, methods, async functions) as \
+a parent-child tree. Returns qualified paths, kinds, and line ranges — \
+no bodies. A typical file's outline is < 5% of its content in tokens.
 
-Useful for previewing a class's methods or a module's top-level shape \
-before deciding which body to fetch. Pairs with SymbolBody: outline to \
-locate, SymbolBody to inspect.
+USE WHEN you want to understand the shape of a file before deciding \
+which symbols to fetch. The standard chain is SymbolOutline(file) → \
+SymbolBody(<one of the listed symbols>): see the structure, pick the \
+relevant piece, get its exact code. This pair returns a fraction of what \
+loading the entire file would.
+
+Also accepts a symbol's qualified path — returns that symbol with all \
+its descendants nested. Useful for previewing a class's methods before \
+deciding which one to fetch.
 
 Parameters: target is either (a) a repo-relative file path — returns \
 every top-level symbol in that file with children nested, or (b) a \
@@ -81,14 +95,17 @@ errors explicitly on miss, use SymbolBody.
 
 SYMBOL_CALLERS = """\
 Find every indexed symbol whose body references a given name. For each \
-hit, returns the source symbol's qualified path, file, and line range, \
-plus the matched ref's line and kind ("name" for a plain identifier, \
-"attr" for an attribute access like `x.save`).
+hit, returns the source symbol's qualified path + file + line range, \
+plus the matched ref's line and kind ("name" for a plain identifier \
+use, "attr" for an attribute access like `x.save`).
 
-Returns the containing symbol per call site, not just matching lines — \
-which is the unit you need for blast-radius reasoning before renaming, \
-deleting, or changing a signature. Run this before any RenameSymbol, \
-DeleteSymbol, or ReplaceSymbol that changes a leaf name.
+USE WHEN you need to know who depends on a symbol — for blast-radius \
+checks before renaming, deleting, or changing a signature, or for \
+answering "who calls X / who uses X". Returns the *containing* symbol \
+per call site, which is the unit you need to reason about impact (you \
+don't care that line 47 references X; you care that `UserService.save` \
+references X). Run this BEFORE any RenameSymbol, DeleteSymbol, or \
+significant ReplaceSymbol on a leaf-name change.
 
 Parameters: name is the identifier to look up. The lookup matches the \
 last segment — a call to `other.save` matches when asking for "save", \
@@ -105,12 +122,17 @@ Replace a byte range in a file with new content. The primitive edit \
 operation that all symbol-level writes compose from. Returns a unified \
 diff, the before/after byte ranges, and line-count deltas.
 
-Addresses by line range, so no old content needs to be transmitted for \
-disambiguation. Includes a needs_read_confirmation safety check: the \
-target range must have been fetched this session via SymbolBody (or a \
-native read) before Patch will write. For whole-symbol rewrites prefer \
-ReplaceSymbol (which validates parse); for structural adds prefer \
-InsertSymbol (which auto-indents).
+USE WHEN you know the line range you want to change. Addresses by line \
+range, so the old content does not need to be transmitted for \
+disambiguation. The standard read-then-edit chain is SymbolBody(target) \
+→ Patch(file, range, new_content): the SymbolBody call records the \
+range as "seen", which satisfies Patch's needs_read_confirmation safety \
+check on the next call. This pair handles ALL non-symbol edits — \
+comments, constants, partial-function changes — and is the byte-exact \
+write primitive for ranges you've already seen.
+
+For whole-symbol rewrites, prefer ReplaceSymbol (parse-validated). For \
+structural adds, prefer InsertSymbol (auto-indented).
 
 Parameters: file is a path to the target. range is a line range string \
 "A-B" (inclusive, 1-indexed). content is the replacement bytes — pass \
@@ -127,38 +149,42 @@ need that guarantee.
 """
 
 DELETE_SYMBOL = """\
-Remove a full symbol (class, function, method, async function) by its \
-qualified path. The declaring file is identified via the index, the \
-complete declaration — decorators, docstring, body, trailing blank line \
-— is spliced out atomically, and a diff is returned.
+Remove a function, class, method, or async function by its qualified \
+path. Splices out the complete declaration atomically — decorators, \
+docstring, body, trailing blank line — without counting lines. Returns \
+a unified diff.
 
-Refuses by default if live references exist: returns the caller list as \
-an error so you can fix call sites before destroying working code. Pass \
-force=true to delete anyway.
+USE WHEN you want to delete a named symbol cleanly. REFUSES BY DEFAULT \
+when other code references the symbol — surfaces the caller list as an \
+error so you can fix call sites first. Pass force=true to delete anyway \
+(callers' code will break). The refusal is the safety net that makes \
+this preferable to manual deletion.
 
 Parameters: qualified_path is the symbol's full dotted path \
 ("services.user.UserService.save"). force=true proceeds even when \
-callers exist — callers' code will break. dry_run=true returns the \
-diff and caller list without writing.
+callers exist. dry_run=true returns the diff and caller list without \
+writing.
 
 Returns error_code="symbol_not_found" if the path doesn't resolve, \
 "symbol_ambiguous" with a candidate file:range list if multiple match, \
 "has_live_references" with a callers array when force=false and refs \
-exist. After a successful delete, the index refreshes incrementally; \
-re-query with SearchSymbol if a follow-up call seems stale.
+exist.
 """
 
 INSERT_SYMBOL = """\
-Insert new code anchored to an existing symbol, at one of four \
-positions: "before" (a sibling added before the anchor), "after" \
-(sibling after), "start" (first child of a class body), or "end" \
-(last child of a class body). Returns a diff, the insertion line, \
-and the anchor's qualified path.
+Add a new function, method, or class anchored to an existing symbol — \
+positioned by structural relationship, not line number. Returns a diff, \
+the insertion line, and the anchor's qualified path.
 
-Positions by structural relationship — sibling-of or child-of a named \
-symbol — never by raw line number. Auto-indents the new content to \
-match the anchor's scope, so you send code without leading whitespace. \
-Preserves trailing-blank-line conventions typical of Python files.
+Positions: "before" (sibling before the anchor), "after" (sibling \
+after), "start" (first child of a class body), "end" (last child of a \
+class body). Auto-indents the new content to match the anchor's scope, \
+so you send code without leading whitespace. Preserves trailing-blank-line \
+conventions typical of Python files.
+
+USE WHEN adding a new method to a class, a sibling function next to an \
+existing one, or any structural insertion. Skip line-number arithmetic \
+— the anchor's qualified path plus a position keyword is enough.
 
 Parameters: anchor is the qualified path of the reference symbol. \
 position must be one of before/after/start/end (start/end only valid \
@@ -170,21 +196,22 @@ dry_run=true returns the diff without writing.
 Returns error_code="invalid_argument" on bad position or missing \
 content, "symbol_not_found" or "symbol_ambiguous" on anchor resolution \
 failures, "parse_broken" if your content has a syntax error. \
-start/end on a non-class anchor returns "invalid_argument" — use \
-before/after for function anchors.
+start/end on a non-class anchor returns "invalid_argument".
 """
 
 RENAME_SYMBOL = """\
 Rename a symbol's leaf identifier and rewrite every textual reference \
-across the project in a single transaction. Under git, a checkpoint \
-commit is created before any writes so the entire change can be reverted \
-with `git reset --hard HEAD^`. Returns per-file change lists, total \
-refs updated, and the declaring file.
+across the project in a single transaction. Under git, creates a \
+checkpoint commit before any writes so the entire change reverts with \
+`git reset --hard HEAD^`. Returns per-file change lists, total refs \
+updated, and the declaring file.
 
-Identifier-bounded: only updates references that lex as the bare \
-identifier or as the trailing segment of an attribute access. Stops at \
-string and comment boundaries. Atomicity + git checkpoint means no \
-half-finished rename state is observable.
+USE WHEN renaming a class, function, or method anywhere it appears. \
+Identifier-bounded — only updates references that lex as the bare \
+identifier or as the trailing segment of an attribute access; stops at \
+strings and comments. Atomicity + git checkpoint means no half-finished \
+rename state is observable, and you have a one-line undo if the result \
+is wrong.
 
 Parameters: qualified_path is the current full path of the symbol. \
 new_name is the new leaf name only (no dots). dry_run=true plans the \
@@ -202,17 +229,22 @@ codes on failure.
 """
 
 REPLACE_SYMBOL = """\
-Replace a symbol's full declaration with new content. If the new \
-content declares a different leaf name, every caller is rewritten too \
-(implicit rename included). Transactional under git like RenameSymbol: \
-one checkpoint commit before writes. Returns per-file changes, \
-name_changed flag, new_qualified_path, new_signature.
+Replace a function or class with new content. If the new content \
+declares a different leaf name, every caller is rewritten too (implicit \
+rename included). Transactional under git like RenameSymbol: one \
+checkpoint commit before writes. Returns per-file changes, name_changed \
+flag, new_qualified_path, new_signature.
 
-Validates the replacement: content must parse cleanly as Python and \
-contain exactly one top-level definition. Kind must match the replaced \
-symbol — you cannot replace a function with a class. The combination \
-of parse-validation + atomic caller rewrite + git checkpoint makes this \
-the safe primitive for whole-definition rewrites.
+USE WHEN rewriting a complete function or class. Validates the new \
+content parses as Python before committing — refuses on syntax errors. \
+Send only the new definition; the old body is addressed via the index, \
+not re-transmitted. The combination of parse-validation + atomic caller \
+rewrite + git checkpoint makes this the safe primitive for whole-symbol \
+rewrites.
+
+New content must parse cleanly and contain exactly one top-level \
+definition. Kind must match the replaced symbol (you cannot replace a \
+function with a class).
 
 Parameters: qualified_path is the current path of the symbol to \
 replace. content is the full new definition — you may include the \

@@ -3,11 +3,15 @@
 Single command, dispatches on `hook_event_name` from the JSON payload:
 
   PreToolUse  (Grep / Read / Edit)
-    → soft nudge: emit additionalContext suggesting MCP-tool alternatives
-      when the target is in the symbol index. Tool always proceeds.
+    → Default (nudge mode): emit `additionalContext` so the model sees the
+      MCP-tool alternatives in its next turn. Tool proceeds.
+    → With `--enforce`: exit 2 with the suggestion on stderr. Claude Code
+      blocks the tool call and shows stderr to the model as the deny reason,
+      forcing reroute. Bench measurement showed soft nudges are often
+      ignored against trained habit; --enforce is the escalation knob.
 
   PostToolUse (Edit / Write) on an indexed `.py` file that succeeded
-    → refresh the index for that file. Silent side effect.
+    → refresh the index for that file. Silent side effect, fork-detached.
 
 If the index isn't present (no `.ca/symbol_index.msgpack.zst`), the hook
 is a no-op for both cases. It never triggers a build.
@@ -22,7 +26,7 @@ from ca.symbol.reads.search import search as index_search
 from ca.symbol.shared.symbol_index import SymbolIndex
 
 
-def run() -> None:
+def run(enforce: bool = False) -> None:
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError:
@@ -35,11 +39,11 @@ def run() -> None:
         sys.exit(0)
 
     if event == "PreToolUse":
-        # Synchronous — must finish before tool runs to inject additionalContext.
+        # Synchronous — must finish before tool runs.
         index = SymbolIndex.load(project_root)
         if index is None:
             sys.exit(0)
-        _handle_pre(index, project_root, payload)
+        _handle_pre(index, project_root, payload, enforce=enforce)
     elif event == "PostToolUse":
         # Detach early — fork BEFORE loading the 16MB index, so the parent
         # exits in ~50ms and the child handles the heavy lift in background.
@@ -48,10 +52,10 @@ def run() -> None:
 
 
 # --------------------------------------------------------------------------
-# PreToolUse: soft nudge
+# PreToolUse: nudge (default) or block (--enforce)
 # --------------------------------------------------------------------------
 
-def _handle_pre(index: SymbolIndex, project_root: Path, payload: dict) -> None:
+def _handle_pre(index: SymbolIndex, project_root: Path, payload: dict, *, enforce: bool) -> None:
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {}) or {}
 
@@ -61,12 +65,21 @@ def _handle_pre(index: SymbolIndex, project_root: Path, payload: dict) -> None:
         message = _grep_suggestion(index, tool_input)
     elif tool_name == "Edit":
         message = _edit_suggestion(index, project_root, tool_input)
+    elif tool_name == "Write":
+        message = _write_suggestion(index, project_root, tool_input)
     else:
         return
 
     if message is None:
         return
 
+    if enforce:
+        # Exit 2 + stderr: Claude Code blocks the tool and surfaces stderr
+        # to the model as the deny reason. The model must reroute.
+        print(message, file=sys.stderr)
+        sys.exit(2)
+
+    # Default soft nudge: tool proceeds, model sees suggestion in next turn.
     json.dump(
         {
             "hookSpecificOutput": {
@@ -83,8 +96,6 @@ def _read_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -
     file_path = tool_input.get("file_path") or ""
     if not file_path:
         return None
-    if tool_input.get("offset") or tool_input.get("limit"):
-        return None
 
     rel = _to_rel(project_root, file_path)
     if rel is None:
@@ -94,12 +105,24 @@ def _read_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -
     if lang is None:
         return None
 
+    # Small-file bypass: under ~80 lines the MCP overhead exceeds the win.
+    if _too_small(project_root, rel):
+        return None
+
+    # Note: offset/limit bypass intentionally NOT honored. SymbolBody can take
+    # a "file:start-end" address for any arbitrary line range, so partial Read
+    # has no legitimate use case for indexed files that SymbolBody can't cover.
     return (
-        f'symbol: "{rel}" is in the symbol index ({lang}). '
-        f"For Python files, prefer these next time you only need part of the file:\n"
-        f'  • SymbolOutline(target="{rel}") — structural tree, no bodies\n'
-        f'  • SymbolBody(target="<qualified.path>") — one symbol + used imports'
+        f'symbol: "{rel}" is indexed ({lang}). Read returns raw file lines — '
+        f"SymbolBody returns the same range with structural awareness (used imports, "
+        f"refs, declared kind) at the same or lower token cost. Use:\n"
+        f'  • SymbolOutline(target="{rel}") — file structure, no bodies\n'
+        f'  • SymbolBody(target="<qualified.path>") — one named symbol + imports + refs\n'
+        f'  • SymbolBody(target="{rel}:START-END") — arbitrary line range with refs\n'
+        f"Read only when you genuinely need the unstructured file content (top-level "
+        f"comments, module-level constants, or non-Python regions)."
     )
+
 
 
 def _grep_suggestion(index: SymbolIndex, tool_input: dict) -> str | None:
@@ -119,12 +142,53 @@ def _grep_suggestion(index: SymbolIndex, tool_input: dict) -> str | None:
     more = "+" if n >= 5 else ""
 
     return (
-        f'symbol: "{pattern}" matches {n}{more} indexed declaration(s) '
-        f"(e.g. {sample}). For symbol questions, prefer these next time:\n"
-        f'  • SearchSymbol(patterns=["{pattern}"]) — declarations with qualified paths\n'
+        f'symbol: "{pattern}" is the name of {n}{more} indexed declaration(s) '
+        f"(e.g. {sample}). Grep returns raw line matches mixed with comments, "
+        f"strings, and unrelated occurrences — typically 5-10× the noise of a "
+        f"symbol-aware lookup. Use:\n"
+        f'  • SearchSymbol(patterns=["{pattern}"]) — declarations only\n'
         f'  • SymbolCallers(name="{leaf}") — every containing symbol that references it\n'
-        f'  • SymbolBody(target="{sample}") — one symbol + used imports + refs'
+        f'  • SymbolBody(target="{sample}") — the body, used imports, refs\n'
+        f"Re-issue Grep only for non-identifier text (TODOs, doc hunts, regex)."
     )
+
+
+def _write_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -> str | None:
+    """Only fires when Write would OVERWRITE an existing indexed .py file.
+
+    Creating new files passes through silently — Write is the right tool for
+    that. The bypass we close: Write replacing the entire content of an
+    already-indexed file as an end-run around the Edit nudge.
+    """
+    file_path = tool_input.get("file_path") or ""
+    if not file_path:
+        return None
+
+    rel = _to_rel(project_root, file_path)
+    if rel is None:
+        return None
+
+    lang = index.language_of_file(rel)
+    if lang is None:
+        return None  # not indexed — Write is fine (new file or non-py)
+
+    abs_path = project_root / rel
+    if not abs_path.exists():
+        return None  # creating, not overwriting — pass through
+
+    if _too_small(project_root, rel):
+        return None
+
+    return (
+        f'symbol: "{rel}" already exists and is indexed ({lang}). Write would '
+        f"overwrite it wholesale, losing the per-symbol structural edit guarantees. "
+        f"For changes to an existing indexed file, use:\n"
+        f"  • Patch(file=..., range=A-B, content=...) — byte-range edit, atomic\n"
+        f'  • ReplaceSymbol(qualified_path=..., content=...) — whole symbol; parse-validated\n'
+        f'  • InsertSymbol(anchor=..., position=..., content=...) — structural insert\n'
+        f"Write is correct only for *new* files (it's a no-op nudge in that case)."
+    )
+
 
 
 def _edit_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -> str | None:
@@ -140,16 +204,21 @@ def _edit_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -
     if lang is None:
         return None
 
+    if _too_small(project_root, rel):
+        return None
+
     return (
-        f'symbol: "{rel}" is in the symbol index ({lang}). For edits to indexed '
-        f"Python files, these tools provide guarantees Edit cannot:\n"
-        f"  • Patch(file=..., range=A-B, content=...) — byte-range edit, no old_string round-trip\n"
-        f'  • ReplaceSymbol(qualified_path=..., content=...) — whole symbol; parses before commit; rewrites callers if leaf renamed\n'
+        f'symbol: "{rel}" is indexed ({lang}). Edit requires re-sending the existing '
+        f"content for disambiguation (~200 extra tokens per call) and provides no "
+        f"parse validation. The MCP write tools cover every case Edit covers:\n"
+        f"  • Patch(file=..., range=A-B, content=...) — byte-range, no old_string round-trip (handles ALL non-symbol edits)\n"
+        f'  • ReplaceSymbol(qualified_path=..., content=...) — whole symbol; parse-validated; rewrites callers if leaf renamed\n'
         f'  • InsertSymbol(anchor=..., position=before|after|start|end, content=...) — auto-indented, structural\n'
         f"  • DeleteSymbol(qualified_path=...) — refuses if callers exist\n"
         f'  • RenameSymbol(qualified_path=..., new_name=...) — atomic across files, git-checkpointed\n'
-        f"Edit still works; pick it when the change crosses symbol boundaries or touches non-symbol regions."
+        f"Use Edit only on non-Python files."
     )
+
 
 
 def _search_safe(index: SymbolIndex, pattern: str, *, regex: bool) -> list[dict]:
@@ -231,3 +300,18 @@ def _to_rel(project_root: Path, file_path: str) -> str | None:
         return str(Path(file_path).resolve().relative_to(project_root))
     except ValueError:
         return None
+def _too_small(project_root: Path, rel: str, threshold: int = 80) -> bool:
+    """True when the indexed file is below `threshold` lines.
+
+    Below ~80 lines, the per-call MCP overhead exceeds the token-savings win
+    over a direct Read/Edit. Bypass the nudge in that range so native tools
+    handle small modules without friction.
+    """
+    try:
+        with open(project_root / rel) as f:
+            for i, _ in enumerate(f, start=1):
+                if i > threshold:
+                    return False
+            return True
+    except Exception:
+        return False

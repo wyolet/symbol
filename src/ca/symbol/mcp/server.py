@@ -49,17 +49,37 @@ mcp = FastMCP("symbol")
 
 
 class _State:
-    """Process-wide state. Set once by ``serve``, read by tool handlers."""
+    """Process-wide state. Set once by ``serve``, read by tool handlers.
+
+    Holds the SymbolIndex in RAM for the life of the MCP server — long-lived
+    stdio process means we should not re-load 75KB-many-MB pickle on every
+    tool call. Refreshes from disk only when the on-disk file's mtime is newer
+    than what we cached (e.g. after a PostToolUse hook refresh from another
+    process).
+    """
 
     project_root: Path | None = None
     read_cache: InMemoryReadCache | None = None
+    _index: "SymbolIndex | None" = None
+    _index_mtime: float | None = None
 
     @classmethod
     def initialize(cls, project_root: Path) -> None:
         cls.project_root = project_root.resolve()
         cls.read_cache = InMemoryReadCache()
         build_workspace(cls.project_root)
-        get_or_build_index(cls.project_root)
+        cls._load_index()
+
+    @classmethod
+    def _index_path(cls) -> Path:
+        return cls.require_root() / ".ca" / "symbol_index.msgpack.zst"
+
+    @classmethod
+    def _load_index(cls) -> None:
+        idx, _ = get_or_build_index(cls.require_root())
+        cls._index = idx
+        p = cls._index_path()
+        cls._index_mtime = p.stat().st_mtime if p.exists() else None
 
     @classmethod
     def require_root(cls) -> Path:
@@ -72,6 +92,21 @@ class _State:
         if cls.read_cache is None:
             raise RuntimeError("MCP server not initialized — call serve() first")
         return cls.read_cache
+
+    @classmethod
+    def require_index(cls) -> "SymbolIndex":
+        """Return the in-RAM index. Reload from disk only if disk is newer."""
+        if cls._index is None:
+            cls._load_index()
+        else:
+            p = cls._index_path()
+            if p.exists():
+                disk_mtime = p.stat().st_mtime
+                if cls._index_mtime is None or disk_mtime > cls._index_mtime:
+                    cls._load_index()
+        assert cls._index is not None
+        return cls._index
+
 
 
 def _dc(result) -> dict:
@@ -106,7 +141,7 @@ def search_symbol(
             "message": "regex and fixed are mutually exclusive",
         }
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
     hits = search_read(
         index,
         patterns,
@@ -123,7 +158,7 @@ def search_symbol(
 @mcp.tool(name="SymbolBody", description=descriptions.SYMBOL_BODY)
 def symbol_body(target: str, include_refs: bool = True) -> dict:
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
     cache = _State.require_cache()
     try:
         hit = code_read(index, target)
@@ -152,7 +187,7 @@ def symbol_body(target: str, include_refs: bool = True) -> dict:
 @mcp.tool(name="SymbolOutline", description=descriptions.SYMBOL_OUTLINE)
 def symbol_outline(target: str) -> dict:
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
 
     arg = target
     fs_candidate = Path(target)
@@ -169,12 +204,39 @@ def symbol_outline(target: str) -> dict:
 @mcp.tool(name="SymbolCallers", description=descriptions.SYMBOL_CALLERS)
 def symbol_callers(name: str) -> dict:
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
     hits = callers_read(index, name)
     return {"ok": True, "count": len(hits), "hits": hits}
 
 
 # ---------------------------------------------------------- writes
+
+
+def _truncate_diff(diff: str, max_lines: int) -> str | None:
+    """Trim a unified diff to a readable size for tool output.
+
+      - max_lines == 0 → omit diff entirely (return None).
+      - max_lines < 0  → return the full diff unchanged.
+      - otherwise: if diff exceeds max_lines, keep half from each end with a
+        '... (N lines omitted; pass diff_lines=0 to skip diff or -1 for full)'
+        marker in the middle.
+    """
+    if max_lines == 0:
+        return None
+    if max_lines < 0 or not diff:
+        return diff
+    lines = diff.splitlines()
+    if len(lines) <= max_lines:
+        return diff
+    head = max_lines // 2
+    tail = max_lines - head
+    omitted = len(lines) - max_lines
+    truncated = (
+        lines[:head]
+        + [f"... ({omitted} lines omitted; pass diff_lines=-1 for full diff or 0 to skip)"]
+        + lines[-tail:]
+    )
+    return "\n".join(truncated)
 
 
 @mcp.tool(name="Patch", description=descriptions.PATCH)
@@ -184,6 +246,7 @@ def patch(
     content: str | None = None,
     force: bool = False,
     dry_run: bool = False,
+    diff_lines: int = 50,
 ) -> dict:
     root = _State.require_root()
     cache = _State.require_cache()
@@ -221,6 +284,8 @@ def patch(
             "error_code": result.error_code,
             "message": result.message,
         }
+
+    diff_payload = _truncate_diff(result.diff, diff_lines)
     return {
         "ok": True,
         "status": result.status,
@@ -229,8 +294,9 @@ def patch(
         "after_range": list(result.after_range),
         "lines_removed": result.lines_removed,
         "lines_added": result.lines_added,
-        "diff": result.diff,
+        "diff": diff_payload,
     }
+
 
 
 @mcp.tool(name="DeleteSymbol", description=descriptions.DELETE_SYMBOL)
@@ -240,7 +306,7 @@ def delete_symbol(
     dry_run: bool = False,
 ) -> dict:
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
     cache = _State.require_cache()
 
     req = resolve_delete_symbol(index, qualified_path, root, force=force)
@@ -265,7 +331,7 @@ def insert_symbol(
             "message": f"position must be one of before|after|start|end, got {position!r}",
         }
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
     cache = _State.require_cache()
 
     req = resolve_insert_symbol(
@@ -286,7 +352,7 @@ def rename_symbol(
     force_no_vcs: bool = False,
 ) -> dict:
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
 
     req = resolve_rename_symbol(index, qualified_path, new_name, root)
     if not isinstance(req, RenameSymbolRequest):
@@ -310,7 +376,7 @@ def replace_symbol(
     force_no_vcs: bool = False,
 ) -> dict:
     root = _State.require_root()
-    index, _ = get_or_build_index(root)
+    index = _State.require_index()
 
     req = resolve_replace_symbol(index, qualified_path, content, root)
     if not isinstance(req, ReplaceSymbolRequest):

@@ -369,9 +369,11 @@ def replace_symbol(
 
 
 @app.command(hidden=True)
-def hook() -> None:
-    """PreToolUse hook entry — reads Claude Code hook JSON from stdin, suggests MCP alternatives."""
-    hook_run()
+def hook(
+    enforce: Annotated[bool, typer.Option("--enforce", help="Block tool calls (exit 2) instead of soft-nudging via additionalContext.")] = False,
+) -> None:
+    """Hook entry — reads Claude Code hook JSON from stdin. Default: soft nudge. --enforce: hard block."""
+    hook_run(enforce=enforce)
 
 
 @app.command()
