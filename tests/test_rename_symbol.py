@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.shared.symbol_index import SymbolIndex, get_or_build_index
-from ca_tools.writes.rename_symbol import (
+from ca.symbol.shared.symbol_index import SymbolIndex, get_or_build_index
+from ca.symbol.writes.rename_symbol import (
     RenameSymbolRequest,
     RenameSymbolResult,
     apply_rename_symbol,
@@ -200,7 +200,7 @@ def test_allow_dirty_proceeds(project):
 
 
 def test_untracked_files_do_not_block_rename(project):
-    """Untracked build artifacts (like .ca-tools/) don't count as dirty."""
+    """Untracked build artifacts (like .ca/) don't count as dirty."""
     (project / "untracked_garbage.log").write_text("noise\n")
 
     idx = _index(project)

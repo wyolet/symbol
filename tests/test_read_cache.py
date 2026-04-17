@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.caches import (
+from ca.symbol.caches import (
     DiskReadCache,
     InMemoryReadCache,
     NullReadCache,
     build_read_cache,
 )
-from ca_tools.protocols import CachedRead, ReadCache
+from ca.symbol.protocols import CachedRead, ReadCache
 
 
 def _entry(file="src/foo.py", start=10, end=50, h="abc"):

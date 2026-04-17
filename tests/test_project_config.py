@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.shared.findings import Severity
-from ca_tools.shared.project_config import ProjectConfig, load_project_config
+from ca.symbol.shared.findings import Severity
+from ca.symbol.shared.project_config import ProjectConfig, load_project_config
 
 
 def test_defaults_when_no_pyproject(tmp_path: Path):
@@ -18,7 +18,7 @@ def test_defaults_when_no_pyproject(tmp_path: Path):
     assert config.packages == {}
 
 
-def test_defaults_when_no_ca_tools_section(tmp_path: Path):
+def test_defaults_when_no_symbol_section(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
     config = load_project_config(tmp_path)
     assert config == ProjectConfig()
@@ -26,7 +26,7 @@ def test_defaults_when_no_ca_tools_section(tmp_path: Path):
 
 def test_loads_include_exclude(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.checker]
+[tool.symbol.checker]
 include = ["src/*"]
 exclude = ["tests/*", "scripts/*"]
 """)
@@ -37,13 +37,13 @@ exclude = ["tests/*", "scripts/*"]
 
 def test_loads_checker_severity(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.checkers.orphans]
+[tool.symbol.checkers.orphans]
 severity = "warning"
 
-[tool.ca-tools.checkers.side_effects]
+[tool.symbol.checkers.side_effects]
 severity = "info"
 
-[tool.ca-tools.checkers.unused_deps]
+[tool.symbol.checkers.unused_deps]
 severity = "warning"
 """)
     config = load_project_config(tmp_path)
@@ -54,13 +54,13 @@ severity = "warning"
 
 def test_loads_checker_ignore(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.checkers.unused_deps]
+[tool.symbol.checkers.unused_deps]
 ignore = ["greenlet", "psycopg"]
 
-[tool.ca-tools.checkers.orphans]
+[tool.symbol.checkers.orphans]
 ignore = ["alembic/*", "src/main.py"]
 
-[tool.ca-tools.checkers.side_effects]
+[tool.symbol.checkers.side_effects]
 ignore = ["*.include_router()", "*.add_middleware()"]
 """)
     config = load_project_config(tmp_path)
@@ -71,7 +71,7 @@ ignore = ["*.include_router()", "*.add_middleware()"]
 
 def test_invalid_severity_raises(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.checkers.orphans]
+[tool.symbol.checkers.orphans]
 severity = "nonsense"
 """)
     with pytest.raises(ValueError, match="Invalid severity"):
@@ -80,7 +80,7 @@ severity = "nonsense"
 
 def test_partial_config(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools.checkers.unused_deps]
+[tool.symbol.checkers.unused_deps]
 ignore = ["greenlet"]
 """)
     config = load_project_config(tmp_path)

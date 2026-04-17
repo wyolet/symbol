@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.shared.symbol_index import SymbolIndex, get_or_build_index
-from ca_tools.writes.replace_symbol import (
+from ca.symbol.shared.symbol_index import SymbolIndex, get_or_build_index
+from ca.symbol.writes.replace_symbol import (
     ReplaceSymbolRequest,
     ReplaceSymbolResult,
     apply_replace_symbol,

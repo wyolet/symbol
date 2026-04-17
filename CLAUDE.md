@@ -1,40 +1,43 @@
-# ca-tools
+# symbol
 
-Codebase audit toolkit for Python projects. Point at a directory, get the full picture.
+AST-native codebase audit, symbol index, and MCP server for Python projects. Point at a directory, get the full picture. Repo and brand currently named `ca-tools`; PyPI distribution and CLI are `symbol`.
 
 ## Commands
 
-- **`ca audit`** — Runs all registered checkers: stack, entrypoints, orphans, side effects, swallowed exceptions, TODOs, unused deps, code structure
-- **`ca loc`** — GitHub Linguist-powered LOC counter (500+ languages, multi-strategy detection)
-- **`ca map`** — Import graph: circular imports, hotspots, fragile modules, deep chains, blast radius
-- **`ca analyze` / `ca dump`** — Per-file AST analysis
-- **`ca init`** — Generate recommended `[tool.ca-tools]` config
-- **`ca update-linguist`** — Pull latest language definitions from GitHub
-- **`ca mcp [--root PATH]`** — Run the MCP server (stdio) exposing 9 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol
+- **`symbol audit`** — Runs all registered checkers: stack, entrypoints, orphans, side effects, swallowed exceptions, TODOs, unused deps, code structure
+- **`symbol loc`** — GitHub Linguist-powered LOC counter (500+ languages, multi-strategy detection)
+- **`symbol map`** — Import graph: circular imports, hotspots, fragile modules, deep chains, blast radius
+- **`symbol analyze` / `symbol dump`** — Per-file AST analysis
+- **`symbol init`** — Generate recommended `[tool.symbol]` config
+- **`symbol update-linguist`** — Pull latest language definitions from GitHub
+- **`symbol mcp [--root PATH]`** — Run the MCP server (stdio) exposing 9 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol
 
 ## MCP
 
-`.mcp.json` at the repo root registers the server for Claude Code (project scope). `.claude/skills/ca-tools/SKILL.md` steers tool selection away from native Read/Grep/Edit. To install in another project, add this block to that project's `.mcp.json`:
+`.mcp.json` at the repo root registers the server for Claude Code (project scope). `.claude/skills/symbol/SKILL.md` steers tool selection away from native Read/Grep/Edit. To install in another project, add this block to that project's `.mcp.json`:
 
 ```json
-{"mcpServers": {"ca-tools": {"command": "uv", "args": ["run", "--directory", "/path/to/ca-tools", "ca", "mcp", "--root", "/path/to/target-project"]}}}
+{"mcpServers": {"symbol": {"command": "uv", "args": ["run", "--directory", "/path/to/this-repo", "symbol", "mcp", "--root", "/path/to/target-project"]}}}
 ```
 
 ## Structure
 
 ```
-src/ca_tools/
-├── cli.py                — Typer root (dispatches, defaults bare-path to audit)
-├── commands/             — audit, loc, map, analyze, init (thin views)
-├── checkers/             — @register'd checkers (file-kind and project-kind)
-│   ├── stack.py, entrypoints.py, orphans.py, side_effects.py,
-│   ├── swallowed.py, todos.py, unused_deps.py, code_structure.py
-├── shared/               — AnalysisContext, ASTCache, registry, runner,
-│   ├── spec, config_resolver, framework_detector, graph, linguist/
-└── data/
-    ├── spec.toml         — Global baseline spec
-    └── specs/NAME/       — Per-package specs (200+ packages)
+src/ca/                        — namespace package (no __init__.py — PEP 420)
+└── symbol/
+    ├── cli.py                — Typer root (dispatches, defaults bare-path to audit)
+    ├── commands/             — audit, loc, map, analyze, init, hook (thin views)
+    ├── checkers/             — @register'd checkers (file-kind and project-kind)
+    │   ├── stack.py, entrypoints.py, orphans.py, side_effects.py,
+    │   ├── swallowed.py, todos.py, unused_deps.py, code_structure.py
+    ├── shared/               — AnalysisContext, ASTCache, registry, runner,
+    │   ├── spec, config_resolver, framework_detector, graph, linguist/
+    └── data/
+        ├── spec.toml         — Global baseline spec
+        └── specs/NAME/       — Per-package specs (200+ packages)
 ```
+
+Imports go `from ca.symbol.X import Y`. The PyPI distribution is `symbol`; future sibling packages (`linter`, etc.) install into the same `ca/` namespace.
 
 ## Architecture
 
@@ -44,7 +47,7 @@ src/ca_tools/
 - **Spec system** (`shared/spec.py`, `shared/config_resolver.py`):
   1. Global baseline (`data/spec.toml`)
   2. Per-package specs (`data/specs/NAME/spec.toml`) — loaded only if package appears in project deps (stdlib always loaded)
-  3. Project config (`ca-tools.toml` at root, or `[tool.ca-tools]` in pyproject.toml)
+  3. Project config (`symbol.toml` at root, or `[tool.symbol]` in pyproject.toml)
 - **Package spec namespaces**: `[checkers.orphan]`, `[checkers.side_effects.calls]`, `[checkers.side_effects.patterns]`, `[checker]` (AST exclude), `[scanner]` (LOC exclude)
 - **Pipeline hooks** (`shared/pipeline.py`) — `@hook(pipeline, priority)` for `DEPS`, `SKIP_ORPHAN`, `ENTRYPOINTS`, `IMPORTS`. Framework-specific logic lives in package specs, not core checkers.
 
@@ -62,7 +65,7 @@ src/ca_tools/
 
 ## Survey corpus
 
-`survey/repos/` (gitignored) — 25–35 cloned repos for false-positive regression testing. Each can carry its own `ca-tools.toml` for project-level ignores.
+`survey/repos/` (gitignored) — 25–35 cloned repos for false-positive regression testing. Each can carry its own `symbol.toml` for project-level ignores.
 
 ## Design principles
 

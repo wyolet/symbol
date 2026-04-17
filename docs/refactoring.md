@@ -1,10 +1,10 @@
 # Refactoring commands — design notes
 
-AST-aware commands that mutate code across one or more files: `rename-symbol`, `replace-symbol`, `move-symbol`, `delete-symbol`, `insert-symbol`. All compose on top of `ca patch` (the universal write primitive — see `write-surface.md`) and share one transactional foundation.
+AST-aware commands that mutate code across one or more files: `rename-symbol`, `replace-symbol`, `move-symbol`, `delete-symbol`, `insert-symbol`. All compose on top of `symbol patch` (the universal write primitive — see `write-surface.md`) and share one transactional foundation.
 
-**What we deliberately don't ship:** `extract`, `inline`, `signature`, and similar IDE-style refactors. These compose from `ca patch` calls driven by the agent — the hard part of each is generating the new code text, which the agent does better than any scope-analysis machinery we'd build. Keeping the surface small means fewer commands to learn and fewer ways to misuse them. The universal `patch` is the escape hatch.
+**What we deliberately don't ship:** `extract`, `inline`, `signature`, and similar IDE-style refactors. These compose from `symbol patch` calls driven by the agent — the hard part of each is generating the new code text, which the agent does better than any scope-analysis machinery we'd build. Keeping the surface small means fewer commands to learn and fewer ways to misuse them. The universal `patch` is the escape hatch.
 
-Status: shipped for `rename-symbol`, `replace-symbol`, `delete-symbol`, `insert-symbol`. Multi-file transaction layer in `src/ca_tools/writes/transaction.py`. `move-symbol` remains unshipped (see bottom of doc).
+Status: shipped for `rename-symbol`, `replace-symbol`, `delete-symbol`, `insert-symbol`. Multi-file transaction layer in `src/ca/symbol/writes/transaction.py`. `move-symbol` remains unshipped (see bottom of doc).
 
 ## Architectural placement
 
@@ -15,7 +15,7 @@ ca rename / move / delete / ...           ← refactoring commands (this doc)
    multi-file transaction layer           ← this doc
             │
             ▼
-         ca patch                         ← single-file write engine
+         symbol patch                         ← single-file write engine
             │
             ▼
         read cache                        ← see read-cache.md
@@ -57,7 +57,7 @@ Multi-file ops require a git repository. Rationale: the only bulletproof undo fo
 
 **Policy:**
 - Working tree must be clean before multi-file ops. `--allow-dirty` overrides but warns.
-- Phase 2 starts by creating a checkpoint commit: `ca-tools: pre-{op} {symbol}`.
+- Phase 2 starts by creating a checkpoint commit: `symbol: pre-{op} {name}`.
 - On Phase 2 failure, auto-roll-back via `git reset --hard <checkpoint>`.
 - Success message includes the one-line undo: `Undo: git reset --hard HEAD~1`.
 - Non-git projects: refuse multi-file ops unless `--force-no-vcs`. Single-file `patch` is unaffected — atomic per-file rename is sufficient.
@@ -84,11 +84,11 @@ Cross-file locking is punted until real contention shows up.
 - Parse-verify aborts Phase 1.
 - Fail-loud on Phase 2 errors.
 
-Deferred: cross-file locking, Phase 2 resume (`ca patch --resume <tx-id>`), partial-failure recovery beyond rollback.
+Deferred: cross-file locking, Phase 2 resume (`symbol patch --resume <tx-id>`), partial-failure recovery beyond rollback.
 
 ---
 
-## `ca rename-symbol`
+## `symbol rename-symbol`
 
 Change every occurrence of a symbol and update its references.
 
@@ -262,19 +262,19 @@ Moved services.user.UserService → models.user.UserService
   Inserted: src/models/user.py:15
 
 ⚠️  7 files still reference the old import path:
-    Run: ca callers services.user.UserService
+    Run: symbol callers services.user.UserService
 
 ℹ️  Source src/services/user.py — 3 imports now unused:
       from services.models import User
       from services.validators import validate_email
       from services.permissions import Permission
-    Suggest: ca patch src/services/user.py --range <N>-<M> --with ""
+    Suggest: symbol patch src/services/user.py --range <N>-<M> --with ""
 
 ℹ️  Destination src/models/user.py — 3 names unresolved in moved body:
       User            (was: from services.models import User)
       validate_email  (was: from services.validators import validate_email)
       Permission      (was: from services.permissions import Permission)
-    Suggest: ca patch src/models/user.py --range 1-1 --with "<imports>"
+    Suggest: symbol patch src/models/user.py --range 1-1 --with "<imports>"
 
 Undo: git reset --hard HEAD~1
 ```
@@ -352,17 +352,17 @@ Post-op checks are additive. If a check fails to run (bug, unexpected AST), it's
 
 ---
 
-## `ca delete-symbol`
+## `symbol delete-symbol`
 
 ### v1 scope (shipping)
 
 ```
-ca delete-symbol <qualified-path>
+symbol delete-symbol <qualified-path>
   --force     skip the caller check, delete anyway
   --dry-run   preview only
 ```
 
-Single-file write. No cache check (symbol-level op — byte identity is not the contract; identity is the name). Uses `ca patch` engine underneath with empty content.
+Single-file write. No cache check (symbol-level op — byte identity is not the contract; identity is the name). Uses `symbol patch` engine underneath with empty content.
 
 **Behavior:**
 1. Resolve qualified path via index. Refuse if unresolved (`symbol_not_found`) or ambiguous (`symbol_ambiguous`).
@@ -370,7 +370,7 @@ Single-file write. No cache check (symbol-level op — byte identity is not the 
 3. Find callers via index's refs table.
 4. If callers exist and no `--force` → refuse with `error_code: has_live_references` and list callers in response.
 5. Otherwise → splice empty content over the symbol's byte range.
-6. Report: deleted location, list of callers (which are now broken), pointer to `ca callers` / `ca patch` for fix-up.
+6. Report: deleted location, list of callers (which are now broken), pointer to `symbol callers` / `symbol patch` for fix-up.
 
 Agent handles call-site cleanup. We delete the thing, we tell you what broke. That's the contract.
 
@@ -403,12 +403,12 @@ These come later, gated on better reference resolution. For now, agents chain pa
 
 ---
 
-## `ca insert-symbol`
+## `symbol insert-symbol`
 
 Symbol-anchored insertion. Resolves an anchor symbol to a byte position via the index, calls `patch` with inferred indentation. One command, four positions.
 
 ```
-ca insert-symbol --anchor <path> --position before|after|start|end --with <code>
+symbol insert-symbol --anchor <path> --position before|after|start|end --with <code>
 ```
 
 ### Positions

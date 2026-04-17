@@ -4,7 +4,7 @@ import hashlib
 import time
 from pathlib import Path
 
-from ca_tools.caches import InMemoryReadCache, record_served
+from ca.symbol.caches import InMemoryReadCache, record_served
 
 
 def _write(path: Path, content: str) -> None:

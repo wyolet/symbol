@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.caches import InMemoryReadCache
-from ca_tools.protocols import CachedRead
-from ca_tools.writes.patch import (
+from ca.symbol.caches import InMemoryReadCache
+from ca.symbol.protocols import CachedRead
+from ca.symbol.writes.patch import (
     PatchRequest,
     PatchResult,
     apply_patch,
@@ -171,14 +171,14 @@ def test_apply_preserves_file_mode(project):
 
 
 def test_apply_cleans_up_tmp_on_success(project):
-    """After a successful write, no .ca-tools.tmp-* files linger."""
+    """After a successful write, no .symbol.tmp-* files linger."""
     req = _request(project, "2-2", content="x\n")
     cache = _cache_covering(req)
 
     apply_patch(req, cache=cache)
 
     for p in (project / "src").iterdir():
-        assert not p.name.startswith(".ca-tools.tmp-")
+        assert not p.name.startswith(".symbol.tmp-")
 
 
 # ---------------------------------------------------------- race / conflict

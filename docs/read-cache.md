@@ -1,12 +1,12 @@
 # Read cache — design notes
 
-The read cache tracks what content we've served to an agent, so `ca patch` can apply edits without forcing a re-read. It's the safety rail that makes the write surface token-efficient.
+The read cache tracks what content we've served to an agent, so `symbol patch` can apply edits without forcing a re-read. It's the safety rail that makes the write surface token-efficient.
 
-Status: shipped. See `src/ca_tools/caches/` for implementations and `src/ca_tools/protocols/read_cache.py` for the contract.
+Status: shipped. See `src/ca/symbol/caches/` for implementations and `src/ca/symbol/protocols/read_cache.py` for the contract.
 
 ## What the cache is for
 
-Every `ca code` / `ca search` / `ca outline` call serves bytes to an agent. If that agent later calls `ca patch` on the same range, we need to know: did the agent actually see what's currently there?
+Every `symbol code` / `symbol search` / `symbol outline` call serves bytes to an agent. If that agent later calls `symbol patch` on the same range, we need to know: did the agent actually see what's currently there?
 
 - If yes → apply the patch.
 - If no (never read, or file changed since) → `needs_read_confirmation` handshake.
@@ -81,7 +81,7 @@ export CA_SESSION_ID=$(uuidgen)
 # all subsequent ca calls in this shell share cache
 ```
 
-Cache persists to `.ca-tools/cache/sessions/<CA_SESSION_ID>.json` so the data survives across process invocations (each `ca` call is a fresh process). On session end, the user deletes the file or we garbage-collect on next run.
+Cache persists to `.ca/cache/sessions/<CA_SESSION_ID>.json` so the data survives across process invocations (each `ca` call is a fresh process). On session end, the user deletes the file or we garbage-collect on next run.
 
 **Eviction policy** is the same as MCP: LRU on tool-call count, idle TTL on mtime-based last-touched. Session boundary is just the env var — when it changes or is absent, we start a fresh namespace.
 
@@ -98,7 +98,7 @@ MCP is the primary target. CLI-direct is expected to be rare enough that option 
 
 ## Cache lifecycle in detail
 
-### On serve (`ca code` / `ca search` / `ca outline`)
+### On serve (`symbol code` / `symbol search` / `symbol outline`)
 
 ```
 1. Compute sha256 of bytes being sent.
@@ -143,7 +143,7 @@ If no tool calls for 1 hour, drop the namespace. This catches clients that crash
 
 The symbol index is a separate concern (it's the structural AST data) and doesn't need this cache. The read cache is specifically about "what raw bytes did we serve."
 
-That said, when `ca code <path>` resolves a symbol to a byte range via the index, the cache entry records the byte range — not the symbol identity. So if the same symbol is later asked for again but the file changed and its range moved, we don't falsely claim the agent has seen it.
+That said, when `symbol code <path>` resolves a symbol to a byte range via the index, the cache entry records the byte range — not the symbol identity. So if the same symbol is later asked for again but the file changed and its range moved, we don't falsely claim the agent has seen it.
 
 ## Open questions
 

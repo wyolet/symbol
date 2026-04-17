@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.caches import InMemoryReadCache
-from ca_tools.protocols import CachedRead
-from ca_tools.writes.patch import (
+from ca.symbol.caches import InMemoryReadCache
+from ca.symbol.protocols import CachedRead
+from ca.symbol.writes.patch import (
     InvalidRange,
     PatchPreflight,
     PatchRequest,

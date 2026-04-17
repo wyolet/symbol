@@ -2,7 +2,7 @@
 
 The write surface is built protocol-first: define interfaces, implement concretely for Python/tier-1, swap in new languages and resolution tiers without touching the pipeline or commands.
 
-Status: shipped. `ca patch`, `ca delete-symbol`, `ca insert-symbol`, `ca rename-symbol`, `ca replace-symbol` all live. Protocols in `src/ca_tools/protocols/`, adapter in `src/ca_tools/adapters/python_ast.py`, engines in `src/ca_tools/writes/`, caches in `src/ca_tools/caches/`. `ca move-symbol` remains unshipped (see refactoring.md).
+Status: shipped. `symbol patch`, `symbol delete-symbol`, `symbol insert-symbol`, `symbol rename-symbol`, `symbol replace-symbol` all live. Protocols in `src/ca/symbol/protocols/`, adapter in `src/ca/symbol/adapters/python_ast.py`, engines in `src/ca/symbol/writes/`, caches in `src/ca/symbol/caches/`. `ca move-symbol` remains unshipped (see refactoring.md).
 
 ## Design principle
 
@@ -169,25 +169,25 @@ Local/parameter rename requires `--scope file` or `--tier semantic`. This is a s
 Consolidated CLI shape for all six operations. These are the canonical forms; MCP tool schemas mirror them directly.
 
 ```
-ca patch <file> --range <A>-<B> [--content <text>]
-ca patch <file> --confirm <token>
+symbol patch <file> --range <A>-<B> [--content <text>]
+symbol patch <file> --confirm <token>
 
-ca rename-symbol <qualified-path> <new-name>
+symbol rename-symbol <qualified-path> <new-name>
   --scope project|dir|file           (default: project)
   --tier textual|semantic            (default: textual)
 
-ca replace-symbol <qualified-path> [--content <text>]
+symbol replace-symbol <qualified-path> [--content <text>]
   --tier textual|semantic            (used only when name changes)
 
 ca move-symbol <qualified-path> --to <new-qualified-path>
 
-ca delete-symbol <qualified-path>
+symbol delete-symbol <qualified-path>
   --with-refs
   --with-imports
   --force
   --tier textual|semantic
 
-ca insert-symbol --anchor <qualified-path> --position before|after|start|end
+symbol insert-symbol --anchor <qualified-path> --position before|after|start|end
   [--content <text>]
   --no-reindent
 
@@ -233,7 +233,7 @@ When move gets `--update-imports` in a later version, rename becomes a degenerat
 
 ### CLI-first, MCP as thin wrapper
 
-The CLI is the source of truth. `ca patch`, `ca rename`, etc. work from any shell. The MCP server is a thin wrapper that calls the same resolvers — same code path, different transport.
+The CLI is the source of truth. `symbol patch`, `ca rename`, etc. work from any shell. The MCP server is a thin wrapper that calls the same resolvers — same code path, different transport.
 
 Consequences:
 - Write work doesn't block on MCP server implementation.
@@ -246,14 +246,14 @@ Both work. The agent chooses per call based on what's cheapest:
 
 | Operation | Preferred transport | Why |
 |---|---|---|
-| `ca search`, `ca code`, `ca outline`, `ca callers` | MCP | Small input, large structured response — JSON overhead is negligible, structured response is valuable |
-| `ca patch`, `ca insert-symbol` | Bash heredoc (when available) | Content is the main payload; heredoc avoids JSON escaping of code |
-| `ca rename-symbol`, `ca move-symbol`, `ca delete-symbol` | Either | No content payload; args are small |
-| `ca replace-symbol` | Bash heredoc (when available) | Content is the full symbol definition — heredoc avoids JSON escaping |
+| `symbol search`, `symbol code`, `symbol outline`, `symbol callers` | MCP | Small input, large structured response — JSON overhead is negligible, structured response is valuable |
+| `symbol patch`, `symbol insert-symbol` | Bash heredoc (when available) | Content is the main payload; heredoc avoids JSON escaping of code |
+| `symbol rename-symbol`, `ca move-symbol`, `symbol delete-symbol` | Either | No content payload; args are small |
+| `symbol replace-symbol` | Bash heredoc (when available) | Content is the full symbol definition — heredoc avoids JSON escaping |
 
 Heredoc example:
 ```bash
-ca patch src/user.py --range 10-20 <<'CONTENT'
+symbol patch src/user.py --range 10-20 <<'CONTENT'
 def save(self):
     self.db.write(self.user)
     return True
@@ -298,7 +298,7 @@ When `status = error`, `error_code` is always set:
 | `working_tree_dirty` | Multi-file op refused because git has uncommitted changes |
 | `no_git_repository` | Multi-file op refused because project isn't a git repo |
 | `invalid_argument` | CLI/schema validation failed (e.g. dotted name on `rename-symbol`) |
-| `internal_error` | Bug in ca-tools; includes stack trace in `details.trace` |
+| `internal_error` | Bug in symbol; includes stack trace in `details.trace` |
 
 Agents should branch on `error_code`, not on `message`. Messages are human-facing and may change.
 
@@ -309,7 +309,7 @@ Agents should branch on `error_code`, not on `message`. Messages are human-facin
   "status": "applied",
   "command": "patch" | "rename-symbol" | "replace-symbol" | "move-symbol" | "delete-symbol" | "insert-symbol",
   "elapsed_ms": 47,
-  "tool_version": "ca-tools 0.8.0"
+  "tool_version": "symbol 0.8.0"
 }
 ```
 
@@ -320,7 +320,7 @@ Agents should branch on `error_code`, not on `message`. Messages are human-facin
   "status": "applied",
   "command": "patch",
   "elapsed_ms": 47,
-  "tool_version": "ca-tools 0.8.0",
+  "tool_version": "symbol 0.8.0",
   "files": [
     {
       "file": "src/services/user.py",
@@ -412,7 +412,7 @@ Multi-file operations (`rename-symbol`, `replace-symbol` when name changes, `mov
   "reason": "range bytes changed since served (served hash a3f9, current hash 8b22)",
   "current_content": "def save(self):\n    # file changed on disk\n    ...",
   "proposed_content": "def save(self):\n    self.db.write(self.user)\n    return True",
-  "staged_at": ".ca-tools/staging/patch-20260416-a3f9.py",
+  "staged_at": ".ca/staging/patch-20260416-a3f9.py",
   "suggested_actions": [
     "re-read the range and send updated patch",
     "apply --force if you accept overwriting the current content",
@@ -453,13 +453,13 @@ The `hints` field carries post-op analysis findings. Present in agent-mode outpu
       { "line": 3, "text": "from services.models import User" },
       { "line": 4, "text": "from services.validators import validate_email" }
     ],
-    "suggestion": "ca patch src/services/user.py --range 3-4 --with \"\""
+    "suggestion": "symbol patch src/services/user.py --range 3-4 --with \"\""
   },
   {
     "kind": "stale_callers",
     "severity": "warn",
     "count": 7,
-    "suggestion": "ca callers services.user.UserService"
+    "suggestion": "symbol callers services.user.UserService"
   }
 ]
 ```
@@ -491,7 +491,7 @@ CLI contract for scripts and for agents using the Bash transport:
 
 Agents calling via Bash can branch:
 ```bash
-ca patch ... || case $? in
+symbol patch ... || case $? in
   1) echo "error, see output" ;;
   2) echo "retryable, handle confirm/conflict" ;;
   64) echo "bad args" ;;
@@ -504,18 +504,18 @@ esac
 
 ### Idempotency
 
-`ca patch` is **not idempotent by default**. Calling the same patch twice on the same range has two possible outcomes depending on read-cache state:
+`symbol patch` is **not idempotent by default**. Calling the same patch twice on the same range has two possible outcomes depending on read-cache state:
 
 1. **First call succeeds, second call is a no-op** — if the second call's content is byte-identical to what's now on disk and the range was served by the first call's response.
 2. **First call succeeds, second call is `needs_read_confirmation`** — if the read cache was evicted or the session rotated between calls.
 
 Neither case corrupts data. Agents that want guaranteed-idempotent behavior can check the response's `before.hash` and skip if it matches the content they'd patch to.
 
-`ca rename-symbol`, `ca replace-symbol`, `ca move-symbol`, `ca delete-symbol` — not idempotent. Applying them twice produces a `symbol_not_found` error on the second call because the old name/location no longer exists.
+`symbol rename-symbol`, `symbol replace-symbol`, `ca move-symbol`, `symbol delete-symbol` — not idempotent. Applying them twice produces a `symbol_not_found` error on the second call because the old name/location no longer exists.
 
 ### Concurrency
 
-**v1 policy: one write op per project at a time.** Enforced by a repo-level file lock at `.ca-tools/write.lock`. Second concurrent call blocks until the first finishes (short timeout, then fails with `resource_busy`).
+**v1 policy: one write op per project at a time.** Enforced by a repo-level file lock at `.ca/write.lock`. Second concurrent call blocks until the first finishes (short timeout, then fails with `resource_busy`).
 
 Reads are unaffected — always allowed, never blocked.
 

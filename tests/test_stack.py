@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca_tools.shared.deps import _extract_package_name, detect_deps, detect_stack
-from ca_tools.shared.spec import load_spec
+from ca.symbol.shared.deps import _extract_package_name, detect_deps, detect_stack
+from ca.symbol.shared.spec import load_spec
 
 SPEC = load_spec()
 

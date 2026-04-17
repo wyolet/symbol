@@ -3,8 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from ca_tools.checkers.code_structure import detect, CodeStructure
-from ca_tools.shared.ast_cache import ASTCache
+from ca.symbol.checkers.code_structure import detect, CodeStructure
+from ca.symbol.shared.ast_cache import ASTCache
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.caches import NullReadCache
-from ca_tools.shared.symbol_index import SymbolIndex, get_or_build_index
-from ca_tools.writes.delete_symbol import (
+from ca.symbol.caches import NullReadCache
+from ca.symbol.shared.symbol_index import SymbolIndex, get_or_build_index
+from ca.symbol.writes.delete_symbol import (
     DeleteSymbolRequest,
     DeleteSymbolResult,
     apply_delete_symbol,

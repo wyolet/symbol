@@ -1,8 +1,8 @@
-# Contributing to ca-tools
+# Contributing to symbol
 
 ## Adding a new package spec
 
-Each package gets its own `src/ca_tools/data/specs/NAME/spec.toml`. Adding a spec requires no Python changes — the spec file is the entire contribution.
+Each package gets its own `src/ca/symbol/data/specs/NAME/spec.toml`. Adding a spec requires no Python changes — the spec file is the entire contribution.
 
 ### Acceptance threshold
 
@@ -15,7 +15,7 @@ To keep the built-in spec focused on packages people actually encounter in real 
 | Ranked in top 1,000 PyPI packages | any position |
 
 **Stdlib modules** are always accepted.  
-**Audit-domain packages** (security scanners, linters, static analysis tools) are accepted regardless of count — they're directly in ca-tools' domain.
+**Audit-domain packages** (security scanners, linters, static analysis tools) are accepted regardless of count — they're directly in `symbol`'s domain.
 
 #### Once merged, always in
 
@@ -39,7 +39,7 @@ uv run scripts/check_pkg_thresholds.py --pkg YOUR_PACKAGE_NAME --strict
 
 ### Spec file format
 
-Create `src/ca_tools/data/specs/NAME/spec.toml`:
+Create `src/ca/symbol/data/specs/NAME/spec.toml`:
 
 ```toml
 name = "package-name"       # must match the PyPI package name
@@ -66,7 +66,7 @@ safe_calls = ["setup"]              # call names that are expected at module lev
 debug = ["apps.py", "signals.py"]   # files where module-level side effects are expected (lower severity)
 ```
 
-Then add the package name to `[specs] include` in `src/ca_tools/data/spec.toml`.
+Then add the package name to `[specs] include` in `src/ca/symbol/data/spec.toml`.
 
 ### Running tests
 
@@ -83,17 +83,17 @@ Projects can ship their own package specs without contributing them upstream. Us
 In the project's `pyproject.toml`:
 
 ```toml
-[tool.ca-tools]
+[tool.symbol]
 extra_specs = [
     ".ca/specs/my-internal-sdk.toml",
     ".ca/specs/company-auth.toml",
 ]
 ```
 
-Each file follows the same format as built-in specs. Extra specs are loaded after built-ins and override them if the package name matches — so you can also use this to patch a built-in spec without touching the ca-tools source.
+Each file follows the same format as built-in specs. Extra specs are loaded after built-ins and override them if the package name matches — so you can also use this to patch a built-in spec without touching the `symbol` source.
 
 ## Other contributions
 
-- **Checker improvements** — see `src/ca_tools/checkers/`
-- **CLI commands** — see `src/ca_tools/commands/`
+- **Checker improvements** — see `src/ca/symbol/checkers/`
+- **CLI commands** — see `src/ca/symbol/commands/`
 - **Bug reports** — open an issue at https://github.com/anthropics/ca-tools/issues

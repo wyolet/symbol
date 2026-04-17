@@ -21,8 +21,8 @@ from pathlib import Path
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 
-SPECS_DIR = Path(__file__).parent.parent / "src" / "ca_tools" / "data" / "specs"
-CORE_SPEC = Path(__file__).parent.parent / "src" / "ca_tools" / "data" / "spec.toml"
+SPECS_DIR = Path(__file__).parent.parent / "src" / "ca.symbol" / "data" / "specs"
+CORE_SPEC = Path(__file__).parent.parent / "src" / "ca.symbol" / "data" / "spec.toml"
 
 THRESHOLD_DOWNLOADS = 50_000   # last-month downloads
 THRESHOLD_STARS = 500          # fallback — not checked here (requires GitHub token)

@@ -1,129 +1,129 @@
-# ca-tools
+# symbol
 
-Codebase audit toolkit for Python projects.
+AST-native codebase audit, symbol index, and MCP server for Python projects.
 
 Point at a directory, get the full picture — what frameworks it uses, where the entry points are, which files are dead, what executes on import, where the TODOs and swallowed exceptions hide, and how everything is wired together.
 
 ## Install
 
 ```bash
-pip install ca-tools
+pip install symbol
 ```
 
 ## Commands
 
-### `ca audit <path>` — Full codebase audit
+### `symbol audit <path>` — Full codebase audit
 
 Runs all registered checkers: stack detection, entry points, orphan files, side effects, swallowed exceptions, TODOs, unused deps, code structure metrics.
 
 ```bash
-ca audit /path/to/project
-ca -v audit /path/to/project   # verbose — full detail
-ca /path/to/project            # shortcut — defaults to audit
+symbol audit /path/to/project
+symbol -v audit /path/to/project   # verbose — full detail
+symbol /path/to/project            # shortcut — defaults to audit
 ```
 
-### `ca loc <path>` — Lines of code
+### `symbol loc <path>` — Lines of code
 
 GitHub Linguist-powered language detection with colored bar chart. 500+ languages, multi-strategy detection (modeline, shebang, filename, extension, XML, manpage).
 
 ```bash
-ca loc /path/to/project
+symbol loc /path/to/project
 ```
 
-### `ca map <path>` — Import graph analysis
+### `symbol map <path>` — Import graph analysis
 
 Find circular imports, hotspots, fragile modules, deep chains, leaf modules, blast radius.
 
 ```bash
-ca map /path/to/project
-ca map /path/to/project --blast src/models.py      # blast radius
-ca map /path/to/project --min-chain 3              # show shorter chains
-ca map /path/to/project --min-fan-in 3             # lower hotspot threshold
+symbol map /path/to/project
+symbol map /path/to/project --blast src/models.py      # blast radius
+symbol map /path/to/project --min-chain 3              # show shorter chains
+symbol map /path/to/project --min-fan-in 3             # lower hotspot threshold
 ```
 
-### `ca analyze <file>` / `ca dump <path>` — Per-file AST analysis
+### `symbol analyze <file>` / `symbol dump <path>` — Per-file AST analysis
 
 Inspect imports, definitions, and call sites for one file, or dump the full parsed graph.
 
-### `ca search <pattern>` — Find symbols by name
+### `symbol search <pattern>` — Find symbols by name
 
 Columnar symbol index over the whole project. Multiple patterns are AND-ed. Returns signatures + locations, no bodies.
 
 ```bash
-ca search UserService                  # exact or suffix match on qualified path
-ca search user service --fixed         # all patterns must appear as substrings
-ca search '^get_' --regex              # Python regex
-ca search save --kind method
+symbol search UserService                  # exact or suffix match on qualified path
+symbol search user service --fixed         # all patterns must appear as substrings
+symbol search '^get_' --regex              # Python regex
+symbol search save --kind method
 ```
 
-### `ca code <address>` — Fetch exact body
+### `symbol code <address>` — Fetch exact body
 
-Retrieve a symbol's body by qualified path or `file:start-end` range. Also populates the read cache consumed by `ca patch`.
+Retrieve a symbol's body by qualified path or `file:start-end` range. Also populates the read cache consumed by `symbol patch`.
 
 ```bash
-ca code services.user.UserService         # by symbol path
-ca code services.user.UserService.save    # method
-ca code src/services/user.py:120-145      # by explicit line range
+symbol code services.user.UserService         # by symbol path
+symbol code services.user.UserService.save    # method
+symbol code src/services/user.py:120-145      # by explicit line range
 ```
 
-### `ca outline <file>` — Symbol tree of a file
+### `symbol outline <file>` — Symbol tree of a file
 
 Parent-child tree of classes, functions, methods in one file.
 
-### `ca callers <name>` — Tier-1 textual reference scan
+### `symbol callers <name>` — Tier-1 textual reference scan
 
-Find plausible call sites for a name. Textual match; may include false positives. Use `ca code` to verify each hit.
+Find plausible call sites for a name. Textual match; may include false positives. Use `symbol code` to verify each hit.
 
-### `ca patch <file>` — Byte-range edit
+### `symbol patch <file>` — Byte-range edit
 
 Edit an existing file by line range. Replace (with content), delete (empty content), or insert (zero-width range). Token-efficient alternative to raw `Edit` for agents: no `old_string` payload.
 
 ```bash
-ca patch src/foo.py --range 10-20 --content 'new body'    # replace
-ca patch src/foo.py --range 10-20 --content ''            # delete
-ca patch src/foo.py --range 10-10 --content 'import os'   # insert before line 10
+symbol patch src/foo.py --range 10-20 --content 'new body'    # replace
+symbol patch src/foo.py --range 10-20 --content ''            # delete
+symbol patch src/foo.py --range 10-10 --content 'import os'   # insert before line 10
 
-ca patch src/foo.py --range 10-20 --content '...' --dry-run   # preview diff
-ca patch src/foo.py --range 10-20 --content '...' --force     # skip read-cache check
-ca patch src/foo.py --range 10-20 --content '...' --agent     # plain text for LLMs
-ca patch src/foo.py --range 10-20 --content '...' --format json
+symbol patch src/foo.py --range 10-20 --content '...' --dry-run   # preview diff
+symbol patch src/foo.py --range 10-20 --content '...' --force     # skip read-cache check
+symbol patch src/foo.py --range 10-20 --content '...' --agent     # plain text for LLMs
+symbol patch src/foo.py --range 10-20 --content '...' --format json
 ```
 
 Exit codes: `0` applied/dry-run, `1` error, `2` needs_read_confirmation.
 
-### `ca init <path>` — Generate config
+### `symbol init <path>` — Generate config
 
-Analyze a project and generate a recommended `[tool.ca-tools]` config.
+Analyze a project and generate a recommended `[tool.symbol]` config.
 
 ```bash
-ca init /path/to/project
+symbol init /path/to/project
 ```
 
-### `ca update-linguist` — Update language definitions
+### `symbol update-linguist` — Update language definitions
 
 Pull latest language definitions from GitHub's linguist repository.
 
 ```bash
-ca update-linguist
+symbol update-linguist
 ```
 
 ## Configuration
 
-Two ways to configure ca-tools for a target project:
+Two ways to configure `symbol` for a target project:
 
-1. **`ca-tools.toml`** at the project root — standalone, works even if you don't own the project
-2. **`[tool.ca-tools]`** in `pyproject.toml`
+1. **`symbol.toml`** at the project root — standalone, works even if you don't own the project
+2. **`[tool.symbol]`** in `pyproject.toml`
 
 ```toml
-[tool.ca-tools]
+[tool.symbol]
 exclude = ["alembic/*", "scripts/*"]
 
-[tool.ca-tools.severity]
+[tool.symbol.severity]
 orphans = "warning"        # default: error
 side_effects = "info"      # default: warning
 unused_deps = "error"      # default: error
 
-[tool.ca-tools.ignore]
+[tool.symbol.ignore]
 deps = ["greenlet", "psycopg"]
 orphans = ["alembic/*", "src/main.py"]
 side_effects = ["*.include_router()", "*.add_middleware()"]
@@ -142,9 +142,9 @@ See `docs/spec-schema.md` for the full spec schema.
 
 ## Why
 
-Most Python audit tools find problems *inside* files (lint, types, dead code). ca-tools finds problems *between* files — the architecture-level view:
+Most Python audit tools find problems *inside* files (lint, types, dead code). `symbol` finds problems *between* files — the architecture-level view:
 
-- **knip** does this for JavaScript/TypeScript. Python didn't have an equivalent. ca-tools fills that gap.
+- **knip** does this for JavaScript/TypeScript. Python didn't have an equivalent. `symbol` fills that gap.
 - **GitHub Linguist** ported to Python — accurate language detection with 500+ languages and real GitHub colors.
 - **scc-style** LOC counting with language breakdown and colored bar.
 - **Import graph analysis** — circular imports, hotspots, blast radius. Things no other Python tool surfaces.
@@ -154,7 +154,7 @@ Most Python audit tools find problems *inside* files (lint, types, dead code). c
 ## Architecture
 
 ```
-src/ca_tools/
+src/ca/symbol/
 ├── cli.py                  Typer root CLI
 ├── commands/               Thin command views
 │   ├── audit.py            runs all checkers
@@ -190,7 +190,7 @@ src/ca_tools/
 
 ## Contributing
 
-Adding detection for a new package? Drop a spec in `src/ca_tools/data/specs/NAME/spec.toml` — no Python changes required. See `CONTRIBUTING.md` and `docs/spec-schema.md`.
+Adding detection for a new package? Drop a spec in `src/ca/symbol/data/specs/NAME/spec.toml` — no Python changes required. See `CONTRIBUTING.md` and `docs/spec-schema.md`.
 
 ## License
 
