@@ -273,12 +273,20 @@ class PatchResult:
     before_range: tuple[int, int] = (0, 0)
     # Byte range occupied by the new content in the resulting file.
     after_range: tuple[int, int] = (0, 0)
+    # Line range occupied by the new content (1-indexed, inclusive). Lets
+    # callers verify the change without a separate Read/SymbolBody.
+    new_line_range: tuple[int, int] = (0, 0)
+    # The new content as it now appears in the file at after_range. Includes
+    # surrounding whitespace and the trailing newline so the agent can verify
+    # by inspection without another tool call.
+    new_content: str = ""
     lines_removed: int = 0
     lines_added: int = 0
     diff: str = ""
     # Populated when status == error:
     error_code: str | None = None
     message: str | None = None
+
 
 
 def apply_patch(
@@ -319,12 +327,20 @@ def apply_patch(
     lines_added = _count_lines(request.content)
     after_range = (start, start + len(request.content))
 
+    # New line range (1-indexed, inclusive) for the freshly-written region.
+    new_start_line = new_source.count(b"\n", 0, after_range[0]) + 1
+    inserted_lines = max(lines_added, 1) if request.content else 0
+    new_end_line = new_start_line + max(inserted_lines - 1, 0) if inserted_lines else new_start_line - 1
+    new_content_str = request.content.decode("utf-8", errors="replace")
+
     if dry_run:
         return PatchResult(
             status="dry_run",
             file_rel=request.file_rel,
             before_range=(start, end),
             after_range=after_range,
+            new_line_range=(new_start_line, new_end_line),
+            new_content=new_content_str,
             lines_removed=lines_removed,
             lines_added=lines_added,
             diff=diff,
@@ -344,10 +360,13 @@ def apply_patch(
         file_rel=request.file_rel,
         before_range=(start, end),
         after_range=after_range,
+        new_line_range=(new_start_line, new_end_line),
+        new_content=new_content_str,
         lines_removed=lines_removed,
         lines_added=lines_added,
         diff=diff,
     )
+
 
 
 def _apply_error(code: str, message: str, request: PatchRequest) -> PatchResult:

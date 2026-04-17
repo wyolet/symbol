@@ -106,6 +106,30 @@ class _State:
                     cls._load_index()
         assert cls._index is not None
         return cls._index
+    @classmethod
+    def invalidate_file(cls, rel: "str | list[str] | set[str]") -> None:
+        """Refresh the in-RAM index for one or more files immediately.
+
+        MCP write tools must call this after a successful write so the next tool
+        call sees updated byte/line offsets. Without it, the in-RAM cache stays
+        pinned to pre-write state until the disk-mtime check trips on a later
+        save (which is racy with the PostToolUse hook's fork-detached refresh).
+
+        Side effect: also writes the refreshed index to disk so other processes
+        in the same project (the PostToolUse hook, the CLI) see the new state.
+        """
+        if cls._index is None:
+            return
+        if isinstance(rel, str):
+            paths = {rel}
+        else:
+            paths = set(rel)
+        if not paths:
+            return
+        cls._index.refresh(stale=paths)
+        cls._index.save()
+        p = cls._index_path()
+        cls._index_mtime = p.stat().st_mtime if p.exists() else cls._index_mtime
 
 
 
@@ -285,6 +309,10 @@ def patch(
             "message": result.message,
         }
 
+    # Refresh in-RAM index so the next MCP call sees updated byte offsets.
+    if result.status == "applied":
+        _State.invalidate_file(result.file_rel)
+
     diff_payload = _truncate_diff(result.diff, diff_lines)
     return {
         "ok": True,
@@ -292,10 +320,14 @@ def patch(
         "file": result.file_rel,
         "before_range": list(result.before_range),
         "after_range": list(result.after_range),
+        "new_line_range": list(result.new_line_range),
+        "new_content": result.new_content,
         "lines_removed": result.lines_removed,
         "lines_added": result.lines_added,
         "diff": diff_payload,
     }
+
+
 
 
 
@@ -313,7 +345,10 @@ def delete_symbol(
     if not isinstance(req, DeleteSymbolRequest):
         return _dc(req)
     result = apply_delete_symbol(req, cache=cache, dry_run=dry_run)
+    if result.status == "applied" and result.file_rel:
+        _State.invalidate_file(result.file_rel)
     return _dc(result)
+
 
 
 @mcp.tool(name="InsertSymbol", description=descriptions.INSERT_SYMBOL)
@@ -330,6 +365,11 @@ def insert_symbol(
             "error_code": "invalid_argument",
             "message": f"position must be one of before|after|start|end, got {position!r}",
         }
+    # Auto-append trailing newline so inserted symbols don't jam against the
+    # next line. Patch is left raw — bytes there are user-controlled.
+    if content and not content.endswith("\n"):
+        content = content + "\n"
+
     root = _State.require_root()
     index = _State.require_index()
     cache = _State.require_cache()
@@ -340,7 +380,10 @@ def insert_symbol(
     if not isinstance(req, InsertSymbolRequest):
         return _dc(req)
     result = apply_insert_symbol(req, cache=cache, dry_run=dry_run)
+    if result.status == "applied" and result.file_rel:
+        _State.invalidate_file(result.file_rel)
     return _dc(result)
+
 
 
 @mcp.tool(name="RenameSymbol", description=descriptions.RENAME_SYMBOL)
@@ -364,7 +407,13 @@ def rename_symbol(
         allow_dirty=allow_dirty,
         force_no_vcs=force_no_vcs,
     )
+    if result.status == "applied":
+        touched = {pf.file for pf in result.per_file if getattr(pf, "file", None)}
+        if not touched and result.declaring_file:
+            touched = {result.declaring_file}
+        _State.invalidate_file(touched)
     return _dc(result)
+
 
 
 @mcp.tool(name="ReplaceSymbol", description=descriptions.REPLACE_SYMBOL)
@@ -375,6 +424,11 @@ def replace_symbol(
     allow_dirty: bool = False,
     force_no_vcs: bool = False,
 ) -> dict:
+    # Auto-append trailing newline so the replacement doesn't jam against the
+    # next sibling symbol if the agent omits it.
+    if content and not content.endswith("\n"):
+        content = content + "\n"
+
     root = _State.require_root()
     index = _State.require_index()
 
@@ -388,7 +442,13 @@ def replace_symbol(
         allow_dirty=allow_dirty,
         force_no_vcs=force_no_vcs,
     )
+    if result.status == "applied":
+        touched = {pf.file for pf in result.per_file if getattr(pf, "file", None)}
+        if not touched and result.declaring_file:
+            touched = {result.declaring_file}
+        _State.invalidate_file(touched)
     return _dc(result)
+
 
 
 # ---------------------------------------------------------- entry

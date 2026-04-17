@@ -119,8 +119,10 @@ annotations and string forward-refs are not captured.
 
 PATCH = """\
 Replace a byte range in a file with new content. The primitive edit \
-operation that all symbol-level writes compose from. Returns a unified \
-diff, the before/after byte ranges, and line-count deltas.
+operation that all symbol-level writes compose from. Returns the unified \
+diff, the new content as it now appears at the patched range, the new \
+line range (1-indexed), the before/after byte ranges, and line-count \
+deltas — so you can verify the change without a follow-up SymbolBody.
 
 USE WHEN you know the line range you want to change. Addresses by line \
 range, so the old content does not need to be transmitted for \
