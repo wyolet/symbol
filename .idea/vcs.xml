@@ -2,15 +2,40 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/asyncer" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/attrs" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/black" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/broadcaster" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/celery" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/click" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/cookiecutter" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/django" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/django-rest-framework" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/faker" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/fastapi" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/full-stack-fastapi-template" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/healthchecks" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/httpcore" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/httpx" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/locust" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/mitmproxy" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/paramiko" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/pip" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/prefect" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/pydantic" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/returns" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/rich" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/saleor" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/scrapy" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/searxng" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/sqlfluff" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/survey/repos/sqlmodel" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/starlette" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/strawberry" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/tornado" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/tqdm" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/typer" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/wagtail" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/survey/repos/werkzeug" vcs="Git" />
   </component>
 </project>

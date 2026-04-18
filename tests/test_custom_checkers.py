@@ -1,11 +1,11 @@
-"""Tests for custom checker discovery via [tool.ca-tools] custom_checkers."""
+"""Tests for custom checker discovery via [tool.symbol] custom_checkers."""
 
 from pathlib import Path
 
 import pytest
 
-import ca_tools.checkers  # noqa: F401 — ensure built-ins are registered first
-from ca_tools.shared.registry import _registry, clear, load_custom_checkers
+import ca.symbol.checkers  # noqa: F401 — ensure built-ins are registered first
+from ca.symbol.shared.registry import _registry, clear, load_custom_checkers
 
 
 @pytest.fixture(autouse=True)
@@ -20,7 +20,7 @@ def _restore_registry():
 def test_load_custom_checker_registers_it(tmp_path: Path):
     checker_file = tmp_path / "my_checker.py"
     checker_file.write_text("""
-from ca_tools.shared.registry import register, views
+from ca.symbol.shared.registry import register, views
 
 @register(name="my_custom", description="test checker", kind="project", contributes_to_report=False, priority=999)
 def detect(ctx):
@@ -51,9 +51,9 @@ def test_broken_checker_warns(tmp_path: Path):
 
 def test_project_config_reads_custom_checkers(tmp_path: Path):
     (tmp_path / "pyproject.toml").write_text("""
-[tool.ca-tools]
+[tool.symbol]
 custom_checkers = ["checkers/my_checker.py"]
 """)
-    from ca_tools.shared.project_config import load_project_config
+    from ca.symbol.shared.project_config import load_project_config
     config = load_project_config(tmp_path)
     assert config.custom_checkers == ["checkers/my_checker.py"]

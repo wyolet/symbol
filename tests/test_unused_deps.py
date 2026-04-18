@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-import ca_tools.checkers  # noqa: F401
-from ca_tools.checkers.unused_deps import detect
-from ca_tools.shared.context import build_context
+import ca.symbol.checkers  # noqa: F401
+from ca.symbol.checkers.unused_deps import detect
+from ca.symbol.shared.context import build_context
 
 
 def _make_pyproject(tmp_path: Path, deps: list[str]) -> None:

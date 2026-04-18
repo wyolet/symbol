@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from ca_tools.checkers.orphans import OrphanFile, detect as detect_orphans_checker
-from ca_tools.shared.context import build_context
+from ca.symbol.checkers.orphans import OrphanFile, detect as detect_orphans_checker
+from ca.symbol.shared.context import build_context
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:
@@ -91,7 +91,7 @@ def test_skip_pattern_respected(tmp_path: Path):
             "scripts/deploy.py": "print('deploying')",
             "app.py": "x = 1",
             "pyproject.toml": (
-                "[tool.ca-tools.checkers.orphans]\n"
+                "[tool.symbol.checkers.orphans]\n"
                 'ignore = ["scripts/*"]\n'
             ),
         },

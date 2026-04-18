@@ -1,13 +1,16 @@
 [project]
-name = "ca-tools"
+name = "symbol"
 version = "0.1.0"
-description = "Codebase audit tools — detect stack, entry points, orphan files, and side effects"
+description = "AST-native codebase audit, symbol index, and MCP server for Python — detect stack, entry points, orphan files, side effects"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "chardet>=7.4.1",
+    "mcp>=1.27.0",
+    "msgpack>=1.1.2",
     "pyyaml>=6.0.3",
     "typer>=0.24.1",
+    "zstandard>=0.25.0",
 ]
 
 [project.optional-dependencies]
@@ -18,14 +21,14 @@ dev = [
 ]
 
 [project.scripts]
-ca = "ca_tools.cli:app"
+symbol = "ca.symbol.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ca_tools"]
+packages = ["src/ca"]
 
 [tool.ruff]
 line-length = 120

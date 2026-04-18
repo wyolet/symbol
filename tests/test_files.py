@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca_tools.shared.files import collect_py_files
-from ca_tools.shared.spec import load_spec
+from ca.symbol.shared.files import collect_py_files
+from ca.symbol.shared.spec import load_spec
 
 SPEC = load_spec()
 

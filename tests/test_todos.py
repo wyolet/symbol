@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca_tools.checkers.todos import detect, TodoItem
-from ca_tools.shared.ast_cache import ASTCache
+from ca.symbol.checkers.todos import detect, TodoItem
+from ca.symbol.shared.ast_cache import ASTCache
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:

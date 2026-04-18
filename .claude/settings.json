@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Grep|Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --directory $CLAUDE_PROJECT_DIR symbol hook"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --directory $CLAUDE_PROJECT_DIR symbol hook"
+          }
+        ]
+      }
+    ]
+  }
+}

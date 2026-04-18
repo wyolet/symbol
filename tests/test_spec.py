@@ -1,6 +1,6 @@
 """Tests for the spec loader and data integrity."""
 
-from ca_tools.shared.spec import load_spec
+from ca.symbol.shared.spec import load_spec
 
 
 def test_load_spec():

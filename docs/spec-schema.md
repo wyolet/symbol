@@ -1,17 +1,17 @@
-# ca-tools Spec Schema
+# symbol Spec Schema
 
 The spec is a TOML file that defines detection patterns, package classifications,
-and checker behavior. It is the single source of truth for what ca-tools knows
+and checker behavior. It is the single source of truth for what symbol knows
 about the Python ecosystem — no behavior is hardcoded in Python.
 
 ## Loading and Merging
 
-ca-tools loads and merges specs from multiple sources in order:
+symbol loads and merges specs from multiple sources in order:
 
 ```
-1. Built-in spec     (ships with ca-tools, maintained by the community)
+1. Built-in spec     (ships with symbol, maintained by the community)
 2. Plugin specs      (installed packages that register via entry points)
-3. Project spec      (ca-tools.spec.toml at project root, or inline in pyproject.toml)
+3. Project spec      (symbol.spec.toml at project root, or inline in pyproject.toml)
 ```
 
 Later specs override earlier ones on a per-field basis. Lists are merged, scalars
@@ -22,7 +22,7 @@ are overridden. The project spec always has the final say.
 Publish a package and declare an entry point:
 
 ```toml
-[project.entry-points."ca_tools.specs"]
+[project.entry-points."symbol.specs"]
 my-spec = "my_package:spec_path"
 ```
 
@@ -30,7 +30,7 @@ Where `spec_path` is a `Path` or string pointing to your `.spec.toml` file.
 
 ### Project-local spec
 
-Drop a `ca-tools.spec.toml` at your project root. It is loaded last and
+Drop a `symbol.spec.toml` at your project root. It is loaded last and
 overrides everything. Use it for internal packages, private libraries, or
 project-specific overrides.
 
@@ -282,7 +282,7 @@ Default output threshold is `warning`. Pass `--verbose` to see `info` and `debug
 
 ## Contributing to the built-in spec
 
-The built-in spec (`src/ca_tools/data/spec.toml`) accepts PRs for:
+The built-in spec (`src/ca/symbol/data/spec.toml`) accepts PRs for:
 
 - New packages in `[packages]` — any PyPI package with a clear category
 - New `[packages.X.side_effects]` entries — for packages with known module-level danger
@@ -293,5 +293,5 @@ The built-in spec (`src/ca_tools/data/spec.toml`) accepts PRs for:
 - Should have meaningful usage in the Python ecosystem
 - Popular packages (high download count or GitHub stars) are prioritized
 
-The goal is zero-config usefulness: install ca-tools, run it, get accurate results
+The goal is zero-config usefulness: install symbol, run it, get accurate results
 without writing a single line of spec config.
