@@ -58,8 +58,12 @@ range proceed without the needs_read_confirmation safety check.
 Parameters: target is either a qualified path ("services.user.UserService.save") \
 or a "file:start-end" address ("src/app.py:120-145"). Qualified paths \
 are resolved via the index; line ranges are sliced from source bytes \
-without re-parsing. include_refs defaults to true; set false to omit \
-the refs list when you only need the body.
+without re-parsing. include_refs defaults to false; set true if you \
+need the names-referenced list. offset (default 0) and limit (default \
+unlimited) paginate the body — useful for large symbols. The response \
+always reports total_lines so you know whether to fetch more; if the \
+window is partial, a `window` field carries the offset, limit, and \
+absolute file line range covered.
 
 If a qualified path is ambiguous (multiple symbols match), returns \
 error_code="ambiguous" with a candidates list — pick one and pass its \

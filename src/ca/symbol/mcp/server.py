@@ -216,7 +216,12 @@ def search_symbol(
 
 
 @mcp.tool(name="SymbolBody", description=descriptions.SYMBOL_BODY)
-def symbol_body(target: str, include_refs: bool = True) -> dict:
+def symbol_body(
+    target: str,
+    include_refs: bool = False,
+    offset: int = 0,
+    limit: int | None = None,
+) -> dict:
     root = _State.require_root()
     index = _State.require_index()
     cache = _State.require_cache()
@@ -232,16 +237,29 @@ def symbol_body(target: str, include_refs: bool = True) -> dict:
             "candidates": e.candidates,
         }
 
+    body_lines = hit["body"].splitlines(keepends=True)
+    total_lines = len(body_lines)
+    start = max(0, offset)
+    end = total_lines if limit is None else min(total_lines, start + max(0, limit))
+    sliced_body = "".join(body_lines[start:end])
+    truncated = (start, end) != (0, total_lines)
+
+    abs_start = hit["start_line"] + start
+    abs_end = hit["start_line"] + end - 1 if end > start else hit["start_line"] + start
+
     record_served(
         cache,
         project_root=root,
         file_rel=hit["file"],
-        start_line=hit["start_line"],
-        end_line=hit["end_line"],
+        start_line=abs_start,
+        end_line=abs_end,
     )
+    out = {**hit, "body": sliced_body, "total_lines": total_lines}
+    if truncated:
+        out["window"] = {"offset": start, "limit": end - start, "abs_lines": (abs_start, abs_end)}
     if not include_refs:
-        hit = {**hit, "refs": []}
-    return {"ok": True, **hit}
+        out["refs"] = []
+    return {"ok": True, **out}
 
 
 @mcp.tool(name="SymbolOutline", description=descriptions.SYMBOL_OUTLINE)
