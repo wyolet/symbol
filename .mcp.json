@@ -2,8 +2,8 @@
   "mcpServers": {
     "symbol": {
       "type": "stdio",
-      "command": "symbol",
-      "args": ["mcp"],
+      "command": "uv",
+      "args": ["run", "--directory", "/Users/abror/projects/ca-tools", "symbol", "mcp"],
       "env": {}
     }
   }
