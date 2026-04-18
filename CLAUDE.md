@@ -10,7 +10,7 @@ AST-native codebase audit, symbol index, and MCP server for Python projects. Poi
 - **`symbol analyze` / `symbol dump`** — Per-file AST analysis
 - **`symbol init`** — Generate recommended `[tool.symbol]` config
 - **`symbol update-linguist`** — Pull latest language definitions from GitHub
-- **`symbol mcp [--root PATH]`** — Run the MCP server (stdio) exposing 9 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol
+- **`symbol mcp [--root PATH]`** — Run the MCP server (stdio) exposing 10 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, MultiPatch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol
 
 ## MCP
 

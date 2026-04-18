@@ -20,6 +20,8 @@ The agent's task usually maps to one of these. Pick the chain by intent:
 | "Who calls X?" / "Where is X used?" | **SymbolCallers(`X`)** |
 | "Explain how X works" | **SearchSymbol(`X`)** → **SymbolBody(`<path>`)** → **SymbolCallers(`X`)** |
 | "Change a few lines inside Y" | **SymbolBody(`Y`)** → **Patch(`file`, `range`, content)** |
+| "Rename token X to Y in N spots in one file" | **MultiPatch(`file`, edits=[{old: "...", content: "..."}, ...])** — cold-start, no prior read needed |
+| "Apply N small edits to one file atomically" | **MultiPatch(`file`, edits=[...])** — one transaction, merged GitHub-style diff |
 | "Rewrite function/class X" | **ReplaceSymbol(`X`, content)** |
 | "Add a method to class C" | **InsertSymbol(`C`, position=`end`, content)** |
 | "Add a sibling function next to F" | **InsertSymbol(`F`, position=`after`, content)** |
@@ -56,7 +58,8 @@ This is the generative rule the scenario table derives from.
 
 ## What write tools uniquely guarantee (cannot be matched by Edit)
 
-- **Patch** — byte-range replacement on an already-seen range. No `old_string` round-trip, no string-matching ambiguity.
+- **Patch** — byte-range replacement on an already-seen range. No `old_string` round-trip, no string-matching ambiguity. Self-recaches the new range so chained edits don't need a re-read.
+- **MultiPatch** — N atomic edits to one file in one call. Each edit addressed by either a line range or an exact `old` snippet. With `old`, no prior read is needed (sending bytes is proof). One transaction, merged diff. Use for any change that would otherwise need >1 Patch/Edit call on the same file.
 - **ReplaceSymbol** — parses new content before committing; rejects syntax breaks. Rewrites callers automatically if the leaf name changes.
 - **InsertSymbol** — places code by structural position (`before`/`after` a sibling, `start`/`end` of a class), auto-indented to scope.
 - **RenameSymbol** — atomic across files, identifier-bounded (won't touch strings/comments), git-checkpointed (one-line undo).
