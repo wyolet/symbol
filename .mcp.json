@@ -3,7 +3,7 @@
     "symbol": {
       "type": "stdio",
       "command": "uv",
-      "args": ["run", "--directory", "/Users/abror/projects/ca-tools", "symbol", "mcp"],
+      "args": ["run", "--directory", "/Users/abror/projects/wyolet/symbol", "symbol", "mcp"],
       "env": {}
     }
   }

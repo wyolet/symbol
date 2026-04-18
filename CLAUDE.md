@@ -1,6 +1,8 @@
 # symbol
 
-AST-native codebase audit, symbol index, and MCP server for Python projects. Point at a directory, get the full picture. Repo and brand currently named `ca-tools`; PyPI distribution and CLI are `symbol`.
+AST-native codebase audit, symbol index, and MCP server for Python projects. Point at a directory, get the full picture.
+
+Repo lives at [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol) under the `wyolet` umbrella. Local path: `/Users/abror/projects/wyolet/symbol`. CLI and (eventual) PyPI distribution are both `symbol`.
 
 ## Commands
 
