@@ -6,8 +6,44 @@ Point at a directory, get the full picture — what frameworks it uses, where th
 
 ## Install
 
+`symbol` is not on PyPI yet — install directly from GitHub.
+
+### CLI only
+
+Get the `symbol` command available system-wide:
+
 ```bash
-pip install symbol
+uv tool install --from git+https://github.com/wyolet/symbol@main symbol
+```
+
+Now `symbol audit /path/to/project`, `symbol loc`, etc. work from any directory.
+
+### Claude Code plugin (CLI + MCP server + skill + hooks)
+
+For full Claude Code integration — MCP tools (SearchSymbol, SymbolBody, MultiPatch, …), the symbol skill, and the soft-nudge PreToolUse / PostToolUse hooks that point Claude away from native Grep/Read/Edit on indexed Python files — install the plugin:
+
+```bash
+# 1. Install the CLI (the plugin's MCP server and hooks call it)
+uv tool install --from git+https://github.com/wyolet/symbol@main symbol
+
+# 2. Install the plugin in Claude Code
+claude plugin install git+https://github.com/wyolet/symbol@main
+```
+
+After install, open a Python project in Claude Code — the symbol MCP server starts on demand, the skill steers tool selection, and the hooks gently redirect when Claude reaches for Grep/Read on indexed files.
+
+### Updating
+
+```bash
+uv tool upgrade symbol
+claude plugin update symbol
+```
+
+### Uninstall
+
+```bash
+uv tool uninstall symbol
+claude plugin uninstall symbol
 ```
 
 ## Commands
