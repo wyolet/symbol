@@ -13,9 +13,11 @@ Preflight branches:
 """
 
 import difflib
+import hashlib
 import os
 import re
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -354,6 +356,18 @@ def apply_patch(
         return _apply_error("file_not_found", f"write failed: {e}", request)
 
     cache.invalidate(Path(request.file_rel))
+    try:
+        new_mtime = os.stat(request.file_abs).st_mtime
+        cache.record(CachedRead(
+            file=request.file_rel,
+            byte_range=after_range,
+            content_hash=hashlib.sha256(request.content).hexdigest()[:16],
+            served_at=time.time(),
+            served_mtime=new_mtime,
+            tool_call_idx=0,
+        ))
+    except OSError:
+        pass
 
     return PatchResult(
         status="applied",

@@ -135,6 +135,21 @@ def test_apply_invalidates_cache(project):
     assert cache.find_covering(Path(req.file_rel), req.byte_range) is None
 
 
+def test_apply_recaches_new_range(project):
+    """After apply, the cache should cover the freshly-written byte range so a
+    follow-up Patch on the same edit doesn't need a re-read round trip."""
+    req = _request(project, "2-2", content="rewritten line\n")
+    cache = _cache_covering(req)
+
+    result = apply_patch(req, cache=cache)
+    assert result.status == "applied"
+
+    # The new range (after_range) must be in the cache.
+    new_entry = cache.find_covering(Path(req.file_rel), result.after_range)
+    assert new_entry is not None
+    assert new_entry.byte_range == result.after_range
+
+
 # ---------------------------------------------------------- dry run
 
 
