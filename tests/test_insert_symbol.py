@@ -140,7 +140,8 @@ def test_insert_end_auto_reindents(project):
     )
     assert isinstance(req, InsertSymbolRequest)
     # Content in the request should have been reindented to class-body depth.
-    assert req.content.decode().splitlines()[0].startswith("    def baz")
+    non_blank = [ln for ln in req.content.decode().splitlines() if ln.strip()]
+    assert non_blank[0].startswith("    def baz")
 
 
 def test_insert_start_requires_body(project):
@@ -179,6 +180,57 @@ def test_dry_run_does_not_write(project):
 def test_no_reindent_preserves_content(project):
     idx = _index(project)
     raw = "          weird_indent = True\n"
+    req = resolve_insert_symbol(
+        idx, "services.helper", "after", raw, project, reindent=False,
+    )
+    assert isinstance(req, InsertSymbolRequest)
+    assert req.content.decode() == raw
+def test_insert_after_pads_two_blank_lines_top_level(project):
+    """Regression: agents may forget to prefix '\\n\\n' on `after` inserts at
+    module scope. The resolver should auto-pad to PEP 8 spacing."""
+    idx = _index(project)
+    req = resolve_insert_symbol(
+        idx, "services.helper", "after", "def added():\n    return 1\n", project,
+    )
+    assert isinstance(req, InsertSymbolRequest)
+    apply_insert_symbol(req, cache=NullReadCache())
+
+    text = (project / "services.py").read_text()
+    # Two blank lines must separate `helper` from `added`.
+    assert "return 42\n\n\ndef added" in text
+
+
+def test_insert_end_of_class_pads_one_blank_line(project):
+    idx = _index(project)
+    req = resolve_insert_symbol(
+        idx, "services.Foo", "end", "def baz(self):\n    return 2\n", project,
+    )
+    assert isinstance(req, InsertSymbolRequest)
+    apply_insert_symbol(req, cache=NullReadCache())
+
+    text = (project / "services.py").read_text()
+    # One blank line between `bar` body end and the new `baz`.
+    assert "return 1\n\n    def baz" in text
+
+
+def test_insert_pad_normalizes_redundant_leading_blanks(project):
+    """If the agent does prefix '\\n\\n', we must not double-pad to 4 blanks."""
+    idx = _index(project)
+    req = resolve_insert_symbol(
+        idx, "services.helper", "after", "\n\n\ndef added():\n    return 1\n", project,
+    )
+    assert isinstance(req, InsertSymbolRequest)
+    apply_insert_symbol(req, cache=NullReadCache())
+
+    text = (project / "services.py").read_text()
+    assert "return 42\n\n\ndef added" in text
+    assert "return 42\n\n\n\ndef added" not in text
+
+
+def test_insert_no_reindent_skips_padding(project):
+    """reindent=False is escape hatch: content passes through verbatim."""
+    idx = _index(project)
+    raw = "def added():\n    return 1\n"
     req = resolve_insert_symbol(
         idx, "services.helper", "after", raw, project, reindent=False,
     )

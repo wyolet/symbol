@@ -149,6 +149,7 @@ def resolve_insert_symbol(
     payload = content.encode("utf-8") if isinstance(content, str) else content
     if reindent:
         payload = _reindent(payload, target_indent)
+        payload = _pad_blank_lines(payload, position, anchor_indent)
 
     return InsertSymbolRequest(
         anchor_path=anchor_path,
@@ -287,6 +288,38 @@ def _reindent(content: bytes, target_indent: str) -> bytes:
     if reindented and not reindented.endswith("\n"):
         reindented += "\n"
     return reindented.encode("utf-8")
+
+
+def _pad_blank_lines(content: bytes, position: Position, anchor_indent: str) -> bytes:
+    """Normalize leading/trailing blank lines around `content` to PEP 8 spacing.
+
+    Top-level inserts get 2 blank-line separators; nested inserts get 1.
+    `start` adds no leading blanks (first body statement); `end` adds 1 leading
+    blank to separate from the previous body element. `before` puts the gap
+    after the content; `after`/`end` put it before. Always ensures a single
+    trailing newline.
+    """
+    text = content.decode("utf-8", errors="replace")
+    lines = text.splitlines(keepends=True)
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if not lines:
+        return content
+
+    body = "".join(lines)
+    if not body.endswith("\n"):
+        body += "\n"
+
+    sep = "\n\n" if anchor_indent == "" else "\n"
+    if position == "before":
+        return (body + sep).encode("utf-8")
+    if position == "after":
+        return (sep + body).encode("utf-8")
+    if position == "end":
+        return ("\n" + body).encode("utf-8")
+    return body.encode("utf-8")
 
 
 def _leading_ws(line: str) -> int:
