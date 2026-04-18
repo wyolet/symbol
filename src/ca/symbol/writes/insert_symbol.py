@@ -25,6 +25,8 @@ from ca.symbol.protocols import ReadCache
 from ca.symbol.shared.symbol_index import SymbolIndex
 from ca.symbol.shared.symbol import S_EBYTE, S_SBYTE
 from ca.symbol.writes.patch import PatchRequest, apply_patch
+from ca.symbol.writes._content import normalize_content
+from ca.symbol.writes._blank_lines import normalize_file_blank_gaps
 
 
 Position = Literal["before", "after", "start", "end"]
@@ -146,10 +148,10 @@ def resolve_insert_symbol(
             message=f"position must be one of before/after/start/end, got {position!r}",
         )
 
-    payload = content.encode("utf-8") if isinstance(content, str) else content
     if reindent:
-        payload = _reindent(payload, target_indent)
-        payload = _pad_blank_lines(payload, position, anchor_indent)
+        payload = normalize_content(content, target_indent)
+    else:
+        payload = content.encode("utf-8") if isinstance(content, str) else content
 
     return InsertSymbolRequest(
         anchor_path=anchor_path,
@@ -183,6 +185,9 @@ def apply_insert_symbol(
     result = apply_patch(
         patch_req, cache=cache, dry_run=dry_run, diff_context=diff_context
     )
+    if result.status == "applied":
+        normalize_file_blank_gaps(request.file_abs)
+        cache.invalidate(Path(request.file_rel))
 
     if result.status == "error":
         return InsertSymbolResult(
@@ -259,71 +264,3 @@ def _indent_of_line(data: bytes, line: int) -> str:
         i += 1
     return data[start:i].decode("utf-8", errors="replace")
 
-
-def _reindent(content: bytes, target_indent: str) -> bytes:
-    """Re-indent `content` so its least-indented non-blank line sits at target_indent.
-
-    Preserves relative indentation between lines. Blank lines stay blank.
-    If content has no existing indent (flush left), target_indent is prepended
-    to each non-blank line.
-    """
-    text = content.decode("utf-8", errors="replace")
-    lines = text.splitlines(keepends=True)
-    non_blank = [ln for ln in lines if ln.strip()]
-    if not non_blank:
-        return content
-
-    min_indent = min(_leading_ws(ln) for ln in non_blank)
-
-    out: list[str] = []
-    for ln in lines:
-        if not ln.strip():
-            out.append(ln)
-            continue
-        # Strip exactly min_indent leading chars; by definition non-blank
-        # lines have at least min_indent leading whitespace.
-        out.append(target_indent + ln[min_indent:])
-
-    reindented = "".join(out)
-    if reindented and not reindented.endswith("\n"):
-        reindented += "\n"
-    return reindented.encode("utf-8")
-
-
-def _pad_blank_lines(content: bytes, position: Position, anchor_indent: str) -> bytes:
-    """Normalize leading/trailing blank lines around `content` to PEP 8 spacing.
-
-    Top-level inserts get 2 blank-line separators; nested inserts get 1.
-    `start` adds no leading blanks (first body statement); `end` adds 1 leading
-    blank to separate from the previous body element. `before` puts the gap
-    after the content; `after`/`end` put it before. Always ensures a single
-    trailing newline.
-    """
-    text = content.decode("utf-8", errors="replace")
-    lines = text.splitlines(keepends=True)
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    if not lines:
-        return content
-
-    body = "".join(lines)
-    if not body.endswith("\n"):
-        body += "\n"
-
-    sep = "\n\n" if anchor_indent == "" else "\n"
-    if position == "before":
-        return (body + sep).encode("utf-8")
-    if position == "after":
-        return (sep + body).encode("utf-8")
-    if position == "end":
-        return ("\n" + body).encode("utf-8")
-    return body.encode("utf-8")
-
-
-def _leading_ws(line: str) -> int:
-    i = 0
-    while i < len(line) and line[i] in (" ", "\t"):
-        i += 1
-    return i

@@ -18,6 +18,7 @@ from ca.symbol.protocols import ReadCache
 from ca.symbol.shared.symbol_index import SymbolIndex
 from ca.symbol.shared.symbol import S_EBYTE, S_SBYTE
 from ca.symbol.writes.patch import PatchRequest, apply_patch
+from ca.symbol.writes._blank_lines import normalize_file_blank_gaps
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,9 @@ def apply_delete_symbol(
     patch_result = apply_patch(
         patch_req, cache=cache, dry_run=dry_run, diff_context=diff_context
     )
+    if patch_result.status == "applied":
+        normalize_file_blank_gaps(request.file_abs)
+        cache.invalidate(Path(request.file_rel))
 
     if patch_result.status == "error":
         return DeleteSymbolResult(

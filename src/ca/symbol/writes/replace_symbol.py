@@ -30,6 +30,8 @@ from ca.symbol.adapters import default_registry
 from ca.symbol.shared.symbol_index import SymbolIndex
 from ca.symbol.shared.symbol import S_EBYTE, S_SBYTE
 from ca.symbol.writes.transaction import FileEdit, commit_edits
+from ca.symbol.writes._content import normalize_content
+from ca.symbol.writes._blank_lines import normalize_file_blank_gaps
 
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
@@ -106,11 +108,9 @@ def resolve_replace_symbol(
     declaring_file_abs = project_root / declaring_file_rel
     old_byte_range = (index.symbols[row][S_SBYTE], index.symbols[row][S_EBYTE])
 
-    # Parse new content via our own adapter. The agent may send content with
-    # leading indent to match the target's scope (e.g. a class method); dedent
-    # before parsing so ast accepts it. The original (indented) content is
-    # what gets spliced back into the file.
-    content_bytes = content.encode("utf-8")
+    # Always normalize the agent's content to flush-left + re-indent to the
+    # target's column, so they don't have to nail the exact leading whitespace.
+    # Parse the dedented form so ast accepts it regardless of original indent.
     parse_bytes = textwrap.dedent(content).encode("utf-8")
 
     adapter = default_registry().for_file(declaring_file_abs)
@@ -209,6 +209,8 @@ def resolve_replace_symbol(
         after = after_text.encode("utf-8")
         declaring_refs_updated += c1 + c2
 
+    target_indent = _indent_at_byte(declaring_source, start)
+    content_bytes = normalize_content(content, target_indent)
     declaring_new_content = before + content_bytes + after
 
     edits: list[FileEdit] = [
@@ -303,6 +305,10 @@ def apply_replace_symbol(
             message=tx.message,
         )
 
+    if not dry_run:
+        declaring_abs = project_root / request.declaring_file
+        normalize_file_blank_gaps(declaring_abs)
+
     total_refs = sum(f.refs_updated for f in request.per_file_counts)
 
     return ReplaceSymbolResult(
@@ -343,3 +349,16 @@ def _first_line(data: bytes, line_no: int) -> str:
     if 1 <= line_no <= len(lines):
         return lines[line_no - 1].strip()
     return ""
+def _indent_at_byte(data: bytes, byte_pos: int) -> str:
+    """Leading whitespace of the line containing `byte_pos`."""
+    line_start = data.rfind(b"\n", 0, byte_pos) + 1
+    out: list[str] = []
+    i = line_start
+    while i < len(data):
+        ch = data[i:i + 1]
+        if ch == b" " or ch == b"\t":
+            out.append(ch.decode())
+            i += 1
+            continue
+        break
+    return "".join(out)

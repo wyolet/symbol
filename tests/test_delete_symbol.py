@@ -157,6 +157,15 @@ def test_apply_preserves_other_symbols(project):
     # UserService still exists (its body is `save`, not affected).
     assert "class UserService" in content
     assert "def free_function" in content
+def test_apply_normalizes_blank_gap_to_two(project):
+    """Deleting a top-level function leaves exactly 2 blank lines between siblings."""
+    idx = _build_index(project)
+    req = resolve_delete_symbol(idx, "services.OrderService", project)
+    apply_delete_symbol(req, cache=NullReadCache())
+
+    text = (project / "services.py").read_text()
+    # No run of 3+ consecutive blank lines should remain.
+    assert "\n\n\n\n" not in text
 
 
 # ---------------------------------------------------------- response payload
