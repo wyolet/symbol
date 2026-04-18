@@ -16,7 +16,7 @@ returned — chain SymbolBody for those.
 
 USE WHEN the user mentions a symbol by name and wants to find, explore, \
 rename, delete, or modify it. The standard two-call chain is \
-SearchSymbol(name) → SymbolBody(qualified_path): the first narrows to real \
+SearchSymbol(name) → SymbolBody(target): the first narrows to real \
 declarations, the second fetches the exact code with structural awareness. \
 This pair is what an agent reaches for whenever it would otherwise grep \
 for a name and read whatever file matches.
@@ -166,7 +166,7 @@ error so you can fix call sites first. Pass force=true to delete anyway \
 (callers' code will break). The refusal is the safety net that makes \
 this preferable to manual deletion.
 
-Parameters: qualified_path is the symbol's full dotted path \
+Parameters: target is the symbol's full dotted path \
 ("services.user.UserService.save"). force=true proceeds even when \
 callers exist. dry_run=true returns the diff and caller list without \
 writing.
@@ -192,7 +192,7 @@ USE WHEN adding a new method to a class, a sibling function next to an \
 existing one, or any structural insertion. Skip line-number arithmetic \
 — the anchor's qualified path plus a position keyword is enough.
 
-Parameters: anchor is the qualified path of the reference symbol. \
+Parameters: target is the qualified path of the reference symbol. \
 position must be one of before/after/start/end (start/end only valid \
 when anchor is a class). content is the new code — do not include \
 leading indentation unless reindent=false. reindent=false passes \
@@ -219,7 +219,7 @@ strings and comments. Atomicity + git checkpoint means no half-finished \
 rename state is observable, and you have a one-line undo if the result \
 is wrong.
 
-Parameters: qualified_path is the current full path of the symbol. \
+Parameters: target is the current full path of the symbol. \
 new_name is the new leaf name only (no dots). dry_run=true plans the \
 rename and returns per_file deltas without writing. allow_dirty=true \
 proceeds when the working tree has uncommitted changes (normally \
@@ -252,7 +252,7 @@ New content must parse cleanly and contain exactly one top-level \
 definition. Kind must match the replaced symbol (you cannot replace a \
 function with a class).
 
-Parameters: qualified_path is the current path of the symbol to \
+Parameters: target is the current path of the symbol to \
 replace. content is the full new definition — you may include the \
 target's expected leading indentation (e.g. 4 spaces for a method); \
 it's dedented before parsing and re-indented before splicing. \

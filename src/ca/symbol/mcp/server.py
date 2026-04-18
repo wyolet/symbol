@@ -359,7 +359,7 @@ def patch(
 
 @mcp.tool(name="DeleteSymbol", description=descriptions.DELETE_SYMBOL)
 def delete_symbol(
-    qualified_path: str,
+    target: str,
     force: bool = False,
     dry_run: bool = False,
 ) -> str:
@@ -367,7 +367,7 @@ def delete_symbol(
     index = _State.require_index()
     cache = _State.require_cache()
 
-    req = resolve_delete_symbol(index, qualified_path, root, force=force)
+    req = resolve_delete_symbol(index, target, root, force=force)
     if not isinstance(req, DeleteSymbolRequest):
         # req is a DeleteSymbolResult with error.
         return _capture_text(_render_delete_error, req, agent=True)
@@ -383,7 +383,7 @@ def delete_symbol(
 
 @mcp.tool(name="InsertSymbol", description=descriptions.INSERT_SYMBOL)
 def insert_symbol(
-    anchor: str,
+    target: str,
     position: str,
     content: str,
     reindent: bool = True,
@@ -405,7 +405,7 @@ def insert_symbol(
     cache = _State.require_cache()
 
     req = resolve_insert_symbol(
-        index, anchor, position, content, root, reindent=reindent  # type: ignore[arg-type]
+        index, target, position, content, root, reindent=reindent  # type: ignore[arg-type]
     )
     if not isinstance(req, InsertSymbolRequest):
         # req is an InsertSymbolResult with error.
@@ -420,7 +420,7 @@ def insert_symbol(
 
 @mcp.tool(name="RenameSymbol", description=descriptions.RENAME_SYMBOL)
 def rename_symbol(
-    qualified_path: str,
+    target: str,
     new_name: str,
     dry_run: bool = False,
     allow_dirty: bool = False,
@@ -429,7 +429,7 @@ def rename_symbol(
     root = _State.require_root()
     index = _State.require_index()
 
-    req = resolve_rename_symbol(index, qualified_path, new_name, root)
+    req = resolve_rename_symbol(index, target, new_name, root)
     if not isinstance(req, RenameSymbolRequest):
         return _capture_text(_render_rename_error, req, agent=True)
     result = apply_rename_symbol(
@@ -453,7 +453,7 @@ def rename_symbol(
 
 @mcp.tool(name="ReplaceSymbol", description=descriptions.REPLACE_SYMBOL)
 def replace_symbol(
-    qualified_path: str,
+    target: str,
     content: str,
     dry_run: bool = False,
     allow_dirty: bool = False,
@@ -467,7 +467,7 @@ def replace_symbol(
     root = _State.require_root()
     index = _State.require_index()
 
-    req = resolve_replace_symbol(index, qualified_path, content, root)
+    req = resolve_replace_symbol(index, target, content, root)
     if not isinstance(req, ReplaceSymbolRequest):
         return _capture_text(_render_replace_error, req, agent=True)
     result = apply_replace_symbol(
