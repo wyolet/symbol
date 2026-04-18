@@ -154,6 +154,39 @@ validate that the result parses as Python — use ReplaceSymbol when you \
 need that guarantee.
 """
 
+MULTI_PATCH = """\
+Apply N byte-range splices to one file atomically. Each edit is \
+addressed by EITHER a line range OR an exact piece of old content — \
+mix freely within one batch. All edits succeed or none land; on success \
+returns one merged unified diff (nearby edits collapse into one hunk \
+GitHub-style).
+
+USE WHEN you have multiple changes to make in the same file. Replaces \
+N round-trips of single Patch calls with one transaction. Particularly \
+strong for cold-start refactors: pass `old` for each edit and the agent \
+never has to look up line numbers.
+
+Each edit is a dict: {content: "...", AND exactly one of \
+range: "A-B" OR old: "exact bytes"}. Edits with `range` need cache \
+confirmation (a prior SymbolBody on a covering range, or force=true). \
+Edits with `old` skip the cache check — sending exact bytes is proof \
+you know them. Mixed batches with any unconfirmed range fail the whole \
+call with status="needs_read_confirmation" and an unconfirmed list, so \
+the agent reads once and retries.
+
+For `old` mode: the bytes must appear EXACTLY ONCE in the current file. \
+Multiple matches return error_code="ambiguous" with the line numbers of \
+all matches — narrow the snippet by adding context. No matches returns \
+"not_found".
+
+Parameters: file is a path to the target. edits is a list (each dict as \
+above). force=true skips cache checks for range edits. dry_run=true \
+returns the combined diff and per-edit metadata without writing.
+
+Other error codes: "overlapping_edits" if two ranges intersect, \
+"file_not_found", "permission_denied", "invalid_argument".
+"""
+
 DELETE_SYMBOL = """\
 Remove a function, class, method, or async function by its qualified \
 path. Splices out the complete declaration atomically — decorators, \

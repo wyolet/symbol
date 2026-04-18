@@ -31,6 +31,7 @@ from ca.symbol.writes.insert_symbol import (
 from ca.symbol.writes.patch import (
     PatchPreflight,
     apply_patch,
+    apply_patch_multi,
     preflight_patch,
     validate_args,
 )
@@ -142,6 +143,7 @@ class _State:
                     cls._load_index()
         assert cls._index is not None
         return cls._index
+
     @classmethod
     def invalidate_file(cls, rel: "str | list[str] | set[str]") -> None:
         """Refresh the in-RAM index for one or more files immediately.
@@ -166,7 +168,6 @@ class _State:
         cls._index.save()
         p = cls._index_path()
         cls._index_mtime = p.stat().st_mtime if p.exists() else cls._index_mtime
-
 
 
 def _dc(result) -> dict:
@@ -353,8 +354,63 @@ def patch(
     return _capture_text(_render_patch_agent, result)
 
 
+@mcp.tool(name="MultiPatch", description=descriptions.MULTI_PATCH)
+def multi_patch(
+    file: str,
+    edits: list[dict],
+    force: bool = False,
+    dry_run: bool = False,
+) -> str:
+    root = _State.require_root()
+    cache = _State.require_cache()
+
+    file_abs = (root / file).resolve()
+    try:
+        file_rel = str(file_abs.relative_to(root))
+    except ValueError:
+        return _capture_text(
+            _render_patch_error, "invalid_argument",
+            f"file {file!r} is outside project root", agent=True,
+        )
+
+    result = apply_patch_multi(
+        file_abs=file_abs,
+        file_rel=file_rel,
+        raw_edits=edits,
+        cache=cache,
+        dry_run=dry_run,
+        force=force,
+    )
+
+    if result.status == "applied":
+        _State.invalidate_file(result.file_rel)
+
+    return _format_multi_patch_result(result)
 
 
+def _format_multi_patch_result(r) -> str:
+    lines = [f"status: {r.status}", f"file: {r.file_rel}"]
+    if r.error_code:
+        lines.append(f"error_code: {r.error_code}")
+    if r.message:
+        lines.append(f"message: {r.message}")
+    if r.unconfirmed:
+        lines.append("unconfirmed:")
+        for u in r.unconfirmed:
+            lines.append(f"  - edit {u['edit_idx']}: range {u['range']}")
+    if r.per_edit:
+        lines.append(f"edits: {len(r.per_edit)}")
+        for i, e in enumerate(r.per_edit):
+            lines.append(
+                f"  - {i}: {e['addressed_by']} "
+                f"lines {e['before_lines'][0]}-{e['before_lines'][1]} "
+                f"→ {e['after_lines'][0]}-{e['after_lines'][1]}"
+            )
+    if r.diff:
+        lines.append("\n--- DIFF ---")
+        lines.append(r.diff.rstrip())
+        lines.append("--- END ---")
+    return "\n".join(lines)
 
 
 @mcp.tool(name="DeleteSymbol", description=descriptions.DELETE_SYMBOL)
@@ -377,8 +433,6 @@ def delete_symbol(
     if result.status == "applied" and result.file_rel:
         _State.invalidate_file(result.file_rel)
     return _capture_text(_render_delete_agent, result)
-
-
 
 
 @mcp.tool(name="InsertSymbol", description=descriptions.INSERT_SYMBOL)
@@ -416,8 +470,6 @@ def insert_symbol(
     return _capture_text(_render_insert, result, format="rich", agent=True)
 
 
-
-
 @mcp.tool(name="RenameSymbol", description=descriptions.RENAME_SYMBOL)
 def rename_symbol(
     target: str,
@@ -447,8 +499,6 @@ def rename_symbol(
             touched = {result.declaring_file}
         _State.invalidate_file(touched)
     return _capture_text(_render_rename_agent, result)
-
-
 
 
 @mcp.tool(name="ReplaceSymbol", description=descriptions.REPLACE_SYMBOL)

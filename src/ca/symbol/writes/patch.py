@@ -290,7 +290,6 @@ class PatchResult:
     message: str | None = None
 
 
-
 def apply_patch(
     request: PatchRequest,
     *,
@@ -381,6 +380,227 @@ def apply_patch(
         diff=diff,
     )
 
+
+@dataclass(frozen=True)
+class MultiEdit:
+    """One resolved edit in a MultiPatch batch — addressed by byte range."""
+    start: int
+    end: int
+    content: bytes
+    addressed_by: Literal["range", "old"]
+    line_range: tuple[int, int]
+
+
+@dataclass(frozen=True)
+class MultiPatchResult:
+    status: Literal["applied", "dry_run", "needs_read_confirmation", "error"]
+    file_rel: str
+    diff: str = ""
+    per_edit: tuple[dict, ...] = ()
+    unconfirmed: tuple[dict, ...] = ()
+    error_code: str | None = None
+    message: str | None = None
+
+
+def apply_patch_multi(
+    file_abs: Path,
+    file_rel: str,
+    raw_edits: list[dict],
+    *,
+    cache: ReadCache,
+    dry_run: bool = False,
+    force: bool = False,
+    diff_context: int = 5,
+) -> MultiPatchResult:
+    """Apply N byte-range splices to one file atomically.
+
+    Each raw edit is a dict with `content` plus exactly one address mode:
+    `range` ("A-B") or `old` (literal bytes). Edits with `range` need cache
+    confirmation; edits with `old` skip the check (sending exact bytes is
+    proof). All-or-nothing: any single failure aborts the whole batch.
+    """
+    if not raw_edits:
+        return MultiPatchResult(
+            status="error", file_rel=file_rel,
+            error_code="invalid_argument", message="edits list is empty",
+        )
+
+    try:
+        source = file_abs.read_bytes()
+    except OSError as e:
+        return MultiPatchResult(
+            status="error", file_rel=file_rel,
+            error_code="file_not_found", message=f"cannot read {file_rel}: {e}",
+        )
+
+    resolved: list[MultiEdit] = []
+    unconfirmed: list[dict] = []
+    for idx, raw in enumerate(raw_edits):
+        content = raw.get("content")
+        if content is None:
+            return MultiPatchResult(
+                status="error", file_rel=file_rel,
+                error_code="invalid_argument",
+                message=f"edit {idx}: missing content",
+            )
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        has_range = "range" in raw and raw["range"] is not None
+        has_old = "old" in raw and raw["old"] is not None
+        if has_range == has_old:
+            return MultiPatchResult(
+                status="error", file_rel=file_rel,
+                error_code="invalid_argument",
+                message=f"edit {idx}: provide exactly one of range or old",
+            )
+
+        if has_range:
+            m = _RANGE_RE.match(raw["range"])
+            if not m:
+                return MultiPatchResult(
+                    status="error", file_rel=file_rel,
+                    error_code="invalid_argument",
+                    message=f"edit {idx}: bad range {raw['range']!r}",
+                )
+            start_line, end_line = int(m["start"]), int(m["end"])
+            if start_line < 1 or end_line < start_line:
+                return MultiPatchResult(
+                    status="error", file_rel=file_rel,
+                    error_code="invalid_argument",
+                    message=f"edit {idx}: invalid range {raw['range']!r}",
+                )
+            sb = _line_start_byte(source, start_line)
+            eb = _line_end_byte(source, end_line)
+            if sb > len(source) or eb > len(source):
+                return MultiPatchResult(
+                    status="error", file_rel=file_rel,
+                    error_code="range_out_of_bounds",
+                    message=f"edit {idx}: range {raw['range']} exceeds file",
+                )
+            if not force:
+                covering = cache.find_covering(Path(file_rel), (sb, eb))
+                if covering is None:
+                    unconfirmed.append({"edit_idx": idx, "range": raw["range"]})
+                    continue
+            resolved.append(MultiEdit(
+                start=sb, end=eb, content=content,
+                addressed_by="range", line_range=(start_line, end_line),
+            ))
+        else:
+            old = raw["old"]
+            if isinstance(old, str):
+                old = old.encode("utf-8")
+            if not old:
+                return MultiPatchResult(
+                    status="error", file_rel=file_rel,
+                    error_code="invalid_argument",
+                    message=f"edit {idx}: old must be non-empty",
+                )
+            hits: list[int] = []
+            search_from = 0
+            while True:
+                pos = source.find(old, search_from)
+                if pos < 0:
+                    break
+                hits.append(pos)
+                search_from = pos + 1
+            if len(hits) == 0:
+                return MultiPatchResult(
+                    status="error", file_rel=file_rel,
+                    error_code="not_found",
+                    message=f"edit {idx}: old content not found",
+                )
+            if len(hits) > 1:
+                lines = [source.count(b"\n", 0, p) + 1 for p in hits]
+                return MultiPatchResult(
+                    status="error", file_rel=file_rel,
+                    error_code="ambiguous",
+                    message=f"edit {idx}: old matches {len(hits)} times at lines {lines}",
+                )
+            sb = hits[0]
+            eb = sb + len(old)
+            start_line = source.count(b"\n", 0, sb) + 1
+            end_line = source.count(b"\n", 0, eb) + 1
+            resolved.append(MultiEdit(
+                start=sb, end=eb, content=content,
+                addressed_by="old", line_range=(start_line, end_line),
+            ))
+
+    if unconfirmed:
+        return MultiPatchResult(
+            status="needs_read_confirmation",
+            file_rel=file_rel,
+            unconfirmed=tuple(unconfirmed),
+            message=f"{len(unconfirmed)} edit(s) target ranges not in the read cache",
+        )
+
+    sorted_by_start = sorted(resolved, key=lambda e: e.start)
+    for prev, curr in zip(sorted_by_start, sorted_by_start[1:]):
+        if curr.start < prev.end:
+            return MultiPatchResult(
+                status="error", file_rel=file_rel,
+                error_code="overlapping_edits",
+                message=f"edits overlap: {prev.line_range} and {curr.line_range}",
+            )
+
+    new_source = source
+    for edit in sorted(resolved, key=lambda e: e.start, reverse=True):
+        new_source = new_source[: edit.start] + edit.content + new_source[edit.end :]
+
+    cumulative = 0
+    per_edit: list[dict] = []
+    for edit in sorted_by_start:
+        after_start = edit.start + cumulative
+        after_end = after_start + len(edit.content)
+        cumulative += len(edit.content) - (edit.end - edit.start)
+        new_start_line = new_source.count(b"\n", 0, after_start) + 1
+        new_end_line = new_source.count(b"\n", 0, max(after_end - 1, after_start)) + 1
+        per_edit.append({
+            "addressed_by": edit.addressed_by,
+            "before_range": (edit.start, edit.end),
+            "after_range": (after_start, after_end),
+            "before_lines": edit.line_range,
+            "after_lines": (new_start_line, new_end_line),
+        })
+
+    diff = _unified_diff(file_rel, source, new_source, context=diff_context)
+
+    if dry_run:
+        return MultiPatchResult(
+            status="dry_run", file_rel=file_rel, diff=diff, per_edit=tuple(per_edit),
+        )
+
+    try:
+        _atomic_write(file_abs, new_source)
+    except PermissionError as e:
+        return MultiPatchResult(
+            status="error", file_rel=file_rel,
+            error_code="permission_denied", message=str(e),
+        )
+    except OSError as e:
+        return MultiPatchResult(
+            status="error", file_rel=file_rel,
+            error_code="file_not_found", message=f"write failed: {e}",
+        )
+
+    cache.invalidate(Path(file_rel))
+    try:
+        new_mtime = os.stat(file_abs).st_mtime
+        for entry in per_edit:
+            cache.record(CachedRead(
+                file=file_rel,
+                byte_range=entry["after_range"],
+                content_hash=hashlib.sha256(new_source[entry["after_range"][0]:entry["after_range"][1]]).hexdigest()[:16],
+                served_at=time.time(),
+                served_mtime=new_mtime,
+                tool_call_idx=0,
+            ))
+    except OSError:
+        pass
+
+    return MultiPatchResult(
+        status="applied", file_rel=file_rel, diff=diff, per_edit=tuple(per_edit),
+    )
 
 
 def _apply_error(code: str, message: str, request: PatchRequest) -> PatchResult:
