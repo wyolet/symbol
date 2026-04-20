@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from ca.symbol.shared.findings import Severity
-from ca.symbol.shared.project_config import ProjectConfig, load_project_config
+from wyolet.symbol.shared.findings import Severity
+from wyolet.symbol.shared.project_config import ProjectConfig, load_project_config
 
 
 def test_defaults_when_no_pyproject(tmp_path: Path):

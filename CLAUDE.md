@@ -25,7 +25,7 @@ Repo lives at [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol) und
 ## Structure
 
 ```
-src/ca/                        — namespace package (no __init__.py — PEP 420)
+src/wyolet/                    — namespace package (no __init__.py — PEP 420)
 └── symbol/
     ├── cli.py                — Typer root (dispatches, defaults bare-path to audit)
     ├── commands/             — audit, loc, map, analyze, init, hook (thin views)
@@ -39,7 +39,7 @@ src/ca/                        — namespace package (no __init__.py — PEP 420
         └── specs/NAME/       — Per-package specs (200+ packages)
 ```
 
-Imports go `from ca.symbol.X import Y`. The PyPI distribution is `symbol`; future sibling packages (`linter`, etc.) install into the same `ca/` namespace.
+Imports go `from wyolet.symbol.X import Y`. The PyPI distribution is `symbol`; future sibling packages (`linter`, etc.) install into the same `wyolet/` namespace.
 
 ## Architecture
 
@@ -64,10 +64,6 @@ Imports go `from ca.symbol.X import Y`. The PyPI distribution is `symbol`; futur
 - Package-specific filenames (admin.py, urls.py) belong in package specs, never in global spec. Global is Python/community conventions only (app.py, main.py, conftest.py, etc.).
 - `__init__.py` re-exports are conventions — not cycles, not hotspots.
 - Output: compact by default, `-v` for detail, `--format json` for CI.
-
-## Survey corpus
-
-`survey/repos/` (gitignored) — 25–35 cloned repos for false-positive regression testing. Each can carry its own `symbol.toml` for project-level ignores.
 
 ## Design principles
 

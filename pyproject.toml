@@ -21,14 +21,14 @@ dev = [
 ]
 
 [project.scripts]
-symbol = "ca.symbol.cli:app"
+symbol = "wyolet.symbol.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ca"]
+packages = ["src/wyolet"]
 
 [tool.ruff]
 line-length = 120

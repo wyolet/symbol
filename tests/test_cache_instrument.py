@@ -4,7 +4,7 @@ import hashlib
 import time
 from pathlib import Path
 
-from ca.symbol.caches import InMemoryReadCache, record_served
+from wyolet.symbol.caches import InMemoryReadCache, record_served
 
 
 def _write(path: Path, content: str) -> None:

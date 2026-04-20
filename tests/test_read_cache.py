@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from ca.symbol.caches import (
+from wyolet.symbol.caches import (
     DiskReadCache,
     InMemoryReadCache,
     NullReadCache,
     build_read_cache,
 )
-from ca.symbol.protocols import CachedRead, ReadCache
+from wyolet.symbol.protocols import CachedRead, ReadCache
 
 
 def _entry(file="src/foo.py", start=10, end=50, h="abc"):

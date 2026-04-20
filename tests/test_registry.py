@@ -1,7 +1,7 @@
 """Tests for registry lookup."""
 
-from ca.symbol.shared.pkg_registry import lookup, normalize_package_name
-from ca.symbol.shared.spec import load_spec
+from wyolet.symbol.shared.pkg_registry import lookup, normalize_package_name
+from wyolet.symbol.shared.spec import load_spec
 
 SPEC = load_spec()
 

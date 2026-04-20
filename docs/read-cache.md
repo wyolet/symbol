@@ -2,7 +2,7 @@
 
 The read cache tracks what content we've served to an agent, so `symbol patch` can apply edits without forcing a re-read. It's the safety rail that makes the write surface token-efficient.
 
-Status: shipped. See `src/ca/symbol/caches/` for implementations and `src/ca/symbol/protocols/read_cache.py` for the contract.
+Status: shipped. See `src/wyolet/symbol/caches/` for implementations and `src/wyolet/symbol/protocols/read_cache.py` for the contract.
 
 ## What the cache is for
 
@@ -81,7 +81,7 @@ export CA_SESSION_ID=$(uuidgen)
 # all subsequent ca calls in this shell share cache
 ```
 
-Cache persists to `.ca/cache/sessions/<CA_SESSION_ID>.json` so the data survives across process invocations (each `ca` call is a fresh process). On session end, the user deletes the file or we garbage-collect on next run.
+Cache persists to `.symbol/cache/sessions/<CA_SESSION_ID>.json` so the data survives across process invocations (each `ca` call is a fresh process). On session end, the user deletes the file or we garbage-collect on next run.
 
 **Eviction policy** is the same as MCP: LRU on tool-call count, idle TTL on mtime-based last-touched. Session boundary is just the env var — when it changes or is absent, we start a fresh namespace.
 
@@ -150,4 +150,4 @@ That said, when `symbol code <path>` resolves a symbol to a byte range via the i
 - **Cache across git HEAD changes.** Checking out a different branch invalidates everything. Worth keying entries on `(file, mtime, git_sha)` when available? Leaning: mtime is enough; git operations change mtimes.
 - **Streaming serves.** If we ever stream large responses, do we cache progressively or only on completion? Leaning: on completion only.
 - **Cross-session reuse.** Never. Sessions are isolated on purpose — different agents, different trust boundaries.
-- **Explicit flush API.** `ca cache clear` for the user to nuke state. Yes, eventually.
+- **Explicit flush API.** `symbol cache clear` for the user to nuke state. Yes, eventually.

@@ -1,4 +1,4 @@
-"""Tests for `ca patch` stage 1: argument validation + cache preflight."""
+"""Tests for `symbol patch` stage 1: argument validation + cache preflight."""
 
 import hashlib
 import os
@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from ca.symbol.caches import InMemoryReadCache
-from ca.symbol.protocols import CachedRead
-from ca.symbol.writes.patch import (
+from wyolet.symbol.caches import InMemoryReadCache
+from wyolet.symbol.protocols import CachedRead
+from wyolet.symbol.writes.patch import (
     InvalidRange,
     PatchPreflight,
     PatchRequest,

@@ -1,4 +1,4 @@
-"""Tests for `ca patch` stage 2: apply."""
+"""Tests for `symbol patch` stage 2: apply."""
 
 import hashlib
 import os
@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from ca.symbol.caches import InMemoryReadCache
-from ca.symbol.protocols import CachedRead
-from ca.symbol.writes.patch import (
+from wyolet.symbol.caches import InMemoryReadCache
+from wyolet.symbol.protocols import CachedRead
+from wyolet.symbol.writes.patch import (
     PatchRequest,
     PatchResult,
     apply_patch,

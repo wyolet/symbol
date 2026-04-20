@@ -1,6 +1,6 @@
 """Tests for the shared write-content normalizer."""
 
-from ca.symbol.writes._content import normalize_content
+from wyolet.symbol.writes._content import normalize_content
 
 
 def test_strips_leading_trailing_blanks():

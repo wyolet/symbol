@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from ca.symbol.caches import InMemoryReadCache
-from ca.symbol.protocols import CachedRead
-from ca.symbol.writes.patch import apply_patch_multi
+from wyolet.symbol.caches import InMemoryReadCache
+from wyolet.symbol.protocols import CachedRead
+from wyolet.symbol.writes.patch import apply_patch_multi
 
 
 SOURCE = "alpha\nbeta\ngamma\ndelta\nepsilon\n"
