@@ -1,12 +1,12 @@
-"""Tests for `ca replace-symbol`."""
+"""Tests for `symbol replace-symbol`."""
 
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from ca.symbol.shared.symbol_index import SymbolIndex, get_or_build_index
-from ca.symbol.writes.replace_symbol import (
+from wyolet.symbol.shared.symbol_index import SymbolIndex, get_or_build_index
+from wyolet.symbol.writes.replace_symbol import (
     ReplaceSymbolRequest,
     ReplaceSymbolResult,
     apply_replace_symbol,

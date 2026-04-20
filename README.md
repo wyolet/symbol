@@ -190,7 +190,7 @@ Most Python audit tools find problems *inside* files (lint, types, dead code). `
 ## Architecture
 
 ```
-src/ca/symbol/
+src/wyolet/symbol/
 ├── cli.py                  Typer root CLI
 ├── commands/               Thin command views
 │   ├── audit.py            runs all checkers
@@ -226,7 +226,7 @@ src/ca/symbol/
 
 ## Contributing
 
-Adding detection for a new package? Drop a spec in `src/ca/symbol/data/specs/NAME/spec.toml` — no Python changes required. See `CONTRIBUTING.md` and `docs/spec-schema.md`.
+Adding detection for a new package? Drop a spec in `src/wyolet/symbol/data/specs/NAME/spec.toml` — no Python changes required. See `CONTRIBUTING.md` and `docs/spec-schema.md`.
 
 ## License
 

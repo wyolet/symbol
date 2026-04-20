@@ -282,7 +282,7 @@ Default output threshold is `warning`. Pass `--verbose` to see `info` and `debug
 
 ## Contributing to the built-in spec
 
-The built-in spec (`src/ca/symbol/data/spec.toml`) accepts PRs for:
+The built-in spec (`src/wyolet/symbol/data/spec.toml`) accepts PRs for:
 
 - New packages in `[packages]` — any PyPI package with a clear category
 - New `[packages.X.side_effects]` entries — for packages with known module-level danger

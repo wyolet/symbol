@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from ca.symbol.checkers.orphans import OrphanFile, detect as detect_orphans_checker
-from ca.symbol.shared.context import build_context
+from wyolet.symbol.checkers.orphans import OrphanFile, detect as detect_orphans_checker
+from wyolet.symbol.shared.context import build_context
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:

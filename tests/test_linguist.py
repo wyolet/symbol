@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca.symbol.shared.linguist import Blob, Linguist
-from ca.symbol.shared.linguist.language import Language, UnknownLanguage
+from wyolet.symbol.shared.linguist import Blob, Linguist
+from wyolet.symbol.shared.linguist.language import Language, UnknownLanguage
 
 # ---------------------------------------------------------------------------
 # Language loading
@@ -281,7 +281,7 @@ class TestLinguistDetectDirectory:
         assert "Python" in names
 
     def test_skips_venv_directory(self, tmp_path: Path):
-        from ca.symbol.shared.spec import load_spec
+        from wyolet.symbol.shared.spec import load_spec
         venv_dir = tmp_path / "venv" / "lib"
         venv_dir.mkdir(parents=True)
         (venv_dir / "pkg.py").write_text("x = 1\n")

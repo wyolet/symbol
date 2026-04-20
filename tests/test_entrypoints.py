@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-import ca.symbol.checkers  # noqa: F401
-from ca.symbol.checkers.entrypoints import detect
-from ca.symbol.shared.context import build_context
+import wyolet.symbol.checkers  # noqa: F401
+from wyolet.symbol.checkers.entrypoints import detect
+from wyolet.symbol.shared.context import build_context
 
 
 def _run(tmp_path: Path, **kwargs):

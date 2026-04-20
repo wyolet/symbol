@@ -1,12 +1,12 @@
-"""Tests for `ca insert-symbol`."""
+"""Tests for `symbol insert-symbol`."""
 
 from pathlib import Path
 
 import pytest
 
-from ca.symbol.caches import NullReadCache
-from ca.symbol.shared.symbol_index import SymbolIndex, get_or_build_index
-from ca.symbol.writes.insert_symbol import (
+from wyolet.symbol.caches import NullReadCache
+from wyolet.symbol.shared.symbol_index import SymbolIndex, get_or_build_index
+from wyolet.symbol.writes.insert_symbol import (
     InsertSymbolRequest,
     InsertSymbolResult,
     apply_insert_symbol,

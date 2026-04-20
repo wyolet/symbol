@@ -2,7 +2,7 @@
 
 ## Adding a new package spec
 
-Each package gets its own `src/ca/symbol/data/specs/NAME/spec.toml`. Adding a spec requires no Python changes — the spec file is the entire contribution.
+Each package gets its own `src/wyolet/symbol/data/specs/NAME/spec.toml`. Adding a spec requires no Python changes — the spec file is the entire contribution.
 
 ### Acceptance threshold
 
@@ -39,7 +39,7 @@ uv run scripts/check_pkg_thresholds.py --pkg YOUR_PACKAGE_NAME --strict
 
 ### Spec file format
 
-Create `src/ca/symbol/data/specs/NAME/spec.toml`:
+Create `src/wyolet/symbol/data/specs/NAME/spec.toml`:
 
 ```toml
 name = "package-name"       # must match the PyPI package name
@@ -66,7 +66,7 @@ safe_calls = ["setup"]              # call names that are expected at module lev
 debug = ["apps.py", "signals.py"]   # files where module-level side effects are expected (lower severity)
 ```
 
-Then add the package name to `[specs] include` in `src/ca/symbol/data/spec.toml`.
+Then add the package name to `[specs] include` in `src/wyolet/symbol/data/spec.toml`.
 
 ### Running tests
 
@@ -85,8 +85,8 @@ In the project's `pyproject.toml`:
 ```toml
 [tool.symbol]
 extra_specs = [
-    ".ca/specs/my-internal-sdk.toml",
-    ".ca/specs/company-auth.toml",
+    ".symbol/specs/my-internal-sdk.toml",
+    ".symbol/specs/company-auth.toml",
 ]
 ```
 
@@ -94,6 +94,6 @@ Each file follows the same format as built-in specs. Extra specs are loaded afte
 
 ## Other contributions
 
-- **Checker improvements** — see `src/ca/symbol/checkers/`
-- **CLI commands** — see `src/ca/symbol/commands/`
+- **Checker improvements** — see `src/wyolet/symbol/checkers/`
+- **CLI commands** — see `src/wyolet/symbol/commands/`
 - **Bug reports** — open an issue at https://github.com/anthropics/ca-tools/issues

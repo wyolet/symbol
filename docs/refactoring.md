@@ -4,7 +4,7 @@ AST-aware commands that mutate code across one or more files: `rename-symbol`, `
 
 **What we deliberately don't ship:** `extract`, `inline`, `signature`, and similar IDE-style refactors. These compose from `symbol patch` calls driven by the agent — the hard part of each is generating the new code text, which the agent does better than any scope-analysis machinery we'd build. Keeping the surface small means fewer commands to learn and fewer ways to misuse them. The universal `patch` is the escape hatch.
 
-Status: shipped for `rename-symbol`, `replace-symbol`, `delete-symbol`, `insert-symbol`. Multi-file transaction layer in `src/ca/symbol/writes/transaction.py`. `move-symbol` remains unshipped (see bottom of doc).
+Status: shipped for `rename-symbol`, `replace-symbol`, `delete-symbol`, `insert-symbol`. Multi-file transaction layer in `src/wyolet/symbol/writes/transaction.py`. `move-symbol` remains unshipped (see bottom of doc).
 
 ## Architectural placement
 
@@ -62,7 +62,7 @@ Multi-file ops require a git repository. Rationale: the only bulletproof undo fo
 - Success message includes the one-line undo: `Undo: git reset --hard HEAD~1`.
 - Non-git projects: refuse multi-file ops unless `--force-no-vcs`. Single-file `patch` is unaffected — atomic per-file rename is sufficient.
 
-**Checkpoint commits** are visible in history. Acceptable tradeoff: user can `git rebase -i` to squash them into real commits, or run `ca clean-checkpoints` (future helper). Bulletproof safety > clean history when an agent is driving.
+**Checkpoint commits** are visible in history. Acceptable tradeoff: user can `git rebase -i` to squash them into real commits, or run `symbol clean-checkpoints` (future helper). Bulletproof safety > clean history when an agent is driving.
 
 ### Intra-transaction ordering
 
@@ -194,7 +194,7 @@ Text is the default for agent-facing responses — ~2-3x token savings vs JSON o
 
 ---
 
-## `ca move-symbol`
+## `symbol move-symbol`
 
 Relocate a symbol from one file to another. v1 does not rewrite imports — it reports what will need to be fixed and lets the agent drive the cleanup.
 
@@ -307,7 +307,7 @@ Bare facts, no analysis hints. Analysis lives in text-agent mode.
 ### Out of scope for v1
 
 - `--after <anchor>` placement inside destination.
-- Multi-symbol move (`ca move A,B,C --to ...`).
+- Multi-symbol move (`symbol move A,B,C --to ...`).
 - Source file deletion when it becomes empty.
 - Relative → absolute import conversion.
 - Circular-import detection.
@@ -450,6 +450,6 @@ All four positions resolve to a single `(file, byte_offset)` pair. The command's
 ## Open questions (shared across refactoring commands)
 
 - **Format preservation.** Run Black/Ruff on touched ranges automatically, or leave to user's hooks? Leaning: leave alone.
-- **Checkpoint commit hygiene.** Do we squash checkpoint commits into the user's eventual commit, or leave them? Leaning: leave them, ship `ca clean-checkpoints` as a helper.
+- **Checkpoint commit hygiene.** Do we squash checkpoint commits into the user's eventual commit, or leave them? Leaning: leave them, ship `symbol clean-checkpoints` as a helper.
 - **Tier-2 scope resolution.** When do we invest? Answer: when survey-corpus false-positive rate on real rename tasks crosses a threshold we haven't yet measured.
 - **Multi-language writes.** Python first via `ast`. Tree-sitter for TS/Go/PHP later — writes are harder to get right cross-language than reads. Tier-1 textual rename works on any language now. IDE-style refactors (extract/inline/signature) are deliberately out of scope — composed from `patch` by the agent.

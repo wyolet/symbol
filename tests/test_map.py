@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca.symbol.shared.graph import analyze_map
-from ca.symbol.shared.project_config import MapThresholds, MetricThreshold
+from wyolet.symbol.shared.graph import analyze_map
+from wyolet.symbol.shared.project_config import MapThresholds, MetricThreshold
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:

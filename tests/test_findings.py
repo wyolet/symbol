@@ -1,6 +1,6 @@
 """Tests for the findings/report model."""
 
-from ca.symbol.shared.findings import Report, Severity
+from wyolet.symbol.shared.findings import Report, Severity
 
 
 def test_empty_report():

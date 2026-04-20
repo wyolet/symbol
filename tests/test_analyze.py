@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca.symbol.shared.analyzer import analyze_all, analyze_file
+from wyolet.symbol.shared.analyzer import analyze_all, analyze_file
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:

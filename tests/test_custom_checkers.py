@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-import ca.symbol.checkers  # noqa: F401 — ensure built-ins are registered first
-from ca.symbol.shared.registry import _registry, clear, load_custom_checkers
+import wyolet.symbol.checkers  # noqa: F401 — ensure built-ins are registered first
+from wyolet.symbol.shared.registry import _registry, clear, load_custom_checkers
 
 
 @pytest.fixture(autouse=True)
@@ -20,7 +20,7 @@ def _restore_registry():
 def test_load_custom_checker_registers_it(tmp_path: Path):
     checker_file = tmp_path / "my_checker.py"
     checker_file.write_text("""
-from ca.symbol.shared.registry import register, views
+from wyolet.symbol.shared.registry import register, views
 
 @register(name="my_custom", description="test checker", kind="project", contributes_to_report=False, priority=999)
 def detect(ctx):
@@ -54,6 +54,6 @@ def test_project_config_reads_custom_checkers(tmp_path: Path):
 [tool.symbol]
 custom_checkers = ["checkers/my_checker.py"]
 """)
-    from ca.symbol.shared.project_config import load_project_config
+    from wyolet.symbol.shared.project_config import load_project_config
     config = load_project_config(tmp_path)
     assert config.custom_checkers == ["checkers/my_checker.py"]

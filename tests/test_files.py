@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca.symbol.shared.files import collect_py_files
-from ca.symbol.shared.spec import load_spec
+from wyolet.symbol.shared.files import collect_py_files
+from wyolet.symbol.shared.spec import load_spec
 
 SPEC = load_spec()
 

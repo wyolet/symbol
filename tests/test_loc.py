@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ca.symbol.shared.loc_counter import _count_file, _detect_language, count_loc
+from wyolet.symbol.shared.loc_counter import _count_file, _detect_language, count_loc
 
 
 def test_detect_language_by_ext(tmp_path: Path):
@@ -65,7 +65,7 @@ def test_skips_venv(tmp_path: Path):
 
 
 def test_lang_stats_code_pct():
-    from ca.symbol.shared.loc_counter import LangStats
+    from wyolet.symbol.shared.loc_counter import LangStats
 
     ls = LangStats(language="Python", files=1, lines=100, code=80, blanks=10, comments=10)
     assert ls.code_pct == 80.0

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ca.symbol.shared.import_graph import build_import_graph
-from ca.symbol.shared.simulator import simulate_imports
+from wyolet.symbol.shared.import_graph import build_import_graph
+from wyolet.symbol.shared.simulator import simulate_imports
 
 
 def _make_project(tmp_path: Path, files: dict[str, str]) -> Path:

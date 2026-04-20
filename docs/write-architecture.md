@@ -2,7 +2,7 @@
 
 The write surface is built protocol-first: define interfaces, implement concretely for Python/tier-1, swap in new languages and resolution tiers without touching the pipeline or commands.
 
-Status: shipped. `symbol patch`, `symbol delete-symbol`, `symbol insert-symbol`, `symbol rename-symbol`, `symbol replace-symbol` all live. Protocols in `src/ca/symbol/protocols/`, adapter in `src/ca/symbol/adapters/python_ast.py`, engines in `src/ca/symbol/writes/`, caches in `src/ca/symbol/caches/`. `ca move-symbol` remains unshipped (see refactoring.md).
+Status: shipped. `symbol patch`, `symbol delete-symbol`, `symbol insert-symbol`, `symbol rename-symbol`, `symbol replace-symbol` all live. Protocols in `src/wyolet/symbol/protocols/`, adapter in `src/wyolet/symbol/adapters/python_ast.py`, engines in `src/wyolet/symbol/writes/`, caches in `src/wyolet/symbol/caches/`. `symbol move-symbol` remains unshipped (see refactoring.md).
 
 ## Design principle
 
@@ -220,7 +220,7 @@ ca rename services.user.UserService NewUserService          # ✓
 ca rename services.user.UserService models.user.NewUser     # ✗ error
 ```
 
-Validation rejects dotted names with a pointer to `ca move`. This prevents agents from using rename when they meant move.
+Validation rejects dotted names with a pointer to `symbol move`. This prevents agents from using rename when they meant move.
 
 ### Rename and move in v1
 
@@ -233,7 +233,7 @@ When move gets `--update-imports` in a later version, rename becomes a degenerat
 
 ### CLI-first, MCP as thin wrapper
 
-The CLI is the source of truth. `symbol patch`, `ca rename`, etc. work from any shell. The MCP server is a thin wrapper that calls the same resolvers — same code path, different transport.
+The CLI is the source of truth. `symbol patch`, `symbol rename`, etc. work from any shell. The MCP server is a thin wrapper that calls the same resolvers — same code path, different transport.
 
 Consequences:
 - Write work doesn't block on MCP server implementation.
@@ -248,7 +248,7 @@ Both work. The agent chooses per call based on what's cheapest:
 |---|---|---|
 | `symbol search`, `symbol code`, `symbol outline`, `symbol callers` | MCP | Small input, large structured response — JSON overhead is negligible, structured response is valuable |
 | `symbol patch`, `symbol insert-symbol` | Bash heredoc (when available) | Content is the main payload; heredoc avoids JSON escaping of code |
-| `symbol rename-symbol`, `ca move-symbol`, `symbol delete-symbol` | Either | No content payload; args are small |
+| `symbol rename-symbol`, `symbol move-symbol`, `symbol delete-symbol` | Either | No content payload; args are small |
 | `symbol replace-symbol` | Bash heredoc (when available) | Content is the full symbol definition — heredoc avoids JSON escaping |
 
 Heredoc example:
@@ -412,7 +412,7 @@ Multi-file operations (`rename-symbol`, `replace-symbol` when name changes, `mov
   "reason": "range bytes changed since served (served hash a3f9, current hash 8b22)",
   "current_content": "def save(self):\n    # file changed on disk\n    ...",
   "proposed_content": "def save(self):\n    self.db.write(self.user)\n    return True",
-  "staged_at": ".ca/staging/patch-20260416-a3f9.py",
+  "staged_at": ".symbol/staging/patch-20260416-a3f9.py",
   "suggested_actions": [
     "re-read the range and send updated patch",
     "apply --force if you accept overwriting the current content",
@@ -511,11 +511,11 @@ esac
 
 Neither case corrupts data. Agents that want guaranteed-idempotent behavior can check the response's `before.hash` and skip if it matches the content they'd patch to.
 
-`symbol rename-symbol`, `symbol replace-symbol`, `ca move-symbol`, `symbol delete-symbol` — not idempotent. Applying them twice produces a `symbol_not_found` error on the second call because the old name/location no longer exists.
+`symbol rename-symbol`, `symbol replace-symbol`, `symbol move-symbol`, `symbol delete-symbol` — not idempotent. Applying them twice produces a `symbol_not_found` error on the second call because the old name/location no longer exists.
 
 ### Concurrency
 
-**v1 policy: one write op per project at a time.** Enforced by a repo-level file lock at `.ca/write.lock`. Second concurrent call blocks until the first finishes (short timeout, then fails with `resource_busy`).
+**v1 policy: one write op per project at a time.** Enforced by a repo-level file lock at `.symbol/write.lock`. Second concurrent call blocks until the first finishes (short timeout, then fails with `resource_busy`).
 
 Reads are unaffected — always allowed, never blocked.
 
@@ -747,7 +747,7 @@ During migration, `PythonAstAdapter` and direct `ast` usage coexist. The adapter
 
 ## Out of scope (future work)
 
-- **`ca move-symbol`** — relocate a symbol across files. See `refactoring.md` for the design.
+- **`symbol move-symbol`** — relocate a symbol across files. See `refactoring.md` for the design.
 - **Tier-2 semantic resolution** — `PyrightAdapter` / `JediAdapter` implementing `SemanticLanguageAdapter` for correct local-scope rename and cross-file reference resolution. v1 ships tier-1 textual via `PythonAstAdapter` which supports module-level binding.
 - **Tree-sitter adapters** for non-Python languages (TypeScript, Go, etc.). Protocol ready, adapter implementations not written.
 - **MCP server** — wrap the CLI surface for agent consumption via the native MCP transport.

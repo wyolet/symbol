@@ -9,9 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
-# Survey: cloned repos and audit output
-survey/
-.ca/
+# Symbol index + caches
+.symbol/
 
 # IDE
 .idea/
