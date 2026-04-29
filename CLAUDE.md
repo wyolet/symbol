@@ -12,7 +12,8 @@ Repo lives at [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol) und
 - **`symbol analyze` / `symbol dump`** — Per-file AST analysis
 - **`symbol init`** — Generate recommended `[tool.symbol]` config
 - **`symbol update-linguist`** — Pull latest language definitions from GitHub
-- **`symbol mcp [--root PATH]`** — Run the MCP server (stdio) exposing 10 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, MultiPatch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol
+- **`symbol mcp [--root PATH]`** — Run the MCP server (stdio) exposing 11 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, MultiPatch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol, Undo
+- **`symbol undo`** — Revert the most recent RenameSymbol/ReplaceSymbol transaction (uses `.symbol/transactions/` log; no git involvement)
 
 ## MCP
 

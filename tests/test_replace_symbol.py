@@ -205,8 +205,8 @@ def test_dry_run_does_not_write(project):
 # ---------------------------------------------------------- atomicity
 
 
-def test_body_and_refs_land_in_one_git_commit(project):
-    """Rewrite + rename should produce a single checkpoint commit."""
+def test_replace_does_not_create_git_commits(project):
+    """Replace is transactional via pre-image rollback — no git commits."""
     idx = _index(project)
     content = "def fetch_meaning():\n    return 42\n"
     req = resolve_replace_symbol(idx, "services.helper", content, project)
@@ -215,7 +215,8 @@ def test_body_and_refs_land_in_one_git_commit(project):
         ["git", "rev-parse", "HEAD"], cwd=project, capture_output=True, text=True
     ).stdout.strip()
 
-    apply_replace_symbol(req, project_root=project)
+    result = apply_replace_symbol(req, project_root=project)
+    assert result.status == "applied"
 
     log = subprocess.run(
         ["git", "log", "--oneline", f"{before_sha}..HEAD"],
@@ -223,5 +224,7 @@ def test_body_and_refs_land_in_one_git_commit(project):
         capture_output=True,
         text=True,
     ).stdout.strip().splitlines()
-    assert len(log) == 1
-    assert "replace-symbol" in log[0]
+    assert log == []  # no commits created
+    # Transaction is persisted instead.
+    tx_dirs = list((project / ".symbol" / "transactions").iterdir())
+    assert any("replace-symbol" in p.name for p in tx_dirs)

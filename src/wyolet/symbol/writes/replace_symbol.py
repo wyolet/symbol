@@ -274,8 +274,6 @@ def apply_replace_symbol(
     *,
     project_root: Path,
     dry_run: bool = False,
-    allow_dirty: bool = False,
-    force_no_vcs: bool = False,
 ) -> ReplaceSymbolResult:
     subject = (
         f"{request.qualified_path} (rewrite)"
@@ -287,8 +285,6 @@ def apply_replace_symbol(
         project_root=project_root,
         op_name="replace-symbol",
         subject=subject,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
         dry_run=dry_run,
     )
 

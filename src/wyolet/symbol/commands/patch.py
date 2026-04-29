@@ -111,7 +111,9 @@ def _render_needs_confirmation_agent(pre: PatchPreflight) -> None:
     print(current, end="" if current.endswith("\n") else "\n")
     print("--- END ---")
     print()
-    print("Next: read the range, then retry with --force if the patch is still correct.")
+    print("Next: inspect the bytes above, then retry the same Patch call. The displayed")
+    print("range has been recorded as seen — no separate Read needed. If the patch is")
+    print("now wrong (different bytes than expected), revise content before retrying.")
 
 
 def _render_needs_confirmation_rich(pre: PatchPreflight) -> None:

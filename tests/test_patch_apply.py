@@ -243,6 +243,30 @@ def test_apply_permission_denied_returns_error(project):
 # ---------------------------------------------------------- zero-width insert
 
 
+def test_apply_preserves_trailing_newline_when_content_lacks_one(project):
+    """Whole-line replacement must not concatenate with the next line.
+
+    If content lacks `\\n` and the consumed range ended with one, the
+    splice is normalized to keep the line break intact.
+    """
+    req = _request(project, "2-2", content="replaced")  # no trailing \n
+    cache = _cache_covering(req)
+    apply_patch(req, cache=cache)
+    assert (project / "src" / "foo.py").read_text() == (
+        "line one\nreplaced\nline three\nline four\n"
+    )
+
+
+def test_apply_multi_line_replacement_without_trailing_newline(project):
+    """Multi-line range, content without `\\n`: still preserves boundary."""
+    req = _request(project, "2-3", content="A\nB")
+    cache = _cache_covering(req)
+    apply_patch(req, cache=cache)
+    assert (project / "src" / "foo.py").read_text() == (
+        "line one\nA\nB\nline four\n"
+    )
+
+
 def test_apply_zero_width_insert_pattern_via_replace(project):
     """Inserting is 'replace empty range with content' — smallest range is 1 line."""
     req = _request(project, "1-1", content="prepended\nline one\n")
