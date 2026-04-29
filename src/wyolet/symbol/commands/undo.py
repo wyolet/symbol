@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from wyolet.symbol.shared.symbol_index import SymbolIndex
 from wyolet.symbol.writes.undo import UndoResult, undo_last
 
 
@@ -20,6 +21,12 @@ def undo_cmd(
 ) -> None:
     project = Path(project_root).resolve()
     result = undo_last(project)
+    if result.status == "undone" and result.files_restored:
+        # Refresh on-disk index so subsequent CLI calls see restored state.
+        index = SymbolIndex.load(project)
+        if index is not None:
+            index.refresh(stale=set(result.files_restored))
+            index.save()
     _render(result, format=format, agent=agent)
     if result.status == "error":
         sys.exit(1)

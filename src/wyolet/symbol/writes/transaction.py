@@ -25,6 +25,7 @@ from typing import Literal
 
 _TX_DIR = ".symbol/transactions"
 _MANIFEST = "manifest.json"
+_TX_KEEP = 50  # cap on persisted transaction history
 
 
 @dataclass(frozen=True)
@@ -182,7 +183,28 @@ def _persist_transaction(
     except OSError:
         return None
 
+    _prune_transactions(tx_root, keep=_TX_KEEP)
     return tx_id
+
+
+def _prune_transactions(tx_root: Path, *, keep: int) -> None:
+    """Drop the oldest transaction dirs beyond `keep`. Active + .undone both count."""
+    try:
+        entries = sorted(
+            (p for p in tx_root.iterdir() if p.is_dir()),
+            key=lambda p: p.name,
+        )
+    except OSError:
+        return
+    excess = len(entries) - keep
+    if excess <= 0:
+        return
+    import shutil
+    for old in entries[:excess]:
+        try:
+            shutil.rmtree(old)
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------- atomic write

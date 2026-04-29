@@ -125,11 +125,16 @@ caller rewrite). For structural adds, prefer InsertSymbol.
 
 Parameters: file is a path to the target. range is a line range \
 "A-B" (inclusive, 1-indexed). content is the replacement bytes — empty \
-string deletes the range. force=true skips the read-confirmation check \
-(prefer not to use). dry_run=true returns the diff without writing.
+string deletes the range. Whole-line replacements automatically \
+preserve the trailing newline if content omits it (so "foo" replacing \
+line 5 doesn't glue line 5 onto line 6). force=true skips the \
+read-confirmation check (prefer not to use). dry_run=true returns the \
+diff without writing.
 
 Returns error_code="needs_read_confirmation" if the target range \
-hasn't been seen this session. Other codes: "binary_file", \
+hasn't been seen this session — but the displayed bytes are recorded \
+as seen, so simply retrying the same Patch call (no extra Read needed) \
+will pass on the second attempt. Other codes: "binary_file", \
 "range_out_of_bounds", "file_not_found", "conflict" (file changed \
 between preflight and write), "permission_denied". Patch does NOT \
 validate that the result parses — use ReplaceSymbol when you need that \

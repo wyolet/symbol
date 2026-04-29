@@ -361,6 +361,25 @@ def replace_symbol(
 
 
 @app.command()
+def refresh(
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    full: Annotated[bool, typer.Option("--full", help="Force full rebuild instead of incremental refresh")] = False,
+    keep_transactions: Annotated[bool, typer.Option("--keep-transactions", help="Don't clear .symbol/transactions/")] = False,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Reindex changed files and clear transaction history."""
+    from wyolet.symbol.commands.refresh import refresh_cmd
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    refresh_cmd(
+        project_root=path, full=full, keep_transactions=keep_transactions,
+        agent=agent, format=format,
+    )
+
+
+@app.command()
 def undo(
     path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
     agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,

@@ -218,17 +218,25 @@ def _file_part_of_target(target: str) -> str | None:
 
     SymbolBody and SymbolOutline accept either a qualified symbol path
     ("wyolet.symbol.cli.main") or a file address ("src/foo.py" or
-    "src/foo.py:10-20"). On-the-fly indexing only kicks in for the file
-    forms — qualified paths must already resolve through the index.
+    "src/foo.py:10-20"). On-the-fly indexing only kicks in for file forms
+    — qualified paths must already resolve through the index.
+
+    Path-shaped means: contains a slash, OR exists on disk (so a bare
+    "foo.py" in cwd works). A dotted name like "pkg.module.fn" has no
+    slash and (almost certainly) doesn't exist as a file, so it's left
+    to the qualified-path resolver.
     """
     head, sep, tail = target.partition(":")
     base = head if (sep and "-" in tail and tail.replace("-", "").isdigit()) else target
-    if "/" in base or "\\" in base or "." in base.rsplit("/", 1)[-1]:
-        # "." in last segment catches "foo.py" without slashes too. Qualified
-        # paths like "pkg.mod.fn" still match — caller falls through to index
-        # lookup; ensure_indexed will report not_found if the file doesn't
-        # exist on disk, which is the right answer for a typo.
-        if Path(base).suffix or "/" in base or "\\" in base:
+    if "/" in base or "\\" in base:
+        return base
+    # Bare filename in cwd (no separator): only treat as a path if the file
+    # actually exists on disk. Avoids treating qualified paths like
+    # "wyolet.symbol.cli" as files just because Path.suffix returns ".cli".
+    root = _State.project_root
+    if root is not None:
+        p = (root / base).resolve()
+        if p.is_file():
             return base
     return None
 
@@ -635,6 +643,41 @@ def rename_symbol(
             touched = {result.declaring_file}
         _State.invalidate_file(touched)
     return _capture_text(_render_rename_agent, result)
+
+
+@mcp.tool(
+    name="Refresh",
+    description=(
+        "Reindex the project (incremental: only changed files are re-parsed) "
+        "and clear .symbol/transactions/. Use as an escape hatch when state "
+        "feels stale or when you've made out-of-band changes (e.g. via plain "
+        "Edit/Write or git operations). full=true forces a full rebuild from "
+        "scratch. keep_transactions=true preserves the undo log."
+    ),
+)
+def refresh(full: bool = False, keep_transactions: bool = False) -> dict:
+    root = _State.require_root()
+    if full:
+        idx_path = root / ".symbol" / "symbol_index.msgpack.zst"
+        if idx_path.exists():
+            idx_path.unlink()
+        _State._index = None
+        _State._index_mtime = None
+
+    index = _State.require_index()  # triggers rebuild via get_or_build_index
+
+    cleared = 0
+    if not keep_transactions:
+        from wyolet.symbol.commands.refresh import _clear_transactions
+        cleared = _clear_transactions(root)
+
+    return {
+        "ok": True,
+        "status": "ok",
+        "symbols": len(index.symbols),
+        "files": len(index.files),
+        "transactions_cleared": cleared,
+    }
 
 
 @mcp.tool(
