@@ -243,6 +243,23 @@ def test_apply_permission_denied_returns_error(project):
 # ---------------------------------------------------------- zero-width insert
 
 
+def test_apply_minimal_repro_a_b_c_replace_b(tmp_path):
+    """Direct repro: file 'a\\nb\\nc\\n', range 2-2, content 'B' → 'a\\nB\\nc\\n'.
+
+    Previously produced 'a\\nBc\\n' — line 2 and line 3 fused. Fixed by
+    _normalize_trailing_newline preserving the line terminator.
+    """
+    foo = tmp_path / "foo.txt"
+    foo.write_bytes(b"a\nb\nc\n")
+    req = validate_args(
+        file=str(foo), raw_range="2-2", content="B", project_root=tmp_path,
+    )
+    assert isinstance(req, PatchRequest)
+    cache = _cache_covering(req)
+    apply_patch(req, cache=cache)
+    assert foo.read_bytes() == b"a\nB\nc\n"
+
+
 def test_apply_preserves_trailing_newline_when_content_lacks_one(project):
     """Whole-line replacement must not concatenate with the next line.
 
