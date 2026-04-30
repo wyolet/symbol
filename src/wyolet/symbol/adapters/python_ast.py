@@ -182,7 +182,7 @@ class PythonAstAdapter(LanguageAdapter):
                 continue
             name = child.name  # type: ignore[attr-defined]
             qpath = f"{path_prefix}.{name}" if path_prefix else name
-            start_line = child.lineno  # type: ignore[attr-defined]
+            start_line = _decorated_start_line(child)
             end_line = getattr(child, "end_lineno", start_line) or start_line
             start_byte = _line_col_to_byte(start_line, 0, line_offsets)
             end_byte = _line_col_to_byte(
@@ -292,7 +292,7 @@ class PythonAstAdapter(LanguageAdapter):
         name = node.name  # type: ignore[attr-defined]
         qpath = f"{path_prefix}.{name}" if path_prefix else name
 
-        start_line = node.lineno  # type: ignore[attr-defined]
+        start_line = _decorated_start_line(node)
         end_line = getattr(node, "end_lineno", start_line) or start_line
         # Start at col 0 so leading indentation is part of the symbol's byte range.
         start_byte = _line_col_to_byte(start_line, 0, line_offsets)
@@ -346,6 +346,21 @@ class PythonAstAdapter(LanguageAdapter):
 
 
 # ---------------------------------------------------------- helpers
+
+
+def _decorated_start_line(node: ast.AST) -> int:
+    """Earliest line of a def/class — the first decorator if any, else `def`/`class`.
+
+    Python's AST sets `node.lineno` to the `def`/`class` line itself, but
+    for write operations we want the byte range to include any decorators
+    so a ReplaceSymbol(content="@dec\\nclass Foo:") splices the new
+    decorator over the old one instead of stacking them.
+    """
+    decorators = getattr(node, "decorator_list", None) or ()
+    base = node.lineno  # type: ignore[attr-defined]
+    if not decorators:
+        return base
+    return min(getattr(d, "lineno", base) for d in decorators)
 
 
 def _line_offsets(source: bytes) -> list[int]:

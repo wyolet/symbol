@@ -93,6 +93,16 @@ def resolve_insert_symbol(
 
     row = rows[0]
     file_rel = index.file_of(row)
+    if index.ensure_fresh(file_rel):
+        rows = list(index.by_path.get(anchor_path, []))
+        if not rows:
+            return InsertSymbolResult(
+                status="error",
+                error_code="symbol_not_found",
+                message=f"anchor {anchor_path!r} no longer exists after refresh",
+            )
+        row = rows[0]
+        file_rel = index.file_of(row)
     file_abs = project_root / file_rel
     start_line, end_line = index.range_of(row)
     start_byte, end_byte = index.symbols[row][S_SBYTE], index.symbols[row][S_EBYTE]

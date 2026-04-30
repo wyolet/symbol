@@ -202,6 +202,83 @@ def test_dry_run_does_not_write(project):
     assert (project / "services.py").read_text() == before
 
 
+# ---------------------------------------------------------- decorator handling
+
+
+def test_replace_decorated_class_with_decorator_in_content(tmp_path):
+    """Bug 2: previously stacked the new decorator on top of the old one.
+
+    Symbol byte range now starts at the first decorator, so passing content
+    that includes the decorator splices it cleanly.
+    """
+    (tmp_path / "m.py").write_text(
+        "from dataclasses import dataclass\n\n"
+        "@dataclass(frozen=True, slots=True)\n"
+        "class MarkerMatch:\n"
+        "    x: int\n"
+    )
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "i"],
+        cwd=tmp_path, capture_output=True, check=True,
+    )
+
+    idx = _index(tmp_path)
+    new = (
+        "@dataclass(frozen=True, slots=True)\n"
+        "class MarkerMatch:\n"
+        "    x: int\n"
+        "    y: int\n"
+    )
+    req = resolve_replace_symbol(idx, "m.MarkerMatch", new, tmp_path)
+    assert isinstance(req, ReplaceSymbolRequest)
+    apply_replace_symbol(req, project_root=tmp_path)
+
+    out = (tmp_path / "m.py").read_text()
+    assert out.count("@dataclass") == 1, f"decorator stacked:\n{out}"
+
+
+# ---------------------------------------------------------- stale-index guard
+
+
+def test_replace_refreshes_index_when_file_edited_out_of_band(tmp_path):
+    """Bug 1: ReplaceSymbol must re-resolve byte ranges when file changed."""
+    (tmp_path / "m.py").write_text(
+        "X = 1\n"
+        "def preclassify(n):\n"
+        "    return n\n"
+    )
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "i"],
+        cwd=tmp_path, capture_output=True, check=True,
+    )
+
+    idx = _index(tmp_path)
+    # Out-of-band edit shifts byte offsets.
+    import time as _t
+    _t.sleep(0.01)
+    (tmp_path / "m.py").write_text(
+        "X = 1\n"
+        "Y = 2  # extra line shifts byte ranges\n"
+        "def preclassify(n):\n"
+        "    return n\n"
+    )
+
+    new = "def preclassify(n: int) -> int:\n    return n\n"
+    req = resolve_replace_symbol(idx, "m.preclassify", new, tmp_path)
+    assert isinstance(req, ReplaceSymbolRequest), req
+    apply_replace_symbol(req, project_root=tmp_path)
+
+    out = (tmp_path / "m.py").read_text()
+    # Result must parse cleanly — pre-fix produced corrupt fragments.
+    compile(out, "<test>", "exec")
+    assert out.count("def preclassify") == 1
+    assert "def preclassify(n: int) -> int:" in out
+
+
 # ---------------------------------------------------------- atomicity
 
 
