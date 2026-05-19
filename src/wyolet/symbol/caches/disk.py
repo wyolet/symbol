@@ -1,8 +1,8 @@
 """On-disk read cache for CLI sessions.
 
 Persists across process invocations so multi-step agent sessions keep their
-cache even though each `ca` call is a fresh process. Keyed on a session id
-passed via the CA_SESSION_ID env var.
+cache even though each `symbol` call is a fresh process. Keyed on a session id
+passed via the SYMBOL_SESSION_ID env var.
 
 Storage is a single JSON file per session. The cache is small (hundreds of
 entries at most), so we rewrite the whole file on every record — simpler
@@ -21,7 +21,7 @@ _CACHE_DIR = Path(".symbol") / "cache" / "sessions"
 
 
 class DiskReadCache:
-    """JSON-file-backed cache, keyed by CA_SESSION_ID."""
+    """JSON-file-backed cache, keyed by SYMBOL_SESSION_ID."""
 
     def __init__(self, session_id: str, project_root: Path | None = None) -> None:
         self.session_id = session_id

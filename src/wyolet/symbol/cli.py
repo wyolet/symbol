@@ -104,7 +104,7 @@ def analyze(
 @app.command()
 def dump(
     path: Annotated[str, typer.Argument(help="Path to the project directory")],
-    output: Annotated[str, typer.Option("-o", "--output", help="Output JSON file path")] = "ca-analysis.json",
+    output: Annotated[str, typer.Option("-o", "--output", help="Output JSON file path")] = "symbol-analysis.json",
 ) -> None:
     """Dump per-file analysis of all Python files to JSON."""
     analyze_dump(path, output)
@@ -245,7 +245,7 @@ def patch(
 ) -> None:
     """Byte-range edit primitive. Replace, delete (empty content), or insert (zero-width range)."""
     import os as _os
-    if _os.environ.get("CA_AGENT"):
+    if _os.environ.get("SYMBOL_AGENT"):
         agent = True
     patch_cmd(
         file=file,
@@ -272,7 +272,7 @@ def delete_symbol(
 ) -> None:
     """Remove a named symbol from its file. Refuses if callers exist (use --force)."""
     import os as _os
-    if _os.environ.get("CA_AGENT"):
+    if _os.environ.get("SYMBOL_AGENT"):
         agent = True
     delete_symbol_cmd(
         qualified_path=qualified_path,
@@ -299,7 +299,7 @@ def insert_symbol(
 ) -> None:
     """Insert code at a position anchored to a symbol (before/after/start/end)."""
     import os as _os
-    if _os.environ.get("CA_AGENT"):
+    if _os.environ.get("SYMBOL_AGENT"):
         agent = True
     insert_symbol_cmd(
         anchor=anchor,
@@ -325,7 +325,7 @@ def rename_symbol(
 ) -> None:
     """Rename a symbol (tier-1 textual) and update references across the project."""
     import os as _os
-    if _os.environ.get("CA_AGENT"):
+    if _os.environ.get("SYMBOL_AGENT"):
         agent = True
     rename_symbol_cmd(
         qualified_path=qualified_path,
@@ -348,7 +348,7 @@ def replace_symbol(
 ) -> None:
     """Replace a symbol's full definition. If content declares a new name, callers are updated too."""
     import os as _os
-    if _os.environ.get("CA_AGENT"):
+    if _os.environ.get("SYMBOL_AGENT"):
         agent = True
     replace_symbol_cmd(
         qualified_path=qualified_path,
@@ -371,7 +371,7 @@ def refresh(
     """Reindex changed files and clear transaction history."""
     from wyolet.symbol.commands.refresh import refresh_cmd
     import os as _os
-    if _os.environ.get("CA_AGENT"):
+    if _os.environ.get("SYMBOL_AGENT"):
         agent = True
     refresh_cmd(
         project_root=path, full=full, keep_transactions=keep_transactions,
@@ -388,7 +388,7 @@ def undo(
     """Revert the most recent rename-symbol / replace-symbol transaction."""
     from wyolet.symbol.commands.undo import undo_cmd
     import os as _os
-    if _os.environ.get("CA_AGENT"):
+    if _os.environ.get("SYMBOL_AGENT"):
         agent = True
     undo_cmd(project_root=path, agent=agent, format=format)
 

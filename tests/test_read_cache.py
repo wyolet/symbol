@@ -194,8 +194,8 @@ def test_disk_clear_removes_file(tmp_path):
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    monkeypatch.delenv("CA_MCP_SESSION", raising=False)
-    monkeypatch.delenv("CA_SESSION_ID", raising=False)
+    monkeypatch.delenv("SYMBOL_MCP_SESSION", raising=False)
+    monkeypatch.delenv("SYMBOL_SESSION_ID", raising=False)
 
 
 def test_build_read_cache_null_when_no_env():
@@ -204,17 +204,17 @@ def test_build_read_cache_null_when_no_env():
 
 def test_build_read_cache_disk_when_session_id(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("CA_SESSION_ID", "shell-123")
+    monkeypatch.setenv("SYMBOL_SESSION_ID", "shell-123")
     assert isinstance(build_read_cache(), DiskReadCache)
 
 
 def test_build_read_cache_in_memory_when_mcp(monkeypatch):
-    monkeypatch.setenv("CA_MCP_SESSION", "1")
+    monkeypatch.setenv("SYMBOL_MCP_SESSION", "1")
     assert isinstance(build_read_cache(), InMemoryReadCache)
 
 
 def test_build_read_cache_mcp_wins_over_session_id(monkeypatch):
-    monkeypatch.setenv("CA_MCP_SESSION", "1")
-    monkeypatch.setenv("CA_SESSION_ID", "shell-123")
+    monkeypatch.setenv("SYMBOL_MCP_SESSION", "1")
+    monkeypatch.setenv("SYMBOL_SESSION_ID", "shell-123")
     # MCP implies long-lived process; in-memory is the right choice.
     assert isinstance(build_read_cache(), InMemoryReadCache)

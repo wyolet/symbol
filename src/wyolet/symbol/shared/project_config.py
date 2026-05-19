@@ -150,9 +150,9 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     if standalone.exists():
         try:
             with open(standalone, "rb") as f:
-                ca = tomllib.load(f)
-            if ca:
-                return _parse_config(ca)
+                conf = tomllib.load(f)
+            if conf:
+                return _parse_config(conf)
         except (OSError, tomllib.TOMLDecodeError):
             pass
 
@@ -167,33 +167,33 @@ def load_project_config(project_root: Path) -> ProjectConfig:
     except (OSError, tomllib.TOMLDecodeError):
         return ProjectConfig()
 
-    ca = data.get("tool", {}).get("symbol", {})
-    if not ca:
+    conf = data.get("tool", {}).get("symbol", {})
+    if not conf:
         return ProjectConfig()
 
-    return _parse_config(ca)
+    return _parse_config(conf)
 
 
-def _parse_config(ca: dict) -> ProjectConfig:
+def _parse_config(conf: dict) -> ProjectConfig:
     """Parse a symbol config dict into a ProjectConfig."""
     config = ProjectConfig()
 
-    checker_raw = ca.get("checker", {})
+    checker_raw = conf.get("checker", {})
     config.checker.include = checker_raw.get("include", [])
     config.checker.exclude = checker_raw.get("exclude", [])
 
-    scanner_raw = ca.get("scanner", {})
+    scanner_raw = conf.get("scanner", {})
     config.scanner.include = scanner_raw.get("include", [])
     config.scanner.exclude = scanner_raw.get("exclude", [])
 
-    config.disabled_checkers = ca.get("disable", [])
-    config.custom_checkers = ca.get("custom_checkers", [])
-    config.extra_specs = ca.get("extra_specs", [])
+    config.disabled_checkers = conf.get("disable", [])
+    config.custom_checkers = conf.get("custom_checkers", [])
+    config.extra_specs = conf.get("extra_specs", [])
 
     # [tool.symbol.checkers.side_effects] — project-level overrides, win over all spec layers
     # Also check legacy [tool.symbol.side_effects] for backward compat
-    _checkers_se_raw = ca.get("checkers", {}).get("side_effects", {})
-    _legacy_se_raw = ca.get("side_effects", {})
+    _checkers_se_raw = conf.get("checkers", {}).get("side_effects", {})
+    _legacy_se_raw = conf.get("side_effects", {})
     se_raw = _checkers_se_raw if _checkers_se_raw else _legacy_se_raw
     if se_raw:
         if "severity" in se_raw:
@@ -224,7 +224,7 @@ def _parse_config(ca: dict) -> ProjectConfig:
             }
 
     # Per-checker config: [tool.symbol.checkers.NAME]
-    for checker_name, checker_data in ca.get("checkers", {}).items():
+    for checker_name, checker_data in conf.get("checkers", {}).items():
         if not isinstance(checker_data, dict):
             continue
         cfg = CheckerProjectConfig()
@@ -235,7 +235,7 @@ def _parse_config(ca: dict) -> ProjectConfig:
         config.checkers[checker_name] = cfg
 
     # Map config: [tool.symbol.map]
-    map_section = ca.get("map", {})
+    map_section = conf.get("map", {})
     if "limit" in map_section:
         config.map_limit = map_section["limit"]
 
@@ -266,7 +266,7 @@ def _parse_config(ca: dict) -> ProjectConfig:
                     current.error = vals["error"]
 
     # Per-package overrides: [tool.symbol.packages.X]
-    packages_section = ca.get("packages", {})
+    packages_section = conf.get("packages", {})
     for pkg_name, pkg_data in packages_section.items():
         if not isinstance(pkg_data, dict):
             continue

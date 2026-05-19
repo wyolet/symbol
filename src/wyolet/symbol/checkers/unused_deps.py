@@ -59,10 +59,18 @@ def rich_view(items: list[str], ctx: AnalysisContext, console: Console) -> None:
 
     parts = [f"[bold]{len(ctx.deps)}[/bold] [dim]deps declared[/dim]"]
     if items:
-        parts.append(f"[red]{len(items)} unused[/red] [dim]\u2014 run[/dim] [bold]ca deps[/bold] [dim]for details[/dim]")
+        if ctx.verbose:
+            parts.append(f"[red]{len(items)} unused[/red]")
+        else:
+            parts.append(f"[red]{len(items)} unused[/red] [dim]\u2014 use -v for details[/dim]")
     else:
         parts.append("[green]all imported[/green]")
     console.print(f"{I1}{'  '.join(parts)}")
+
+    if items and ctx.verbose:
+        console.print()
+        for dep in items:
+            console.print(f"{I1}{I1}[red]\u2717[/red] {dep}")
 
 
 def json_view(items: list[str], ctx: AnalysisContext) -> dict:

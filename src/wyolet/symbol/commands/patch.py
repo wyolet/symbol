@@ -3,7 +3,7 @@
 Calls the engine in `writes/patch.py` and renders the result. Rendering
 has three modes:
 - rich (TTY default): Rich panels/tables with the diff.
-- agent (--agent or CA_AGENT=1): plain text, hint-dense.
+- agent (--agent or SYMBOL_AGENT=1): plain text, hint-dense.
 - json (--format json): structured data, bare facts.
 """
 
