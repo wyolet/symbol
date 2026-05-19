@@ -2,7 +2,7 @@
 
 AST-native code intelligence for Python. CLI for humans (audit, map, loc) and MCP server for agents (12 symbol-level tools). Static analysis only — never imports or executes target code.
 
-Repo: [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol). Local path: `/Users/abror/projects/wyolet/symbol`. CLI and (eventual) PyPI distribution are both `symbol`. Python is the proving ground; **Go** and **TypeScript** are next on the roadmap (same architecture, different parsers).
+Repo: [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol). Local path: `/Users/abror/projects/wyolet/symbol`. CLI command is `symbol`; PyPI distribution is `wyolet-symbol` (the bare `symbol` name is reserved by PyPI policy). Python is the proving ground; **Go** and **TypeScript** are next on the roadmap (same architecture, different parsers).
 
 ## Commands
 
@@ -47,7 +47,7 @@ src/wyolet/                    — namespace package (no __init__.py — PEP 420
         └── specs/NAME/       — Per-package specs (237 packages and growing)
 ```
 
-Imports go `from wyolet.symbol.X import Y`. The PyPI distribution is `symbol`; future sibling packages install into the same `wyolet/` namespace.
+Imports go `from wyolet.symbol.X import Y`. PyPI distribution is `wyolet-symbol`; future sibling packages (`wyolet-linter`, etc.) install into the same `wyolet/` namespace.
 
 ## Architecture
 

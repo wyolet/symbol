@@ -1,9 +1,26 @@
 [project]
-name = "symbol"
+name = "wyolet-symbol"
 version = "0.1.0"
-description = "AST-native codebase audit, symbol index, and MCP server for Python — detect stack, entry points, orphan files, side effects"
+description = "AST-native code intelligence for Python — MCP server for Claude Code (12 agent tools) + standalone audit CLI (dead code, import graph, swallowed exceptions, 500+ language LOC via Linguist port)."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Abror Aliboyev", email = "abror@aliboyev.com" },
+]
+keywords = ["ast", "static-analysis", "mcp", "claude-code", "code-intelligence", "cli", "linguist"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "chardet>=7.4.1",
     "mcp>=1.27.0",
@@ -12,6 +29,12 @@ dependencies = [
     "typer>=0.24.1",
     "zstandard>=0.25.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/wyolet/symbol"
+Repository = "https://github.com/wyolet/symbol"
+Issues = "https://github.com/wyolet/symbol/issues"
+Changelog = "https://github.com/wyolet/symbol/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
@@ -32,7 +55,7 @@ packages = ["src/wyolet"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
