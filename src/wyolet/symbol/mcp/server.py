@@ -10,6 +10,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from wyolet.symbol.adapters.registry import default_registry
 from wyolet.symbol.caches import InMemoryReadCache, record_served
 from wyolet.symbol.mcp import descriptions
 from wyolet.symbol.reads.callers import callers as callers_read
@@ -35,6 +36,7 @@ from wyolet.symbol.writes.patch import (
     preflight_patch,
     validate_args,
 )
+from wyolet.symbol.writes.undo import undo_last as _undo_last
 from wyolet.symbol.writes.rename_symbol import (
     RenameSymbolRequest,
     apply_rename_symbol,
@@ -146,6 +148,46 @@ class _State:
         return cls._index
 
     @classmethod
+    def ensure_indexed(cls, file: str) -> tuple[str, str | None]:
+        """Make sure `file` is in the index, indexing on the fly if needed.
+
+        `file` is a project-relative or absolute path (no `:line` suffix —
+        callers must split that off first). Returns (status, file_rel):
+
+        - "ok": already indexed, or just got indexed.
+        - "not_found": file doesn't exist on disk.
+        - "outside_project": resolves outside project_root.
+        - "unsupported": exists but no registered adapter handles it (md,
+          json, binary). file_rel still populated for error messages.
+
+        Single-file refresh is cheap: one read + AST parse, no project scan.
+        Linguist content-sniffs files with ambiguous or missing extensions.
+        """
+        root = cls.require_root()
+        p = Path(file)
+        abs_path = (p if p.is_absolute() else root / p).resolve()
+        try:
+            file_rel = str(abs_path.relative_to(root))
+        except ValueError:
+            return ("outside_project", None)
+
+        if not abs_path.is_file():
+            return ("not_found", file_rel)
+
+        index = cls.require_index()
+        if index.language_of_file(file_rel) is not None:
+            return ("ok", file_rel)
+
+        if not default_registry().supports(abs_path):
+            return ("unsupported", file_rel)
+
+        index.refresh(stale={file_rel})
+        index.save()
+        ipath = cls._index_path()
+        cls._index_mtime = ipath.stat().st_mtime if ipath.exists() else cls._index_mtime
+        return ("ok", file_rel)
+
+    @classmethod
     def invalidate_file(cls, rel: "str | list[str] | set[str]") -> None:
         """Refresh the in-RAM index for one or more files immediately.
 
@@ -169,6 +211,54 @@ class _State:
         cls._index.save()
         p = cls._index_path()
         cls._index_mtime = p.stat().st_mtime if p.exists() else cls._index_mtime
+
+
+def _file_part_of_target(target: str) -> str | None:
+    """Extract a file path from a target if path-shaped, else None.
+
+    SymbolBody and SymbolOutline accept either a qualified symbol path
+    ("wyolet.symbol.cli.main") or a file address ("src/foo.py" or
+    "src/foo.py:10-20"). On-the-fly indexing only kicks in for file forms
+    — qualified paths must already resolve through the index.
+
+    Path-shaped means: contains a slash, OR exists on disk (so a bare
+    "foo.py" in cwd works). A dotted name like "pkg.module.fn" has no
+    slash and (almost certainly) doesn't exist as a file, so it's left
+    to the qualified-path resolver.
+    """
+    head, sep, tail = target.partition(":")
+    base = head if (sep and "-" in tail and tail.replace("-", "").isdigit()) else target
+    if "/" in base or "\\" in base:
+        return base
+    # Bare filename in cwd (no separator): only treat as a path if the file
+    # actually exists on disk. Avoids treating qualified paths like
+    # "wyolet.symbol.cli" as files just because Path.suffix returns ".cli".
+    root = _State.project_root
+    if root is not None:
+        p = (root / base).resolve()
+        if p.is_file():
+            return base
+    return None
+
+
+def _ensure_or_error_dict(file: str) -> dict | None:
+    """Run ensure_indexed; return an error dict if the file isn't usable."""
+    status, file_rel = _State.ensure_indexed(file)
+    if status == "ok":
+        return None
+    if status == "not_found":
+        return {"ok": False, "error_code": "not_found", "message": f"file not found: {file}"}
+    if status == "outside_project":
+        return {"ok": False, "error_code": "invalid_argument", "message": f"file is outside project root: {file}"}
+    return {"ok": False, "error_code": "unsupported", "message": f"no language adapter for {file_rel or file}"}
+
+
+def _ensure_or_error_text(file: str) -> str | None:
+    """ensure_indexed for tools that return rendered text. None if ok."""
+    err = _ensure_or_error_dict(file)
+    if err is None:
+        return None
+    return _capture_text(_render_patch_error, err["error_code"], err["message"], agent=True)
 
 
 def _dc(result) -> dict:
@@ -203,6 +293,10 @@ def search_symbol(
             "message": "regex and fixed are mutually exclusive",
         }
     root = _State.require_root()
+    if file:
+        err = _ensure_or_error_dict(file)
+        if err is not None:
+            return err
     index = _State.require_index()
     hits = search_read(
         index,
@@ -226,6 +320,11 @@ def symbol_body(
     limit: int | None = None,
 ) -> dict:
     root = _State.require_root()
+    file_part = _file_part_of_target(target)
+    if file_part is not None:
+        err = _ensure_or_error_dict(file_part)
+        if err is not None:
+            return err
     index = _State.require_index()
     cache = _State.require_cache()
     try:
@@ -268,6 +367,11 @@ def symbol_body(
 @mcp.tool(name="SymbolOutline", description=descriptions.SYMBOL_OUTLINE)
 def symbol_outline(target: str) -> dict:
     root = _State.require_root()
+    file_part = _file_part_of_target(target)
+    if file_part is not None:
+        err = _ensure_or_error_dict(file_part)
+        if err is not None:
+            return err
     index = _State.require_index()
 
     arg = target
@@ -339,6 +443,9 @@ def patch(
     dry_run: bool = False,
 ) -> str:
     root = _State.require_root()
+    err = _ensure_or_error_text(file)
+    if err is not None:
+        return err
     cache = _State.require_cache()
 
     req = validate_args(
@@ -353,6 +460,17 @@ def patch(
 
     preflight = preflight_patch(req, cache=cache)
     if preflight.status == "needs_read_confirmation":
+        # Record the displayed range as if the agent had just Read it. The
+        # rendered message includes the current bytes — same proof an explicit
+        # Read would carry. Agent's next Patch call (same args) passes
+        # preflight without an extra Read or --force.
+        record_served(
+            cache,
+            project_root=root,
+            file_rel=req.file_rel,
+            start_line=req.line_range[0],
+            end_line=req.line_range[1],
+        )
         return _capture_text(_render_patch_needs_read, preflight)
 
     result = apply_patch(req, cache=cache, dry_run=dry_run)
@@ -374,6 +492,9 @@ def multi_patch(
     dry_run: bool = False,
 ) -> str:
     root = _State.require_root()
+    err = _ensure_or_error_text(file)
+    if err is not None:
+        return err
     cache = _State.require_cache()
 
     file_abs = (root / file).resolve()
@@ -396,6 +517,21 @@ def multi_patch(
 
     if result.status == "applied":
         _State.invalidate_file(result.file_rel)
+    elif result.status == "needs_read_confirmation":
+        # Same trick as single Patch: record the displayed ranges so the
+        # agent's retry passes preflight on its own.
+        for u in result.unconfirmed:
+            try:
+                start_s, end_s = u["range"].split("-", 1)
+                record_served(
+                    cache,
+                    project_root=root,
+                    file_rel=result.file_rel,
+                    start_line=int(start_s),
+                    end_line=int(end_s),
+                )
+            except (ValueError, KeyError):
+                continue
 
     return _format_multi_patch_result(result)
 
@@ -487,8 +623,6 @@ def rename_symbol(
     target: str,
     new_name: str,
     dry_run: bool = False,
-    allow_dirty: bool = False,
-    force_no_vcs: bool = False,
 ) -> str:
     root = _State.require_root()
     index = _State.require_index()
@@ -500,8 +634,6 @@ def rename_symbol(
         req,
         project_root=root,
         dry_run=dry_run,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
     )
     if result.status == "error":
         return _capture_text(_render_rename_error, result, agent=True)
@@ -513,13 +645,73 @@ def rename_symbol(
     return _capture_text(_render_rename_agent, result)
 
 
+@mcp.tool(
+    name="Refresh",
+    description=(
+        "Reindex the project (incremental: only changed files are re-parsed) "
+        "and clear .symbol/transactions/. Use as an escape hatch when state "
+        "feels stale or when you've made out-of-band changes (e.g. via plain "
+        "Edit/Write or git operations). full=true forces a full rebuild from "
+        "scratch. keep_transactions=true preserves the undo log."
+    ),
+)
+def refresh(full: bool = False, keep_transactions: bool = False) -> dict:
+    root = _State.require_root()
+    if full:
+        idx_path = root / ".symbol" / "symbol_index.msgpack.zst"
+        if idx_path.exists():
+            idx_path.unlink()
+        _State._index = None
+        _State._index_mtime = None
+
+    index = _State.require_index()  # triggers rebuild via get_or_build_index
+
+    cleared = 0
+    if not keep_transactions:
+        from wyolet.symbol.commands.refresh import _clear_transactions
+        cleared = _clear_transactions(root)
+
+    return {
+        "ok": True,
+        "status": "ok",
+        "symbols": len(index.symbols),
+        "files": len(index.files),
+        "transactions_cleared": cleared,
+    }
+
+
+@mcp.tool(
+    name="Undo",
+    description=(
+        "Revert the most recent RenameSymbol or ReplaceSymbol transaction. "
+        "Restores every file in that op from its captured pre-image (atomic). "
+        "Operates on the persisted transaction log in .symbol/transactions/. "
+        "Returns the op name, subject, and list of files restored."
+    ),
+)
+def undo() -> dict:
+    root = _State.require_root()
+    result = _undo_last(root)
+    if result.status == "undone":
+        _State.invalidate_file(set(result.files_restored))
+    return {
+        "ok": result.status != "error",
+        "status": result.status,
+        "transaction_id": result.transaction_id,
+        "op": result.op,
+        "subject": result.subject,
+        "files_restored": list(result.files_restored),
+        "files_skipped": list(result.files_skipped),
+        "error_code": result.error_code,
+        "message": result.message,
+    }
+
+
 @mcp.tool(name="ReplaceSymbol", description=descriptions.REPLACE_SYMBOL)
 def replace_symbol(
     target: str,
     content: str,
     dry_run: bool = False,
-    allow_dirty: bool = False,
-    force_no_vcs: bool = False,
 ) -> str:
     # Auto-append trailing newline so the replacement doesn't jam against the
     # next sibling symbol if the agent omits it.
@@ -536,8 +728,6 @@ def replace_symbol(
         req,
         project_root=root,
         dry_run=dry_run,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
     )
     if result.status == "error":
         return _capture_text(_render_replace_error, result, agent=True)

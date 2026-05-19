@@ -1,24 +1,31 @@
 """Multi-file transaction for refactoring writes.
 
-v1 policy:
-- Require git and clean working tree (or --allow-dirty override).
-- Stage all edits in memory.
-- Validate all (parse-verify per file if the file is Python).
-- Create a git checkpoint commit before writing.
+Policy:
+- Read pre-image bytes of every target file into memory.
 - Write each file atomically (tmp + fsync + rename).
-- On failure mid-write: user recovers via `git reset --hard <checkpoint>^`.
+- If any write fails partway through: restore every already-written file from
+  its pre-image (also via atomic write). Either all files end up new, or all
+  stay old.
+- On success: persist pre-images + manifest to ``.symbol/transactions/<id>/``
+  so ``symbol undo`` can roll the operation back later.
 
-The checkpoint commit IS the rollback mechanism. We don't build our own
-staging dir / undo journal because git already provides it and users
-expect `git reset` as the undo contract.
+No git involvement. The agent's git history stays clean — no ``symbol:``
+checkpoint commits clutter ``git log`` and confuse later reads.
 """
 
+import hashlib
+import json
 import os
-import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+
+
+_TX_DIR = ".symbol/transactions"
+_MANIFEST = "manifest.json"
+_TX_KEEP = 50  # cap on persisted transaction history
 
 
 @dataclass(frozen=True)
@@ -34,7 +41,7 @@ class FileEdit:
 class TransactionResult:
     status: Literal["committed", "error"]
     files_written: tuple[str, ...] = ()
-    checkpoint_sha: str | None = None
+    transaction_id: str | None = None
     error_code: str | None = None
     message: str | None = None
 
@@ -45,151 +52,159 @@ def commit_edits(
     project_root: Path,
     op_name: str,
     subject: str,
-    allow_dirty: bool = False,
-    force_no_vcs: bool = False,
     dry_run: bool = False,
 ) -> TransactionResult:
-    """Apply a multi-file transaction.
+    """Apply a multi-file transaction with in-process rollback + persisted undo.
 
-    - op_name: short slug for the checkpoint commit (e.g. "rename-symbol").
-    - subject: human-readable subject for the commit (e.g. "UserService → NewUserService").
+    - op_name: short slug ("rename-symbol", "replace-symbol").
+    - subject: human-readable summary ("UserService → NewUserService").
     """
     if dry_run:
-        # Nothing to write, but still succeed — callers include diffs elsewhere.
         return TransactionResult(
             status="committed",
             files_written=tuple(e.file_rel for e in edits),
         )
 
-    is_git = _is_git_repo(project_root)
+    # Pre-image capture: read every target before we touch anything. Files
+    # that don't exist yet (pure creation) get None.
+    pre_images: dict[str, bytes | None] = {}
+    for edit in edits:
+        try:
+            pre_images[edit.file_rel] = edit.file_abs.read_bytes()
+        except FileNotFoundError:
+            pre_images[edit.file_rel] = None
+        except OSError as e:
+            return TransactionResult(
+                status="error",
+                error_code="read_failed",
+                message=f"cannot read {edit.file_rel} for pre-image capture: {e}",
+            )
 
-    if not is_git and not force_no_vcs:
-        return TransactionResult(
-            status="error",
-            error_code="no_git_repository",
-            message=(
-                f"{project_root} is not a git repository. "
-                "Multi-file writes require git for safe undo. "
-                "Pass --force-no-vcs to proceed anyway."
-            ),
-        )
-
-    if is_git and not allow_dirty and _has_uncommitted_changes(project_root):
-        return TransactionResult(
-            status="error",
-            error_code="working_tree_dirty",
-            message=(
-                "Working tree has uncommitted changes. "
-                "Commit or stash first, or pass --allow-dirty."
-            ),
-        )
-
-    # Checkpoint commit (only if git and tree is clean).
-    checkpoint_sha: str | None = None
-    if is_git and not _has_uncommitted_changes(project_root):
-        # Mark the current state so `git reset --hard <sha>` undoes us cleanly.
-        checkpoint_sha = _head_sha(project_root)
-
-    # Write all files.
-    written: list[str] = []
+    written: list[FileEdit] = []
     try:
         for edit in edits:
             _atomic_write(edit.file_abs, edit.new_content)
-            written.append(edit.file_rel)
+            written.append(edit)
     except Exception as e:
+        # Rollback: restore every already-written file from its pre-image.
+        for done in written:
+            pre = pre_images[done.file_rel]
+            try:
+                if pre is None:
+                    done.file_abs.unlink(missing_ok=True)
+                else:
+                    _atomic_write(done.file_abs, pre)
+            except OSError:
+                # Best-effort rollback. If even the restore fails, the user
+                # has the persisted transaction dir to manually recover from
+                # — but this branch is rare (atomic_write failing twice).
+                pass
         return TransactionResult(
             status="error",
             error_code="write_failed",
-            message=f"partial write ({len(written)}/{len(edits)} files): {e}",
-            files_written=tuple(written),
-            checkpoint_sha=checkpoint_sha,
+            message=(
+                f"partial write rolled back ({len(written)}/{len(edits)} files "
+                f"reverted): {e}"
+            ),
         )
 
-    # Optional: create a real checkpoint commit for the changes we just made,
-    # tagged with op_name + subject. User can `git reset --hard HEAD~1` to undo.
-    if is_git and not allow_dirty:
-        _create_checkpoint_commit(project_root, op_name, subject)
+    transaction_id = _persist_transaction(
+        project_root, op_name=op_name, subject=subject,
+        edits=edits, pre_images=pre_images,
+    )
 
     return TransactionResult(
         status="committed",
-        files_written=tuple(written),
-        checkpoint_sha=checkpoint_sha,
+        files_written=tuple(e.file_rel for e in edits),
+        transaction_id=transaction_id,
     )
 
 
-# ---------------------------------------------------------- git helpers
+# ---------------------------------------------------------- transaction store
 
 
-def _is_git_repo(root: Path) -> bool:
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        return result.returncode == 0 and result.stdout.strip() == "true"
-    except (subprocess.SubprocessError, OSError):
-        return False
+def _persist_transaction(
+    project_root: Path,
+    *,
+    op_name: str,
+    subject: str,
+    edits: list[FileEdit],
+    pre_images: dict[str, bytes | None],
+) -> str | None:
+    """Write pre-images + manifest to .symbol/transactions/<id>/.
 
-
-def _has_uncommitted_changes(root: Path) -> bool:
-    """True if there are modified / staged / deleted tracked files.
-
-    Ignores untracked files — build artifacts (like .symbol/symbol_index)
-    and other unrelated clutter shouldn't block a rename.
+    Returns the transaction id (directory name), or None on persistence
+    failure — that's a non-fatal outcome since the writes already succeeded.
+    The agent loses ``symbol undo`` capability for this op but the tree is
+    correct.
     """
+    tx_root = project_root / _TX_DIR
     try:
-        # --porcelain with --untracked-files=no filters out untracked.
-        result = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return bool(result.stdout.strip())
-    except (subprocess.SubprocessError, OSError):
-        return False
+        tx_root.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
 
-
-def _head_sha(root: Path) -> str | None:
+    tx_id = f"{int(time.time() * 1000)}-{op_name}"
+    tx_dir = tx_root / tx_id
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except (subprocess.SubprocessError, OSError):
-        pass
-    return None
+        tx_dir.mkdir()
+    except OSError:
+        return None
 
+    manifest_files: list[dict] = []
+    for edit in edits:
+        pre = pre_images[edit.file_rel]
+        digest = hashlib.sha256(edit.file_rel.encode("utf-8")).hexdigest()[:16]
+        entry: dict = {
+            "file_rel": edit.file_rel,
+            "pre_image": None,
+        }
+        if pre is not None:
+            blob_name = f"{digest}.pre"
+            try:
+                (tx_dir / blob_name).write_bytes(pre)
+                entry["pre_image"] = blob_name
+            except OSError:
+                # Skip this file's undo entry; manifest still records the
+                # write so undo reports it as "no pre-image, can't restore".
+                entry["pre_image_error"] = True
+        manifest_files.append(entry)
 
-def _create_checkpoint_commit(root: Path, op_name: str, subject: str) -> None:
-    """Stage all tracked changes and commit with a `symbol:` prefix."""
+    manifest = {
+        "version": 1,
+        "id": tx_id,
+        "op": op_name,
+        "subject": subject,
+        "created_at": time.time(),
+        "files": manifest_files,
+    }
     try:
-        subprocess.run(
-            ["git", "add", "-u"],
-            cwd=root,
-            capture_output=True,
-            timeout=15,
+        (tx_dir / _MANIFEST).write_text(json.dumps(manifest, indent=2))
+    except OSError:
+        return None
+
+    _prune_transactions(tx_root, keep=_TX_KEEP)
+    return tx_id
+
+
+def _prune_transactions(tx_root: Path, *, keep: int) -> None:
+    """Drop the oldest transaction dirs beyond `keep`. Active + .undone both count."""
+    try:
+        entries = sorted(
+            (p for p in tx_root.iterdir() if p.is_dir()),
+            key=lambda p: p.name,
         )
-        msg = f"symbol {op_name}: {subject}"
-        subprocess.run(
-            ["git", "commit", "-m", msg, "--no-verify"],
-            cwd=root,
-            capture_output=True,
-            timeout=15,
-        )
-    except (subprocess.SubprocessError, OSError):
-        # Checkpoint commit is a nice-to-have; the writes themselves already
-        # succeeded. Swallow errors rather than make the op look failed.
-        pass
+    except OSError:
+        return
+    excess = len(entries) - keep
+    if excess <= 0:
+        return
+    import shutil
+    for old in entries[:excess]:
+        try:
+            shutil.rmtree(old)
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------- atomic write
@@ -202,6 +217,7 @@ def _atomic_write(path: Path, data: bytes) -> None:
     except OSError:
         pass
 
+    path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".symbol.tmp-")
     try:
         with os.fdopen(fd, "wb") as f:

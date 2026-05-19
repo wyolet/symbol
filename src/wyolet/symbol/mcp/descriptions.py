@@ -125,11 +125,16 @@ caller rewrite). For structural adds, prefer InsertSymbol.
 
 Parameters: file is a path to the target. range is a line range \
 "A-B" (inclusive, 1-indexed). content is the replacement bytes — empty \
-string deletes the range. force=true skips the read-confirmation check \
-(prefer not to use). dry_run=true returns the diff without writing.
+string deletes the range. Whole-line replacements automatically \
+preserve the trailing newline if content omits it (so "foo" replacing \
+line 5 doesn't glue line 5 onto line 6). force=true skips the \
+read-confirmation check (prefer not to use). dry_run=true returns the \
+diff without writing.
 
 Returns error_code="needs_read_confirmation" if the target range \
-hasn't been seen this session. Other codes: "binary_file", \
+hasn't been seen this session — but the displayed bytes are recorded \
+as seen, so simply retrying the same Patch call (no extra Read needed) \
+will pass on the second attempt. Other codes: "binary_file", \
 "range_out_of_bounds", "file_not_found", "conflict" (file changed \
 between preflight and write), "permission_denied". Patch does NOT \
 validate that the result parses — use ReplaceSymbol when you need that \
@@ -217,20 +222,19 @@ definition. Returns error_code="parse_broken" on syntax errors, \
 
 RENAME_SYMBOL = """\
 Rename a symbol's leaf identifier and rewrite every textual reference \
-across the project in one transaction. Under git, creates a checkpoint \
-commit before any writes so the entire change reverts with \
-`git reset --hard HEAD^`. Returns per-file change lists, total refs \
-updated, and the declaring file.
+across the project in one transaction. All-or-nothing: pre-images of \
+every touched file are captured before writing, and any mid-write failure \
+rolls back the entire change. Successful operations are recorded under \
+.symbol/transactions/ and can be reverted with the Undo tool. Returns \
+per-file change lists, total refs updated, the declaring file, and a \
+transaction_id.
 
 USE WHEN renaming a class, function, or method anywhere it appears. \
-Atomic — no half-finished rename state is observable.
+No git involvement — your git history stays clean.
 
 Parameters: target is the current full path of the symbol. \
 new_name is the new leaf name only (no dots). dry_run=true plans the \
-rename and returns per_file deltas without writing. allow_dirty=true \
-proceeds when the working tree has uncommitted changes (normally \
-refused so the checkpoint has a clean base). force_no_vcs=true allows \
-the rename on projects not under git, at the cost of no rollback path.
+rename and returns per_file deltas without writing.
 
 Matches identifiers and the trailing segment of attribute accesses. A \
 rename of "save" also rewrites unrelated `x.save` calls that share the \
@@ -238,15 +242,17 @@ leaf name. Run SymbolCallers first to preview the blast radius. Does \
 NOT rewrite references inside strings, comments, or docstrings.
 
 Returns "symbol_not_found", "symbol_ambiguous", "name_collision" \
-(target name already exists as a sibling), or "dirty_working_tree" on \
-failure.
+(target name already exists as a sibling), or "write_failed" \
+(rolled back) on failure.
 """
 
 REPLACE_SYMBOL = """\
 Replace a function or class with new content. If the new content \
 declares a different leaf name, every caller is rewritten too (implicit \
-rename included). Transactional under git like RenameSymbol. Returns \
-per-file changes, name_changed flag, new_qualified_path, new_signature.
+rename included). Same transaction model as RenameSymbol: pre-image \
+rollback on failure, persisted to .symbol/transactions/ for Undo. \
+Returns per-file changes, name_changed flag, new_qualified_path, \
+new_signature, transaction_id.
 
 USE WHEN rewriting a complete function or class. Parse-validated — \
 refuses on syntax errors before committing. Send only the new \
@@ -257,12 +263,11 @@ definition. Kind must match the replaced symbol (you cannot replace a \
 function with a class).
 
 Parameters: target is the current path of the symbol. content is the \
-full new definition. dry_run=true previews the plan. allow_dirty and \
-force_no_vcs behave as in RenameSymbol.
+full new definition. dry_run=true previews the plan.
 
 Returns "parse_broken" on syntax errors, "invalid_argument" when \
 content has zero or more than one top-level definition, \
 "symbol_not_found" or "symbol_ambiguous" on lookup failures, \
 "name_collision" when the new leaf name clashes with an existing \
-sibling, "dirty_working_tree" if preconditions aren't met.
+sibling, "write_failed" (rolled back) on I/O failure.
 """

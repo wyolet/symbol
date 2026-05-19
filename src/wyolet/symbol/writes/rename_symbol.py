@@ -98,6 +98,18 @@ def resolve_rename_symbol(
         )
 
     row = rows[0]
+    declaring_file_rel = index.file_of(row)
+    if index.ensure_fresh(declaring_file_rel):
+        rows = list(index.by_path.get(qualified_path, []))
+        if not rows:
+            return RenameSymbolResult(
+                status="error",
+                error_code="symbol_not_found",
+                message=f"symbol {qualified_path!r} no longer exists after refresh",
+            )
+        row = rows[0]
+        declaring_file_rel = index.file_of(row)
+
     old_leaf = qualified_path.rsplit(".", 1)[-1]
 
     if old_leaf == new_name:
@@ -116,8 +128,6 @@ def resolve_rename_symbol(
             error_code="name_collision",
             message=f"{collision_path!r} already exists",
         )
-
-    declaring_file_rel = index.file_of(row)
 
     # Collect every file that references the old leaf, plus the declaring file.
     ref_files: set[str] = {declaring_file_rel}
@@ -173,8 +183,6 @@ def apply_rename_symbol(
     *,
     project_root: Path,
     dry_run: bool = False,
-    allow_dirty: bool = False,
-    force_no_vcs: bool = False,
 ) -> RenameSymbolResult:
     subject = f"{request.qualified_path} → {request.new_name}"
     tx = commit_edits(
@@ -182,8 +190,6 @@ def apply_rename_symbol(
         project_root=project_root,
         op_name="rename-symbol",
         subject=subject,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
         dry_run=dry_run,
     )
 

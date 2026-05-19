@@ -320,19 +320,20 @@ def apply_patch(
             request,
         )
 
-    new_source = source[:start] + request.content + source[end:]
+    content = _normalize_trailing_newline(request.content, source, start, end)
+    new_source = source[:start] + content + source[end:]
     old_slice = source[start:end]
 
     diff = _unified_diff(request.file_rel, source, new_source, context=diff_context)
     lines_removed = _count_lines(old_slice)
-    lines_added = _count_lines(request.content)
-    after_range = (start, start + len(request.content))
+    lines_added = _count_lines(content)
+    after_range = (start, start + len(content))
 
     # New line range (1-indexed, inclusive) for the freshly-written region.
     new_start_line = new_source.count(b"\n", 0, after_range[0]) + 1
-    inserted_lines = max(lines_added, 1) if request.content else 0
+    inserted_lines = max(lines_added, 1) if content else 0
     new_end_line = new_start_line + max(inserted_lines - 1, 0) if inserted_lines else new_start_line - 1
-    new_content_str = request.content.decode("utf-8", errors="replace")
+    new_content_str = content.decode("utf-8", errors="replace")
 
     if dry_run:
         return PatchResult(
@@ -360,7 +361,7 @@ def apply_patch(
         cache.record(CachedRead(
             file=request.file_rel,
             byte_range=after_range,
-            content_hash=hashlib.sha256(request.content).hexdigest()[:16],
+            content_hash=hashlib.sha256(content).hexdigest()[:16],
             served_at=time.time(),
             served_mtime=new_mtime,
             tool_call_idx=0,
@@ -483,7 +484,8 @@ def apply_patch_multi(
                     unconfirmed.append({"edit_idx": idx, "range": raw["range"]})
                     continue
             resolved.append(MultiEdit(
-                start=sb, end=eb, content=content,
+                start=sb, end=eb,
+                content=_normalize_trailing_newline(content, source, sb, eb),
                 addressed_by="range", line_range=(start_line, end_line),
             ))
         else:
@@ -522,7 +524,8 @@ def apply_patch_multi(
             start_line = source.count(b"\n", 0, sb) + 1
             end_line = source.count(b"\n", 0, eb) + 1
             resolved.append(MultiEdit(
-                start=sb, end=eb, content=content,
+                start=sb, end=eb,
+                content=_normalize_trailing_newline(content, source, sb, eb),
                 addressed_by="old", line_range=(start_line, end_line),
             ))
 
@@ -610,6 +613,26 @@ def _apply_error(code: str, message: str, request: PatchRequest) -> PatchResult:
         error_code=code,
         message=message,
     )
+
+
+def _normalize_trailing_newline(content: bytes, source: bytes, start: int, end: int) -> bytes:
+    """Append `\\n` to content when the replaced range ends with one.
+
+    `line_range_to_byte_range` extends `end` past the line's terminator, so a
+    whole-line replacement consumes the trailing newline. If the agent sends
+    content without a trailing newline, the splice glues line B's content
+    onto line B+1. We restore the terminator silently — the contract is
+    "you're replacing whole lines, get whole lines back."
+
+    No-op when content already ends with `\\n`, when it's empty (deletion
+    case — we *want* to consume the terminator), or when the original
+    range didn't include one (edit didn't span to end-of-line).
+    """
+    if not content or content.endswith(b"\n"):
+        return content
+    if end > 0 and end <= len(source) and source[end - 1:end] == b"\n":
+        return content + b"\n"
+    return content
 
 
 def _atomic_write(path: Path, data: bytes) -> None:

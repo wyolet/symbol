@@ -171,37 +171,12 @@ def test_per_file_counts_reported(project):
     assert per_file["caller.py"] >= 2   # import + constructor call
 
 
-# ---------------------------------------------------------- git safety
+# ---------------------------------------------------------- transactions
 
 
-def test_dirty_tree_refused(project):
-    """Uncommitted changes to TRACKED files block rename unless --allow-dirty."""
-    # Modify a tracked file (untracked files are ignored, by design).
+def test_dirty_tree_does_not_block_rename(project):
+    """Pre-image rollback replaces git checkpointing — dirty tree is fine."""
     (project / "caller.py").write_text("# modified unexpectedly\n")
-
-    idx = _index(project)
-    req = resolve_rename_symbol(idx, "services.UserService", "NewUserService", project)
-    assert isinstance(req, RenameSymbolRequest)
-
-    result = apply_rename_symbol(req, project_root=project)
-    assert result.status == "error"
-    assert result.error_code == "working_tree_dirty"
-
-
-def test_allow_dirty_proceeds(project):
-    (project / "caller.py").write_text("# modified unexpectedly\n")
-
-    idx = _index(project)
-    req = resolve_rename_symbol(idx, "services.UserService", "NewUserService", project)
-    assert isinstance(req, RenameSymbolRequest)
-
-    result = apply_rename_symbol(req, project_root=project, allow_dirty=True)
-    assert result.status == "applied"
-
-
-def test_untracked_files_do_not_block_rename(project):
-    """Untracked build artifacts (like .symbol/) don't count as dirty."""
-    (project / "untracked_garbage.log").write_text("noise\n")
 
     idx = _index(project)
     req = resolve_rename_symbol(idx, "services.UserService", "NewUserService", project)
@@ -211,7 +186,8 @@ def test_untracked_files_do_not_block_rename(project):
     assert result.status == "applied"
 
 
-def test_non_git_project_refused(tmp_path):
+def test_non_git_project_succeeds(tmp_path):
+    """No git involvement at all — non-git projects work unconditionally."""
     (tmp_path / "m.py").write_text("def foo():\n    return 1\n")
     # no git init
 
@@ -220,16 +196,16 @@ def test_non_git_project_refused(tmp_path):
     assert isinstance(req, RenameSymbolRequest)
 
     result = apply_rename_symbol(req, project_root=tmp_path)
-    assert result.status == "error"
-    assert result.error_code == "no_git_repository"
+    assert result.status == "applied"
 
 
-def test_non_git_with_force_no_vcs(tmp_path):
-    (tmp_path / "m.py").write_text("def foo():\n    return 1\n")
-
-    idx = _index(tmp_path)
-    req = resolve_rename_symbol(idx, "m.foo", "bar", tmp_path)
+def test_rename_persists_transaction(project):
+    idx = _index(project)
+    req = resolve_rename_symbol(idx, "services.UserService", "NewUserService", project)
     assert isinstance(req, RenameSymbolRequest)
 
-    result = apply_rename_symbol(req, project_root=tmp_path, force_no_vcs=True)
+    result = apply_rename_symbol(req, project_root=project)
     assert result.status == "applied"
+    tx_dirs = list((project / ".symbol" / "transactions").iterdir())
+    assert tx_dirs, "transaction directory should be persisted"
+    assert any("rename-symbol" in p.name for p in tx_dirs)

@@ -94,6 +94,16 @@ def resolve_delete_symbol(
 
     row = rows[0]
     file_rel = index.file_of(row)
+    if index.ensure_fresh(file_rel):
+        rows = list(index.by_path.get(qualified_path, []))
+        if not rows:
+            return DeleteSymbolResult(
+                status="error",
+                error_code="symbol_not_found",
+                message=f"symbol {qualified_path!r} no longer exists after refresh",
+            )
+        row = rows[0]
+        file_rel = index.file_of(row)
     file_abs = project_root / file_rel
     line_range = index.range_of(row)
     byte_range = (index.symbols[row][S_SBYTE], index.symbols[row][S_EBYTE])

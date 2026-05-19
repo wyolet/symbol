@@ -25,8 +25,6 @@ def replace_symbol_cmd(
     content: str,
     project_root: str = ".",
     dry_run: bool = False,
-    allow_dirty: bool = False,
-    force_no_vcs: bool = False,
     agent: bool = False,
     format: str = "rich",
 ) -> None:
@@ -43,8 +41,6 @@ def replace_symbol_cmd(
         resolved,
         project_root=project,
         dry_run=dry_run,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
     )
     _render(result, format=format, agent=agent)
     if result.status == "error":

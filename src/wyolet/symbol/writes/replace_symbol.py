@@ -102,9 +102,22 @@ def resolve_replace_symbol(
         )
 
     row = rows[0]
+    declaring_file_rel = index.file_of(row)
+    # Guard against stale byte ranges: if the file's been edited since the
+    # index recorded it, refresh and re-resolve before computing the splice.
+    if index.ensure_fresh(declaring_file_rel):
+        rows = list(index.by_path.get(qualified_path, []))
+        if not rows:
+            return ReplaceSymbolResult(
+                status="error",
+                error_code="symbol_not_found",
+                message=f"symbol {qualified_path!r} no longer exists after refresh",
+            )
+        row = rows[0]
+        declaring_file_rel = index.file_of(row)
+
     old_leaf = qualified_path.rsplit(".", 1)[-1]
     old_kind = index.kind_of(row)
-    declaring_file_rel = index.file_of(row)
     declaring_file_abs = project_root / declaring_file_rel
     old_byte_range = (index.symbols[row][S_SBYTE], index.symbols[row][S_EBYTE])
 
@@ -274,8 +287,6 @@ def apply_replace_symbol(
     *,
     project_root: Path,
     dry_run: bool = False,
-    allow_dirty: bool = False,
-    force_no_vcs: bool = False,
 ) -> ReplaceSymbolResult:
     subject = (
         f"{request.qualified_path} (rewrite)"
@@ -287,8 +298,6 @@ def apply_replace_symbol(
         project_root=project_root,
         op_name="replace-symbol",
         subject=subject,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
         dry_run=dry_run,
     )
 

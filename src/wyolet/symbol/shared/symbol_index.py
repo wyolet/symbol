@@ -595,6 +595,26 @@ class SymbolIndex:
 
         return stale, deleted
 
+    def ensure_fresh(self, rel: str) -> bool:
+        """Refresh `rel` in place if its on-disk mtime differs from the index's.
+
+        Returns True if a refresh was performed. Cheap mtime check up front so
+        the common case (no change) costs one stat call. Called by write
+        operations before they read symbol byte ranges, to prevent splices
+        against stale offsets when the file has been edited out of band
+        (Patch above the symbol, plain Edit/Write, git checkout, etc.).
+        """
+        path = self.project_root / rel
+        try:
+            current = path.stat().st_mtime
+        except OSError:
+            return False
+        saved = self._saved_mtimes.get(rel)
+        if saved is not None and saved == current:
+            return False
+        self.refresh(stale={rel})
+        return True
+
     # ---------------------------------------------------------- refresh
 
     def refresh(

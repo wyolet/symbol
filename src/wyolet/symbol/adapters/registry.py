@@ -59,6 +59,20 @@ class LanguageRegistry:
         self._instances[lang] = inst
         return inst
 
+    def supports(self, path: Path, *, language: str | None = None) -> bool:
+        """True if some registered adapter can handle this file.
+
+        Mirrors `for_file`'s resolution (caller hint → linguist sniff) but
+        swallows `UnsupportedLanguage`. Use this as a cheap predicate before
+        invoking tools that should silently skip non-code files (md, json,
+        settings.json, etc.) rather than error.
+        """
+        try:
+            self.for_file(path, language=language)
+            return True
+        except UnsupportedLanguage:
+            return False
+
     def for_file(self, path: Path, *, language: str | None = None) -> LanguageAdapter:
         """Resolve an adapter by file path.
 

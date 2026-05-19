@@ -202,11 +202,88 @@ def test_dry_run_does_not_write(project):
     assert (project / "services.py").read_text() == before
 
 
+# ---------------------------------------------------------- decorator handling
+
+
+def test_replace_decorated_class_with_decorator_in_content(tmp_path):
+    """Bug 2: previously stacked the new decorator on top of the old one.
+
+    Symbol byte range now starts at the first decorator, so passing content
+    that includes the decorator splices it cleanly.
+    """
+    (tmp_path / "m.py").write_text(
+        "from dataclasses import dataclass\n\n"
+        "@dataclass(frozen=True, slots=True)\n"
+        "class MarkerMatch:\n"
+        "    x: int\n"
+    )
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "i"],
+        cwd=tmp_path, capture_output=True, check=True,
+    )
+
+    idx = _index(tmp_path)
+    new = (
+        "@dataclass(frozen=True, slots=True)\n"
+        "class MarkerMatch:\n"
+        "    x: int\n"
+        "    y: int\n"
+    )
+    req = resolve_replace_symbol(idx, "m.MarkerMatch", new, tmp_path)
+    assert isinstance(req, ReplaceSymbolRequest)
+    apply_replace_symbol(req, project_root=tmp_path)
+
+    out = (tmp_path / "m.py").read_text()
+    assert out.count("@dataclass") == 1, f"decorator stacked:\n{out}"
+
+
+# ---------------------------------------------------------- stale-index guard
+
+
+def test_replace_refreshes_index_when_file_edited_out_of_band(tmp_path):
+    """Bug 1: ReplaceSymbol must re-resolve byte ranges when file changed."""
+    (tmp_path / "m.py").write_text(
+        "X = 1\n"
+        "def preclassify(n):\n"
+        "    return n\n"
+    )
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "i"],
+        cwd=tmp_path, capture_output=True, check=True,
+    )
+
+    idx = _index(tmp_path)
+    # Out-of-band edit shifts byte offsets.
+    import time as _t
+    _t.sleep(0.01)
+    (tmp_path / "m.py").write_text(
+        "X = 1\n"
+        "Y = 2  # extra line shifts byte ranges\n"
+        "def preclassify(n):\n"
+        "    return n\n"
+    )
+
+    new = "def preclassify(n: int) -> int:\n    return n\n"
+    req = resolve_replace_symbol(idx, "m.preclassify", new, tmp_path)
+    assert isinstance(req, ReplaceSymbolRequest), req
+    apply_replace_symbol(req, project_root=tmp_path)
+
+    out = (tmp_path / "m.py").read_text()
+    # Result must parse cleanly — pre-fix produced corrupt fragments.
+    compile(out, "<test>", "exec")
+    assert out.count("def preclassify") == 1
+    assert "def preclassify(n: int) -> int:" in out
+
+
 # ---------------------------------------------------------- atomicity
 
 
-def test_body_and_refs_land_in_one_git_commit(project):
-    """Rewrite + rename should produce a single checkpoint commit."""
+def test_replace_does_not_create_git_commits(project):
+    """Replace is transactional via pre-image rollback — no git commits."""
     idx = _index(project)
     content = "def fetch_meaning():\n    return 42\n"
     req = resolve_replace_symbol(idx, "services.helper", content, project)
@@ -215,7 +292,8 @@ def test_body_and_refs_land_in_one_git_commit(project):
         ["git", "rev-parse", "HEAD"], cwd=project, capture_output=True, text=True
     ).stdout.strip()
 
-    apply_replace_symbol(req, project_root=project)
+    result = apply_replace_symbol(req, project_root=project)
+    assert result.status == "applied"
 
     log = subprocess.run(
         ["git", "log", "--oneline", f"{before_sha}..HEAD"],
@@ -223,5 +301,7 @@ def test_body_and_refs_land_in_one_git_commit(project):
         capture_output=True,
         text=True,
     ).stdout.strip().splitlines()
-    assert len(log) == 1
-    assert "replace-symbol" in log[0]
+    assert log == []  # no commits created
+    # Transaction is persisted instead.
+    tx_dirs = list((project / ".symbol" / "transactions").iterdir())
+    assert any("replace-symbol" in p.name for p in tx_dirs)

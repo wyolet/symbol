@@ -22,6 +22,7 @@ import os
 import sys
 from pathlib import Path
 
+from wyolet.symbol.adapters.registry import default_registry
 from wyolet.symbol.reads.search import search as index_search
 from wyolet.symbol.shared.symbol_index import SymbolIndex
 
@@ -59,6 +60,19 @@ def _handle_pre(index: SymbolIndex, project_root: Path, payload: dict, *, enforc
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {}) or {}
 
+    # File-bearing tools: skip non-code files entirely (md, json, settings,
+    # arbitrary text). The language registry — driven by linguist content
+    # sniffing, not just extension — is the source of truth for "code we own".
+    if tool_name in ("Read", "Edit", "Write"):
+        file_path = (tool_input.get("file_path") or "").strip()
+        if not file_path:
+            return
+        abs_path = Path(file_path)
+        if not abs_path.is_file():
+            return
+        if not default_registry().supports(abs_path):
+            return
+
     if tool_name == "Read":
         message = _read_suggestion(index, project_root, tool_input)
     elif tool_name == "Grep":
@@ -94,16 +108,11 @@ def _handle_pre(index: SymbolIndex, project_root: Path, payload: dict, *, enforc
 
 def _read_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -> str | None:
     file_path = tool_input.get("file_path") or ""
-    if not file_path:
-        return None
-
     rel = _to_rel(project_root, file_path)
     if rel is None:
         return None
 
-    lang = index.language_of_file(rel)
-    if lang is None:
-        return None
+    lang = _detect_language(index, project_root, rel)
 
     # Small-file bypass: under ~80 lines the MCP overhead exceeds the win.
     if _too_small(project_root, rel):
@@ -161,20 +170,15 @@ def _write_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) 
     already-indexed file as an end-run around the Edit nudge.
     """
     file_path = tool_input.get("file_path") or ""
-    if not file_path:
-        return None
-
     rel = _to_rel(project_root, file_path)
     if rel is None:
         return None
 
-    lang = index.language_of_file(rel)
-    if lang is None:
-        return None  # not indexed — Write is fine (new file or non-py)
-
     abs_path = project_root / rel
     if not abs_path.exists():
         return None  # creating, not overwriting — pass through
+
+    lang = _detect_language(index, project_root, rel)
 
     if _too_small(project_root, rel):
         return None
@@ -193,16 +197,11 @@ def _write_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) 
 
 def _edit_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -> str | None:
     file_path = tool_input.get("file_path") or ""
-    if not file_path:
-        return None
-
     rel = _to_rel(project_root, file_path)
     if rel is None:
         return None
 
-    lang = index.language_of_file(rel)
-    if lang is None:
-        return None
+    lang = _detect_language(index, project_root, rel)
 
     if _too_small(project_root, rel):
         return None
@@ -215,10 +214,28 @@ def _edit_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -
         f'  • ReplaceSymbol(qualified_path=..., content=...) — whole symbol; parse-validated; rewrites callers if leaf renamed\n'
         f'  • InsertSymbol(anchor=..., position=before|after|start|end, content=...) — auto-indented, structural\n'
         f"  • DeleteSymbol(qualified_path=...) — refuses if callers exist\n"
-        f'  • RenameSymbol(qualified_path=..., new_name=...) — atomic across files, git-checkpointed\n'
+        f'  • RenameSymbol(qualified_path=..., new_name=...) — atomic across files, transactional (Undo-able)\n'
         f"Use Edit only on non-Python files."
     )
 
+
+
+def _detect_language(index: SymbolIndex, project_root: Path, rel: str) -> str:
+    """Resolve a label for the file's language.
+
+    Index first (free); fall back to linguist via the adapter registry for
+    files the index hasn't seen yet (e.g. just-created via Write). Returns
+    "code" if neither knows — caller is gated upstream so this only fires
+    for files already proven supported.
+    """
+    lang = index.language_of_file(rel)
+    if lang:
+        return lang
+    try:
+        adapter = default_registry().for_file(project_root / rel)
+        return adapter.lang
+    except Exception:
+        return "code"
 
 
 def _search_safe(index: SymbolIndex, pattern: str, *, regex: bool) -> list[dict]:
@@ -248,8 +265,14 @@ def _handle_post_detached(project_root: Path, payload: dict) -> None:
     if isinstance(tool_response, dict) and tool_response.get("error"):
         return
 
-    file_path = tool_input.get("file_path") or ""
-    if not file_path or not file_path.endswith(".py"):
+    file_path = (tool_input.get("file_path") or "").strip()
+    if not file_path:
+        return
+
+    abs_path = Path(file_path)
+    # On delete the file is gone — refresh handles tombstoning, no support
+    # check possible. For create/edit, gate by registry (linguist-aware).
+    if abs_path.exists() and not default_registry().supports(abs_path):
         return
 
     rel = _to_rel(project_root, file_path)
@@ -287,9 +310,15 @@ def _handle_post_detached(project_root: Path, payload: dict) -> None:
 # --------------------------------------------------------------------------
 
 def _find_project_root(start: Path) -> Path | None:
+    """Walk up from `start` looking for a `.symbol/` directory.
+
+    `.symbol/` is the only marker — pyproject.toml and .git would falsely
+    match anywhere on the filesystem (notably ~/.claude/...) and trigger
+    nudges from outside any instrumented project.
+    """
     p = start.resolve()
     while p != p.parent:
-        if (p / ".symbol").exists() or (p / "pyproject.toml").exists() or (p / ".git").exists():
+        if (p / ".symbol").is_dir():
             return p
         p = p.parent
     return None

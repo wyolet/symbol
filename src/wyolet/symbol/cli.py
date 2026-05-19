@@ -320,8 +320,6 @@ def rename_symbol(
     new_name: Annotated[str, typer.Argument(help="New leaf name (no dots)")],
     path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Plan rename, don't write")] = False,
-    allow_dirty: Annotated[bool, typer.Option("--allow-dirty", help="Proceed even with uncommitted changes")] = False,
-    force_no_vcs: Annotated[bool, typer.Option("--force-no-vcs", help="Proceed on a non-git project")] = False,
     agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
     format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
 ) -> None:
@@ -334,8 +332,6 @@ def rename_symbol(
         new_name=new_name,
         project_root=path,
         dry_run=dry_run,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
         agent=agent,
         format=format,
     )
@@ -347,8 +343,6 @@ def replace_symbol(
     content: Annotated[str, typer.Option("--content", help="Full new symbol definition")],
     path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without writing")] = False,
-    allow_dirty: Annotated[bool, typer.Option("--allow-dirty", help="Proceed with uncommitted changes")] = False,
-    force_no_vcs: Annotated[bool, typer.Option("--force-no-vcs", help="Proceed on a non-git project")] = False,
     agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
     format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
 ) -> None:
@@ -361,11 +355,42 @@ def replace_symbol(
         content=content,
         project_root=path,
         dry_run=dry_run,
-        allow_dirty=allow_dirty,
-        force_no_vcs=force_no_vcs,
         agent=agent,
         format=format,
     )
+
+
+@app.command()
+def refresh(
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    full: Annotated[bool, typer.Option("--full", help="Force full rebuild instead of incremental refresh")] = False,
+    keep_transactions: Annotated[bool, typer.Option("--keep-transactions", help="Don't clear .symbol/transactions/")] = False,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Reindex changed files and clear transaction history."""
+    from wyolet.symbol.commands.refresh import refresh_cmd
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    refresh_cmd(
+        project_root=path, full=full, keep_transactions=keep_transactions,
+        agent=agent, format=format,
+    )
+
+
+@app.command()
+def undo(
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Revert the most recent rename-symbol / replace-symbol transaction."""
+    from wyolet.symbol.commands.undo import undo_cmd
+    import os as _os
+    if _os.environ.get("CA_AGENT"):
+        agent = True
+    undo_cmd(project_root=path, agent=agent, format=format)
 
 
 @app.command(hidden=True)
