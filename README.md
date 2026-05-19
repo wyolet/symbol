@@ -9,7 +9,9 @@ Point `symbol` at a directory and ask it questions a human or a coding agent act
 
 Static analysis only — `symbol` never imports or executes the target code.
 
-> **Status:** v0.1.0, install from GitHub (PyPI release as `wyolet-symbol` coming soon — the bare `symbol` name is reserved by PyPI policy; CLI command stays `symbol`). Python is the proving ground. **Go** and **TypeScript** are next on the roadmap.
+> **Status:** [`wyolet-symbol`](https://pypi.org/project/wyolet-symbol/) on PyPI (CLI command is `symbol` — the bare name is reserved by PyPI policy). Python is the proving ground; **Go** and **TypeScript** are next on the roadmap.
+
+![symbol audit on a FastAPI app](docs/demos/audit.svg)
 
 ## Install
 
