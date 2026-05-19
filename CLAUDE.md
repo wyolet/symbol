@@ -47,7 +47,7 @@ src/wyolet/                    — namespace package (no __init__.py — PEP 420
         └── specs/NAME/       — Per-package specs (237 packages and growing)
 ```
 
-Imports go `from wyolet.symbol.X import Y`. PyPI distribution is `wyolet-symbol`; future sibling packages (`wyolet-linter`, etc.) install into the same `wyolet/` namespace.
+Imports go `from wyolet.symbol.X import Y`. PyPI distribution is `wyolet-symbol`. The `wyolet/` namespace is PEP 420 so future sibling packages can install alongside without an `__init__.py` collision.
 
 ## Architecture
 
