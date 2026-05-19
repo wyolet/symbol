@@ -130,25 +130,54 @@ When run as `symbol mcp` (or installed via the plugin), `symbol` exposes:
 
 ## Configuration
 
-Two equivalent forms — standalone or in `pyproject.toml`:
+Use `symbol.toml` at the project root, or add the same tables under
+`[tool.symbol]` in `pyproject.toml`.
 
 ```toml
-# symbol.toml at project root, or [tool.symbol] in pyproject.toml
-[tool.symbol]
+# symbol.toml
+[checker]
 exclude = ["alembic/*", "scripts/*"]
 
-[tool.symbol.severity]
-orphans = "warning"        # default: error
-side_effects = "info"      # default: warning
-unused_deps = "error"      # default: error
+[checkers.orphans]
+severity = "warning"        # default: error
+ignore = ["alembic/*", "src/main.py"]
 
-[tool.symbol.ignore]
-deps = ["greenlet", "psycopg"]
-orphans = ["alembic/*", "src/main.py"]
-side_effects = ["*.include_router()", "*.add_middleware()"]
+[checkers.side_effects]
+severity = "info"           # default: warning
+ignore = ["*.include_router()", "*.add_middleware()"]
+
+[checkers.unused_deps]
+severity = "error"          # default: error
+ignore = ["greenlet", "psycopg"]
 ```
 
-See [`docs/spec-schema.md`](docs/spec-schema.md) for the full spec schema.
+In `pyproject.toml`, prefix those tables with `tool.symbol`:
+
+```toml
+[tool.symbol.checker]
+exclude = ["alembic/*", "scripts/*"]
+
+[tool.symbol.checkers.orphans]
+severity = "warning"
+ignore = ["alembic/*", "src/main.py"]
+```
+
+The config schema lives at
+[`schemas/symbol.config.schema.json`](schemas/symbol.config.schema.json). With
+Taplo, you can wire it up for both forms:
+
+```toml
+[[rule]]
+include = ["symbol.toml"]
+schema = { path = "schemas/symbol.config.schema.json" }
+
+[[rule]]
+include = ["pyproject.toml"]
+keys = ["tool", "symbol"]
+schema = { path = "schemas/symbol.config.schema.json" }
+```
+
+See [`docs/spec-schema.md`](docs/spec-schema.md) for the package/spec schema.
 
 ## Global options
 
