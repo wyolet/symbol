@@ -4,6 +4,14 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-19
+
+### Changed
+- Distribution renamed to `wyolet-symbol` (the bare `symbol` name is reserved by PyPI policy). CLI command remains `symbol`.
+- First release published to PyPI.
+- Added GitHub Actions release workflow with trusted publishing (OIDC).
+- Added `LICENSE`, `CHANGELOG.md`, and CI workflow.
+
 ## [0.1.0] — 2026-05-19
 
 First tagged release.
@@ -18,5 +26,6 @@ First tagged release.
 - **237 package specs** under `src/wyolet/symbol/data/specs/` covering Django, FastAPI, Celery, SQLAlchemy, LangChain, Pydantic, pytest, and 230+ others.
 - **GitHub Linguist port**: 500+ languages with real GitHub colors, multi-strategy detection (modeline, shebang, filename, extension, XML, manpage).
 
-[Unreleased]: https://github.com/wyolet/symbol/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wyolet/symbol/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/wyolet/symbol/releases/tag/v0.1.1
 [0.1.0]: https://github.com/wyolet/symbol/releases/tag/v0.1.0
