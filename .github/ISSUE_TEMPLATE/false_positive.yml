@@ -1,0 +1,54 @@
+name: False positive
+description: symbol flagged something that isn't actually wrong (often: orphans, side effects, unused deps).
+labels: [false-positive]
+body:
+  - type: dropdown
+    id: checker
+    attributes:
+      label: Which checker?
+      options:
+        - orphans
+        - side_effects
+        - swallowed
+        - todos
+        - unused_deps
+        - entrypoints
+        - stack
+        - code_structure
+        - loc / language detection
+        - import map / hotspots
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: finding
+    attributes:
+      label: The finding symbol reported
+      description: Paste the relevant line(s) from `symbol audit` / `symbol map` / `symbol loc` output.
+    validations:
+      required: true
+  - type: textarea
+    id: why_wrong
+    attributes:
+      label: Why is it a false positive?
+      description: e.g. "Django auto-discovers admin.py, so it's never imported explicitly — but it IS reachable."
+    validations:
+      required: true
+  - type: input
+    id: package
+    attributes:
+      label: Relevant package (if any)
+      placeholder: "django, fastapi, celery, ..."
+      description: If this is framework-specific, naming the package helps — fixes usually land in `data/specs/<package>/spec.toml`.
+  - type: input
+    id: version
+    attributes:
+      label: symbol version
+      placeholder: "wyolet-symbol 0.1.1"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproducer (optional)
+      description: Link to a public repo where this reproduces, or a minimal snippet.

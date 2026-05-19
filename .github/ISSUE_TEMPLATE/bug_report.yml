@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in symbol is wrong, crashing, or producing the wrong result.
+labels: [bug]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Command you ran
+      placeholder: "symbol audit /path/to/project"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: Paste output, traceback, or a screenshot.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: symbol version
+      placeholder: "wyolet-symbol 0.1.1 — output of `symbol --version`"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.13.x"
+    validations:
+      required: true
+  - type: input
+    id: frameworks
+    attributes:
+      label: Frameworks in target project
+      placeholder: "django, fastapi, celery, ..."
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproducer (optional but very helpful)
+      description: A public repo link or a minimal file/snippet that triggers the issue.

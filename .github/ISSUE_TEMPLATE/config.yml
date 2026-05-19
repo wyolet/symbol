@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Add a package spec (good first contribution)
+    url: https://github.com/wyolet/symbol/issues/3
+    about: Detection rules for a new framework live as TOML — no Python required.
+  - name: Security report
+    url: https://github.com/wyolet/symbol/blob/main/SECURITY.md
+    about: For security-sensitive issues, please email instead of filing publicly.
