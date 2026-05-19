@@ -1,53 +1,60 @@
 # symbol
 
-AST-native codebase audit, symbol index, and MCP server for Python projects. Point at a directory, get the full picture.
+AST-native code intelligence for Python. CLI for humans (audit, map, loc) and MCP server for agents (12 symbol-level tools). Static analysis only — never imports or executes target code.
 
-Repo lives at [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol) under the `wyolet` umbrella. Local path: `/Users/abror/projects/wyolet/symbol`. CLI and (eventual) PyPI distribution are both `symbol`.
+Repo: [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol). Local path: `/Users/abror/projects/wyolet/symbol`. CLI and (eventual) PyPI distribution are both `symbol`. Python is the proving ground; **Go** and **TypeScript** are next on the roadmap (same architecture, different parsers).
 
 ## Commands
 
 - **`symbol audit`** — Runs all registered checkers: stack, entrypoints, orphans, side effects, swallowed exceptions, TODOs, unused deps, code structure
-- **`symbol loc`** — GitHub Linguist-powered LOC counter (500+ languages, multi-strategy detection)
+- **`symbol loc`** — GitHub Linguist port: 500+ languages, multi-strategy detection (modeline, shebang, filename, extension, XML, manpage)
 - **`symbol map`** — Import graph: circular imports, hotspots, fragile modules, deep chains, blast radius
+- **`symbol search` / `symbol code` / `symbol outline` / `symbol callers`** — Symbol-level inspection
+- **`symbol patch`** — Byte-range edit (replace / delete / insert) without `old_string` payloads
 - **`symbol analyze` / `symbol dump`** — Per-file AST analysis
 - **`symbol init`** — Generate recommended `[tool.symbol]` config
 - **`symbol update-linguist`** — Pull latest language definitions from GitHub
 - **`symbol mcp [--root PATH]`** — Run the MCP server (stdio) exposing 12 agent tools: SearchSymbol, SymbolBody, SymbolOutline, SymbolCallers, Patch, MultiPatch, DeleteSymbol, InsertSymbol, RenameSymbol, ReplaceSymbol, Undo, Refresh
-- **`symbol undo`** — Revert the most recent RenameSymbol/ReplaceSymbol transaction (uses `.symbol/transactions/` log; no git involvement)
+- **`symbol undo`** — Revert the most recent Rename/Replace transaction (uses `.symbol/transactions/`; no git involvement)
 - **`symbol refresh [--full]`** — Reindex changed files and clear transaction history. Escape hatch when state drifts.
 
-## MCP
+## Claude Code plugin
 
-`.mcp.json` at the repo root registers the server for Claude Code (project scope). `.claude/skills/symbol/SKILL.md` steers tool selection away from native Read/Grep/Edit. To install in another project, add this block to that project's `.mcp.json`:
+`plugin/` is installable via `claude plugin install git+https://github.com/wyolet/symbol@main`. It bundles:
+- `plugin/.mcp.json` — registers the `symbol mcp` stdio server
+- `plugin/skills/symbol/SKILL.md` — steers Claude away from native Read/Grep/Edit on indexed Python files
+- `plugin/hooks/hooks.json` — PreToolUse / PostToolUse soft-nudge hooks
 
-```json
-{"mcpServers": {"symbol": {"command": "uv", "args": ["run", "--directory", "/path/to/this-repo", "symbol", "mcp", "--root", "/path/to/target-project"]}}}
-```
+The server is plain MCP — it also works with opencode, Cursor, Continue, and anything else that speaks MCP. See pinned GitHub issues for the integration work.
 
 ## Structure
 
 ```
 src/wyolet/                    — namespace package (no __init__.py — PEP 420)
 └── symbol/
-    ├── cli.py                — Typer root (dispatches, defaults bare-path to audit)
-    ├── commands/             — audit, loc, map, analyze, init, hook (thin views)
-    ├── checkers/             — @register'd checkers (file-kind and project-kind)
-    │   ├── stack.py, entrypoints.py, orphans.py, side_effects.py,
-    │   ├── swallowed.py, todos.py, unused_deps.py, code_structure.py
-    ├── shared/               — AnalysisContext, ASTCache, registry, runner,
-    │   ├── spec, config_resolver, framework_detector, graph, linguist/
+    ├── cli.py                — Typer root (dispatches; bare-path defaults to audit)
+    ├── commands/             — Thin CLI views (audit, loc, map, analyze, search,
+    │                          code, outline, callers, patch, hook, refresh,
+    │                          undo, init, +symbol-level ops for the MCP surface)
+    ├── checkers/             — @register'd checkers (stack, entrypoints, orphans,
+    │                          side_effects, swallowed, todos, unused_deps,
+    │                          code_structure)
+    ├── shared/               — Core infra: AnalysisContext, ASTCache, registry,
+    │                          runner, spec/config_resolver, framework_detector,
+    │                          graph, symbol_index, simulator, workspace, linguist/
     └── data/
         ├── spec.toml         — Global baseline spec
-        └── specs/NAME/       — Per-package specs (200+ packages)
+        └── specs/NAME/       — Per-package specs (237 packages and growing)
 ```
 
-Imports go `from wyolet.symbol.X import Y`. The PyPI distribution is `symbol`; future sibling packages (`linter`, etc.) install into the same `wyolet/` namespace.
+Imports go `from wyolet.symbol.X import Y`. The PyPI distribution is `symbol`; future sibling packages install into the same `wyolet/` namespace.
 
 ## Architecture
 
 - **Checker registry** (`shared/registry.py`) — `@register(name, kind, ...)` + `views(name, rich=, json=, findings=)`. `kind="file"` runs per file; `kind="project"` runs once. Commands are thin views, not owners.
 - **AnalysisContext** (`shared/context.py`) — built once via `build_context()`: project_root, spec, config, ASTCache, frameworks, deps, resolved config. Shared across audit/map/analyze.
 - **ASTCache** (`shared/ast_cache.py`) — parses each file once; passed to all consumers.
+- **Symbol index** (`shared/symbol_index.py`) — qualified-path → location/signature/body index that backs `search` / `code` / `outline` / `callers` and the MCP read tools.
 - **Spec system** (`shared/spec.py`, `shared/config_resolver.py`):
   1. Global baseline (`data/spec.toml`)
   2. Per-package specs (`data/specs/NAME/spec.toml`) — loaded only if package appears in project deps (stdlib always loaded)
