@@ -16,7 +16,7 @@ Static analysis only — `symbol` never imports or executes the target code.
 ### CLI only
 
 ```bash
-uv tool install --from git+https://github.com/wyolet/symbol@v0.1.0 symbol
+uv tool install wyolet-symbol      # or: pipx install wyolet-symbol
 ```
 
 Then `symbol audit /path/to/project`, `symbol loc`, `symbol map` work from any directory.
@@ -26,11 +26,11 @@ Then `symbol audit /path/to/project`, `symbol loc`, `symbol map` work from any d
 For full agent integration — MCP tools (`SearchSymbol`, `SymbolBody`, `MultiPatch`, …), the `symbol` skill, and soft-nudge PreToolUse / PostToolUse hooks that steer Claude away from native Grep/Read/Edit on indexed Python files:
 
 ```bash
-# 1. Install the CLI (the plugin's MCP server and hooks call it)
-uv tool install --from git+https://github.com/wyolet/symbol@v0.1.0 symbol
+# 1. Install the CLI from PyPI
+uv tool install wyolet-symbol
 
-# 2. Install the plugin in Claude Code
-claude plugin install git+https://github.com/wyolet/symbol@v0.1.0
+# 2. Install the plugin in Claude Code (bundles MCP server registration, skill, hooks)
+claude plugin install git+https://github.com/wyolet/symbol@main
 ```
 
 ### Other agent coding tools
@@ -40,8 +40,8 @@ The MCP server is plain stdio MCP — it works anywhere MCP works. **opencode**,
 ### Updating / uninstall
 
 ```bash
-uv tool upgrade symbol           # or: uv tool uninstall symbol
-claude plugin update symbol      # or: claude plugin uninstall symbol
+uv tool upgrade wyolet-symbol      # or: uv tool uninstall wyolet-symbol
+claude plugin update symbol        # or: claude plugin uninstall symbol
 ```
 
 ## Commands
