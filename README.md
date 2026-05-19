@@ -37,7 +37,7 @@ claude plugin install git+https://github.com/wyolet/symbol@main
 
 ### Other agent coding tools
 
-The MCP server is plain stdio MCP — it works anywhere MCP works. **opencode**, Cursor, Continue, and Zed integrations are tracked in [#8](https://github.com/wyolet/symbol/issues/8); help wanted. The Claude-Code-specific glue (skill + hooks) does not port automatically.
+The MCP server is plain stdio MCP — it works anywhere MCP works. **opencode** setup is documented in [`docs/integrations/opencode.md`](docs/integrations/opencode.md). Cursor, Continue, and Zed integrations are tracked in [#8](https://github.com/wyolet/symbol/issues/8); help wanted. The Claude-Code-specific glue (skill + hooks) does not port automatically.
 
 ### Updating / uninstall
 
