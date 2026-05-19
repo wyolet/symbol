@@ -5,8 +5,41 @@ detect = { deps = ["fastapi"] }
 [checker]
 exclude = ["docs_src/**"]
 
+[checkers.orphan]
+patterns = [
+    # fastapi.* public API re-exports from starlette — imported by users, not by fastapi's own code
+    "fastapi/middleware/cors.py",
+    "fastapi/middleware/gzip.py",
+    "fastapi/middleware/httpsredirect.py",
+    "fastapi/middleware/trustedhost.py",
+    "fastapi/middleware/wsgi.py",
+    "fastapi/staticfiles.py",
+    "fastapi/templating.py",
+    # Public helper module: users import from fastapi.exception_handlers
+    "fastapi/exception_handlers.py",
+]
+
 [checkers.side_effects.calls]
-skip = ["FastAPI", "APIRouter", "lifespan", "include_router"]
+skip = [
+    # App / router construction
+    "FastAPI",
+    "APIRouter",
+    "lifespan",
+    # Router and middleware wiring — idiomatic at module level
+    "include_router",
+    "add_middleware",
+    "add_exception_handler",
+    "mount",
+    # Pydantic v2 model rebuild — fastapi uses these to finalize forward refs
+    "model_rebuild",
+]
 
 [checkers.side_effects.patterns]
-debug = ["dependencies.py", "lifespan.py", "middleware.py"]
+# Demote findings in these files / paths to debug — they're legitimate framework wiring
+debug = [
+    "dependencies.py",
+    "lifespan.py",
+    "middleware.py",
+    # Test files routinely build app + include_router at module scope
+    "tests/**",
+]
