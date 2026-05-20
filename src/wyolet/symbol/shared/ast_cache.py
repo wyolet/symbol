@@ -1,17 +1,22 @@
-"""Shared AST cache — parse each file once, share across all checkers."""
+"""Shared AST cache — parse each Python file once, share across all checkers."""
 
 import ast
 import sys
 from pathlib import Path
 
-from .files import collect_py_files
+from .files import filter_paths
 
 # Don't cache source text for files larger than this (they're rare and eat memory)
 MAX_CACHED_FILE_SIZE = 512 * 1024  # 512KB
 
 
 class ASTCache:
-    """Lazily parses and caches ASTs for all Python files in a project.
+    """Lazily parses and caches Python ASTs for files in a project.
+
+    File discovery goes through ``Linguist.file_languages``: we ask linguist
+    which files are Python and use that set, instead of globbing ``*.py``.
+    Languages with no AST cache (e.g. Go in the future) get their own peer
+    cache; this one is Python-only by design.
 
     Memory management:
     - Source text is dropped after parsing (only AST kept)
@@ -24,17 +29,43 @@ class ASTCache:
         project_root: Path,
         include: list[str] | None = None,
         exclude: list[str] | None = None,
+        linguist=None,
     ):
         self.project_root = project_root
         self._include_patterns = tuple(include or ())
         self._exclude_patterns = tuple(exclude or ())
-        self._files = collect_py_files(project_root, include, exclude)
+
+        if linguist is None:
+            from .linguist.linguist import Linguist
+
+            linguist = Linguist()
+            linguist.classify_project(str(project_root), exclude=list(exclude or ()))
+        self._linguist = linguist
+
+        self._files: list[Path] = sorted(
+            filter_paths(
+                (
+                    path for path, lang in linguist.file_languages.items()
+                    if lang.key == "python"
+                ),
+                project_root=project_root,
+                include=include,
+                exclude=exclude,
+            )
+        )
         self._cache: dict[Path, ast.Module | None] = {}
         self.failed: list[tuple[Path, str]] = []  # (filepath, error message)
 
     @property
     def files(self) -> list[Path]:
         return self._files
+
+    def language_of(self, path: Path) -> str | None:
+        """Linguist's classification for this path as a canonical language key
+        (e.g. ``'python'``). None if the file wasn't classified.
+        """
+        lang = self._linguist.file_languages.get(path)
+        return lang.key if lang is not None else None
 
     def get_ast(self, filepath: Path) -> ast.Module | None:
         """Get the parsed AST for a file, parsing on first access."""

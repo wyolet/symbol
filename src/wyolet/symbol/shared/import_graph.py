@@ -6,7 +6,6 @@ from enum import Enum
 from pathlib import Path
 
 from wyolet.symbol.shared.ast_cache import ASTCache
-from wyolet.symbol.shared.files import collect_py_files
 
 
 class ImportScope(Enum):
@@ -50,25 +49,16 @@ def build_import_graph(
 ) -> ImportGraph:
     graph = ImportGraph()
 
-    if cache:
-        py_files = cache.files
-    else:
-        py_files = collect_py_files(project_root, include, exclude)
+    if cache is None:
+        cache = ASTCache(project_root, include=include, exclude=exclude)
+    py_files = cache.files
     graph.files = py_files
 
     module_to_file = _build_module_map(project_root, py_files)
     graph.module_to_file = module_to_file
 
     for py_file in py_files:
-        if cache:
-            tree = cache.get_ast(py_file)
-        else:
-            try:
-                source = py_file.read_text()
-                tree = ast.parse(source, filename=str(py_file))
-            except (SyntaxError, UnicodeDecodeError, OSError):
-                tree = None
-
+        tree = cache.get_ast(py_file)
         if tree is None:
             continue
 

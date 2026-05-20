@@ -46,6 +46,10 @@ class LanguageRegistry:
         bucket.append((priority, cls))
         bucket.sort(key=lambda pair: pair[0], reverse=True)
 
+    def has_adapter(self, language: str) -> bool:
+        """True if some adapter is registered for ``language`` (canonical key)."""
+        return language.lower() in self._classes
+
     def for_language(self, language: str) -> LanguageAdapter:
         lang = language.lower()
         inst = self._instances.get(lang)
@@ -112,6 +116,8 @@ def _detect_language(path: Path) -> str | None:
 
 def _register_builtins() -> None:
     from wyolet.symbol.adapters.python_ast import PythonAstAdapter
+    # Side-effect import: registers Python dep parsers against the DEPS pipeline.
+    from wyolet.symbol.adapters import python_deps  # noqa: F401
 
     _default.register("python", PythonAstAdapter, priority=0)
 
