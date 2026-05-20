@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/wyolet/symbol/main/schemas/symbol.config.schema.json",
+  "title": "symbol configuration",
+  "description": "Configuration for symbol.toml, or for the [tool.symbol] table inside pyproject.toml.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "checker": {
+      "$ref": "#/$defs/pathFilter",
+      "description": "File filters used by audit checkers."
+    },
+    "scanner": {
+      "$ref": "#/$defs/pathFilter",
+      "description": "File filters used by scanners such as LOC/language detection."
+    },
+    "disable": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Checker names to skip entirely."
+    },
+    "custom_checkers": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Paths to custom checker modules, relative to the project root."
+    },
+    "extra_specs": {
+      "$ref": "#/$defs/stringArray",
+      "description": "Paths to extra spec files, relative to the project root."
+    },
+    "checkers": {
+      "type": "object",
+      "description": "Per-checker severity and ignore settings.",
+      "properties": {
+        "orphans": {
+          "$ref": "#/$defs/checkerConfig"
+        },
+        "side_effects": {
+          "$ref": "#/$defs/sideEffectsCheckerConfig"
+        },
+        "unused_deps": {
+          "$ref": "#/$defs/checkerConfig"
+        },
+        "stack": {
+          "$ref": "#/$defs/checkerConfig"
+        },
+        "entrypoints": {
+          "$ref": "#/$defs/checkerConfig"
+        },
+        "todos": {
+          "$ref": "#/$defs/checkerConfig"
+        },
+        "swallowed": {
+          "$ref": "#/$defs/checkerConfig"
+        },
+        "code_structure": {
+          "$ref": "#/$defs/checkerConfig"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/checkerConfig"
+      }
+    },
+    "packages": {
+      "type": "object",
+      "description": "Per-package project overrides.",
+      "additionalProperties": {
+        "$ref": "#/$defs/packageOverride"
+      }
+    },
+    "map": {
+      "$ref": "#/$defs/mapConfig"
+    },
+    "side_effects": {
+      "$ref": "#/$defs/legacySideEffectsConfig",
+      "description": "Legacy project-level side_effects settings. Prefer [checkers.side_effects] for new config."
+    }
+  },
+  "$defs": {
+    "severity": {
+      "type": "string",
+      "enum": [
+        "skip",
+        "debug",
+        "info",
+        "warning",
+        "error",
+        "critical"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "pathFilter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Glob patterns to include."
+        },
+        "exclude": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Glob patterns to exclude."
+        }
+      }
+    },
+    "checkerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "ignore": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Checker-specific names or glob patterns to ignore."
+        }
+      }
+    },
+    "sideEffectsCheckerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "ignore": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Call text patterns to ignore."
+        },
+        "calls": {
+          "$ref": "#/$defs/severityStringArrayMap",
+          "description": "Call names grouped by severity, for example error = [\"requests.get\"]."
+        },
+        "patterns": {
+          "$ref": "#/$defs/severityStringArrayMap",
+          "description": "Call-text or filename patterns grouped by severity."
+        }
+      }
+    },
+    "legacySideEffectsConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
+        "safe_calls": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "known_effects": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "file_roles": {
+          "$ref": "#/$defs/severityStringArrayMap"
+        }
+      }
+    },
+    "severityStringArrayMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skip": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "debug": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "info": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "warning": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "error": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "critical": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "mapConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of entries shown per map section."
+        },
+        "severity": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/severity"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "general": {
+                  "$ref": "#/$defs/severity"
+                },
+                "cycles": {
+                  "$ref": "#/$defs/severity"
+                },
+                "hotspots": {
+                  "$ref": "#/$defs/severity"
+                },
+                "fragile": {
+                  "$ref": "#/$defs/severity"
+                },
+                "deep_chains": {
+                  "$ref": "#/$defs/severity"
+                },
+                "leaves": {
+                  "$ref": "#/$defs/severity"
+                }
+              }
+            }
+          ]
+        },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hotspots": {
+              "$ref": "#/$defs/metricThreshold"
+            },
+            "fragile": {
+              "$ref": "#/$defs/metricThreshold"
+            },
+            "deep_chains": {
+              "$ref": "#/$defs/metricThreshold"
+            },
+            "cycles": {
+              "$ref": "#/$defs/metricThreshold"
+            }
+          }
+        }
+      }
+    },
+    "metricThreshold": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "info": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warning": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "packageOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "side_effects": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "$ref": "#/$defs/severity"
+            },
+            "module_level": {
+              "$ref": "#/$defs/severity",
+              "description": "Legacy alias for severity."
+            }
+          }
+        },
+        "orphan": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "patterns": {
+              "$ref": "#/$defs/stringArray"
+            }
+          }
+        }
+      }
+    }
+  }
+}
