@@ -1,297 +1,263 @@
-# symbol Spec Schema
+# Package Spec Schema
 
-The spec is a TOML file that defines detection patterns, package classifications,
-and checker behavior. It is the single source of truth for what symbol knows
-about the Python ecosystem — no behavior is hardcoded in Python.
-
-## Loading and Merging
-
-symbol loads and merges specs from multiple sources in order:
+A **package spec** teaches `symbol` what's idiomatic for a single library or
+framework — which files aren't really orphans, which module-level calls are
+expected, which decorators mark entry points. Each spec is one TOML file:
 
 ```
-1. Built-in spec     (ships with symbol, maintained by the community)
-2. Plugin specs      (installed packages that register via entry points)
-3. Project spec      (symbol.spec.toml at project root, or inline in pyproject.toml)
+src/wyolet/symbol/data/specs/<package>/spec.toml
 ```
 
-Later specs override earlier ones on a per-field basis. Lists are merged, scalars
-are overridden. The project spec always has the final say.
+237 specs ship today. New ones are welcome — see issue [#3](https://github.com/wyolet/symbol/issues/3).
 
-### Registering a plugin spec
+The contract is described formally in
+[`schemas/symbol.spec.schema.json`](../schemas/symbol.spec.schema.json) (JSON
+Schema draft 2020-12) and enforced by `tests/test_spec_schema.py`, which
+validates every bundled spec on every PR. The prose below is a friendlier tour
+of the same shape.
 
-Publish a package and declare an entry point:
-
-```toml
-[project.entry-points."symbol.specs"]
-my-spec = "my_package:spec_path"
-```
-
-Where `spec_path` is a `Path` or string pointing to your `.spec.toml` file.
-
-### Project-local spec
-
-Drop a `symbol.spec.toml` at your project root. It is loaded last and
-overrides everything. Use it for internal packages, private libraries, or
-project-specific overrides.
+> **Looking for project-level config?** That's a different file
+> (`symbol.toml` / `[tool.symbol]`) with its own schema at
+> [`schemas/symbol.config.schema.json`](../schemas/symbol.config.schema.json).
+> This doc covers the per-package specs that ship inside `symbol` itself.
 
 ---
 
-## Top-level sections
+## Worked example
 
-| Section         | Purpose                                          |
-|-----------------|--------------------------------------------------|
-| `[categories]`  | Display labels for package categories            |
-| `[packages]`    | Package registry — identity, type, checker config|
-| `[config_files]`| Filenames that indicate project configuration    |
-| `[config_dirs]` | Directories that indicate project configuration  |
-| `[side_effects]`| Global side effect detection rules               |
-| `[entrypoints]` | Entry point detection patterns                   |
-| `[frameworks]`  | Framework-specific rule overrides                |
-
----
-
-## `[categories]`
-
-Maps internal category keys to human-readable display labels.
-Every `[packages.X]` entry must reference a category defined here.
+A typical spec for a web framework with router-style wiring:
 
 ```toml
-[categories]
-web       = "Web framework"
-http_client = "HTTP client"
-testing   = "Testing"
-```
-
----
-
-## `[packages]`
-
-The package registry. Each entry describes a PyPI package or stdlib module.
-
-### Identity fields
-
-```toml
-[packages.requests]
-category = "http_client"   # required — must match a key in [categories]
-type     = "lib"           # required — lib | tool | app
-stdlib   = false           # optional — true for stdlib modules (default: false)
-import_name = "requests"   # optional — when import name differs from package name
-                           # e.g. Pillow imports as PIL, PyYAML imports as yaml
-```
-
-#### `type` values
-
-| Value  | Meaning                                              |
-|--------|------------------------------------------------------|
-| `lib`  | Pure library — imported by other code                |
-| `tool` | CLI/dev tool — installed and run as a command        |
-| `app`  | Deployed application — not imported by others        |
-
-`type` affects default checker behavior. Tools get relaxed rules (their setup
-code at module level is expected). Apps are rarely in shared specs — they live
-in project-local specs.
-
-#### `stdlib = true`
-
-Marks a module as part of the Python standard library. Same schema as PyPI
-packages — no special casing. Useful for the unused deps checker (won't look
-for it in pyproject.toml) and for display purposes.
-
-```toml
-[packages.subprocess]
-category = "utility"
+name     = "aiogram"
+category = "messaging"
 type     = "lib"
-stdlib   = true
+detect   = { deps = ["aiogram"] }
+
+[checkers.orphan]
+# Files users write but only the framework calls — not dead code.
+patterns = ["handlers.py", "callbacks.py", "middlewares.py", "bot.py"]
+
+[checkers.side_effects.calls]
+# Bare function names. `skip` silences a call entirely; other severities
+# escalate it.
+skip = ["include_router", "include_routers", "Dispatcher", "Bot", "Router"]
+
+[checkers.side_effects.patterns]
+# File-basename or path globs grouped by severity. Module-level side effects
+# inside these files get demoted to `debug` (hidden by default).
+debug = ["handlers.py", "callbacks.py", "middlewares.py", "bot.py"]
 ```
 
-### Per-checker config
+Compare with [`data/specs/fastapi/spec.toml`](../src/wyolet/symbol/data/specs/fastapi/spec.toml)
+for the canonical larger example.
 
-Each checker can have its own config block under `[packages.X.<checker>]`.
-This is where checker-specific behavior is declared — not in the package
-identity fields above.
+---
 
-#### `[packages.X.side_effects]`
+## Top-level fields
 
-Controls how the side effects checker treats calls from this package at
-module level.
+| Field          | Required | Type                  | Default | Purpose                                                                |
+|----------------|----------|-----------------------|---------|------------------------------------------------------------------------|
+| `name`         | ✅       | string                | —       | PyPI distribution name (or stdlib module name).                        |
+| `category`     | ✅       | string                | —       | Category key — must exist in `[categories]` of `data/spec.toml`.       |
+| `type`         |          | `lib` \| `tool` \| `app` | `lib`   | Role: library, CLI/dev tool, or application.                           |
+| `stdlib`       |          | bool                  | `false` | Stdlib modules are always loaded, even when not in project deps.       |
+| `import_name`  |          | string                | —       | Use when the import name differs (e.g. Pillow → `PIL`, PyYAML → `yaml`). |
+| `runtime_only` |          | bool                  | `false` | Used at runtime but never imported in source (e.g. `gunicorn`).        |
+| `detect`       |          | table                 | `{}`    | Heuristics for marking this package active in a project.               |
+| `checker`      |          | table                 | `{}`    | AST-checker file filters applied when active.                          |
+| `scanner`      |          | table                 | `{}`    | LOC-scanner file filters applied when active.                          |
+| `checkers`     |          | table                 | `{}`    | Per-checker configuration (see below).                                 |
+
+Unknown top-level keys are rejected by the schema — typos fail fast.
+
+### `[detect]`
+
+How `symbol` decides this spec is active for the current project.
 
 ```toml
-[packages.requests.side_effects]
-module_level = "critical"   # severity if this package is called at module level
-                            # debug | info | warning | error | critical
-                            # default: warning
+[detect]
+deps         = ["aiogram"]              # PyPI names — any match activates
+config_files = ["alembic.ini"]          # filenames at project root
 ```
 
-| Severity   | Meaning                                                    |
-|------------|------------------------------------------------------------|
-| `debug`    | Expected at module level — suppress by default             |
-| `info`     | Informational — shown with --verbose                       |
-| `warning`  | Default — worth noting but not a bug                       |
-| `error`    | Unexpected — likely a bug                                  |
-| `critical` | Never safe at import time — network, I/O, subprocess calls |
+### `[checker]` and `[scanner]`
 
-Examples:
+Glob excludes only — the AST checker and LOC scanner each accept an `exclude`
+list:
 
 ```toml
-[packages.requests.side_effects]
-module_level = "critical"   # HTTP call at import time — always a bug
+[checker]
+exclude = ["docs_src/**"]
 
-[packages.pytest.side_effects]
-module_level = "debug"      # test setup at module level is expected
-
-[packages.celery.side_effects]
-module_level = "warning"    # Celery app definition is common but worth noting
+[scanner]
+exclude = ["vendor/**"]
 ```
 
 ---
 
-## `[side_effects]`
+## `[checkers.orphan]`
 
-Global side effect detection rules that apply across all packages.
-
-### `safe_calls`
-
-Leaf function names that are never flagged regardless of which file or package
-they come from. Use for constructors and patterns that are universally safe at
-module level.
+Files that should never be flagged as orphans, even with no callers. Used for
+framework conventions where the user writes the file and the framework calls
+it.
 
 ```toml
+[checkers.orphan]
+patterns = ["handlers.py", "callbacks.py", "admin.py"]
+```
+
+Entries are matched against the file's path within the project. Plain
+basenames (`admin.py`) and globs (`**/migrations/*.py`) both work.
+
+---
+
+## `[checkers.side_effects]`
+
+Where most spec authoring happens. Three sub-fields:
+
+### `severity`
+
+Default severity for module-level side effects attributed to this package.
+Affects calls that aren't otherwise classified by `calls` or `patterns`.
+
+```toml
+[checkers.side_effects]
+severity = "critical"     # e.g. for requests — module-level HTTP is always bad
+```
+
+Allowed values: `skip`, `debug`, `info`, `warning` (default), `error`, `critical`.
+
+### `calls` — bare function names, grouped by severity
+
+```toml
+[checkers.side_effects.calls]
+skip  = ["include_router", "add_middleware", "FastAPI", "APIRouter"]
+error = ["load_dotenv", "create_engine"]
+```
+
+- Keys are severities. `skip` silences entirely; the others escalate.
+- Values are **bare identifiers** — `include_router`, never `dp.include_router(...)`
+  or `app.include_router()`.
+- A call matches if its leaf name appears in any of these lists.
+
+### `patterns` — file globs, grouped by severity
+
+```toml
+[checkers.side_effects.patterns]
+debug = ["handlers.py", "lifespan.py", "tests/**"]
+error = ["models.py", "schemas.py"]
+```
+
+- Keys are severities. `debug` demotes (hidden by default); `error`/`critical`
+  promote.
+- Values are file basenames or path globs.
+- A side effect's severity is overridden if its source file matches.
+
+---
+
+## Severity enum
+
+Used throughout — every place that takes a severity accepts exactly these
+strings:
+
+| Value      | Default behavior                                      |
+|------------|-------------------------------------------------------|
+| `skip`     | Suppressed entirely — not recorded.                   |
+| `debug`    | Recorded but hidden; surface with `-v`.               |
+| `info`     | Informational; surface with `-v`.                     |
+| `warning`  | Default output threshold.                             |
+| `error`    | Real problem — exit non-zero in CI.                   |
+| `critical` | Blocking — always shown.                              |
+
+---
+
+## Legacy aliases
+
+Two older shapes are still accepted, but new specs should not use them. Both
+get migrated into the canonical form at load time.
+
+```toml
+# Legacy — equivalent to [checkers.orphan]
+[orphan]
+patterns = ["..."]
+
+# Legacy — equivalent to [checkers.side_effects]
 [side_effects]
-safe_calls = ["getLogger", "TypeVar", "NewType", "namedtuple"]
+module_level = "warning"           # → severity
+safe_calls   = ["FastAPI"]         # → calls.skip
+known_effects = ["load_dotenv"]    # → calls.error
+[side_effects.file_roles]          # → patterns
+debug = ["main.py"]
 ```
 
-### `known_effects`
-
-Leaf function names that are always flagged even if they start with an uppercase
-letter (which would normally be treated as a class instantiation and skipped).
-
-```toml
-[side_effects]
-known_effects = ["load_dotenv", "create_engine", "connect"]
-```
-
-### `file_roles`
-
-Maps severity levels to lists of file basenames. Overrides the default `warning`
-severity for side effects found in those files.
-
-```toml
-[side_effects.file_roles]
-debug = ["main.py", "__main__.py", "wsgi.py", "settings.py", "conftest.py"]
-error = ["models.py", "utils.py", "schemas.py", "validators.py"]
-```
-
-| Severity | Meaning                                                     |
-|----------|-------------------------------------------------------------|
-| `debug`  | Side effects are expected here — entry points, config files |
-| `error`  | Side effects are a bug here — pure logic modules            |
-
-Files not listed get `warning` (the default).
-
-### `package_roles`
-
-Maps severity levels to lists of package import prefixes. When a call at module
-level matches a prefix, that severity is used regardless of which file it is in.
-Takes precedence over `file_roles`.
-
-```toml
-[side_effects.package_roles]
-critical = ["requests", "httpx", "subprocess", "socket", "time.sleep"]
-debug    = ["logging", "typing"]
-```
-
-Prefix matching: `"requests"` matches `requests.get()`, `requests.Session()`, etc.
+The schema validates these aliases too, so they won't silently bit-rot — but
+prefer the `[checkers.*]` form when writing new specs.
 
 ---
 
-## `[entrypoints]`
+## Validating your spec
 
-Patterns for detecting application entry points.
+Before opening a PR, validate locally:
 
-```toml
-[entrypoints]
-starters      = ["uvicorn.run", "asyncio.run", "app.run"]
-starter_names = ["run", "start", "main", "serve"]
+```bash
+make validate          # or: uv run --extra dev pytest tests/test_spec_schema.py -v
 ```
 
----
+Other handy targets: `make test`, `make lint`, `make audit` (dogfood). Run
+`make` with no args for the full list.
 
-## `[config_files]` and `[config_dirs]`
+The test walks every `data/specs/*/spec.toml`, validates it against
+`schemas/symbol.spec.schema.json`, and also runs it through the live loader.
+A failure prints the exact path of the offending key, e.g.:
 
-Filenames and directory paths that indicate project configuration or deployment
-setup. Used by the audit command's project shape summary.
+```
+aiogram: checkers.orphan: Additional properties are not allowed ('filenames' was unexpected)
+```
+
+CI runs this on every PR, so a spec that doesn't validate cannot land.
+
+### Manual one-off check
+
+If you want to validate a single file without running pytest:
+
+```bash
+uv run --with jsonschema python -c "
+import json, tomllib, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+schema = json.loads(Path('schemas/symbol.spec.schema.json').read_text())
+raw = tomllib.loads(Path(sys.argv[1]).read_text())
+for err in Draft202012Validator(schema).iter_errors(raw):
+    path = '.'.join(str(p) for p in err.absolute_path) or '<root>'
+    print(f'{path}: {err.message}')
+" path/to/spec.toml
+```
+
+### Editor integration
+
+Wire the schema into [Taplo](https://taplo.tamasfe.dev/) for live validation
+in your editor:
 
 ```toml
-[config_files]
-Dockerfile        = "containerized"
-"docker-compose.yml" = "multi-service"
-"pyproject.toml"  = "project config"
-
-[config_dirs]
-".github/workflows" = "CI/CD"
-k8s               = "Kubernetes"
+# .taplo.toml at repo root
+[[rule]]
+include = ["src/wyolet/symbol/data/specs/*/spec.toml"]
+schema  = { path = "schemas/symbol.spec.schema.json" }
 ```
 
 ---
 
-## `[frameworks]`
+## Contributing a new spec
 
-Framework-specific overrides. Activated when the framework's package is detected
-in the project's dependencies.
-
-```toml
-[frameworks.django]
-detect = { deps = ["django"] }
-skip_orphan_patterns = ["*/migrations/*.py", "*/management/commands/*.py"]
-safe_calls = ["setup"]
-
-[frameworks.django.file_roles]
-debug = ["apps.py", "admin.py", "signals.py", "urls.py", "manage.py"]
-```
-
-### Framework fields
-
-| Field                  | Type           | Purpose                                          |
-|------------------------|----------------|--------------------------------------------------|
-| `detect.deps`          | list of strings| Activate when any of these packages are declared |
-| `detect.config_files`  | list of strings| Activate when any of these files exist at root   |
-| `skip_orphan_patterns` | list of globs  | File patterns to exclude from orphan detection   |
-| `safe_calls`           | list of strings| Leaf names safe at module level for this framework|
-| `file_roles`           | table          | Severity overrides for file basenames            |
-
-Framework `file_roles` are merged on top of the global `[side_effects.file_roles]`.
-Framework entries override spec entries for the same filename.
-
----
-
-## Severity levels
-
-All severity fields use the same enum, aligned with Python's `logging` module:
-
-| Level      | Value  | Meaning                                      |
-|------------|--------|----------------------------------------------|
-| `debug`    | 0      | Seen but suppressed by default               |
-| `info`     | 1      | Informational — shown with --verbose         |
-| `warning`  | 2      | Default threshold — worth noting             |
-| `error`    | 3      | Real problem — shown prominently             |
-| `critical` | 4      | Blocking issue — always shown, exits with 1  |
-
-Default output threshold is `warning`. Pass `--verbose` to see `info` and `debug`.
-
----
-
-## Contributing to the built-in spec
-
-The built-in spec (`src/wyolet/symbol/data/spec.toml`) accepts PRs for:
-
-- New packages in `[packages]` — any PyPI package with a clear category
-- New `[packages.X.side_effects]` entries — for packages with known module-level danger
-- New framework sections — for frameworks with established file conventions
-
-**Acceptance criteria for new packages:**
-- Package must be publicly available on PyPI
-- Should have meaningful usage in the Python ecosystem
-- Popular packages (high download count or GitHub stars) are prioritized
-
-The goal is zero-config usefulness: install symbol, run it, get accurate results
-without writing a single line of spec config.
+1. Pick a package from issue [#3](https://github.com/wyolet/symbol/issues/3) or
+   propose your own.
+2. Read a spec for a similar package — `data/specs/fastapi/spec.toml` for web
+   frameworks, `data/specs/celery/spec.toml` for task queues,
+   `data/specs/pytest/spec.toml` for test tools.
+3. Create `src/wyolet/symbol/data/specs/<package>/spec.toml`.
+4. Add the package name to the `specs.include` list in
+   `src/wyolet/symbol/data/spec.toml`.
+5. Run `uv run pytest tests/test_spec_schema.py` — must be green.
+6. Run `symbol audit` on a real project that uses the package; confirm false
+   positives drop.
+7. Open a PR. One package per PR keeps review easy.
