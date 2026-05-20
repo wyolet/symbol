@@ -57,6 +57,25 @@ class LanguageAdapter(Protocol):
         """Check whether bytes form a syntactically valid document."""
         ...
 
+    def module_prefix(self, rel_path: str) -> str:
+        """Symbol-qualifier prefix for a repo-relative path.
+
+        Python: dotted module path (``a/b/c.py`` → ``a.b.c``, ``__init__``
+        flattened, leading ``src/`` stripped). Go: import path from go.mod.
+        Other languages: whatever makes their qualified-name scheme work.
+        """
+        ...
+
+    def signature_from_text(self, text: str) -> str:
+        """Extract the declaration line(s) of a symbol from its body text.
+
+        Receives up to a few KB of bytes starting at the symbol's first byte.
+        Returns the declaration up to (and including) the body delimiter:
+        ``:`` for Python, ``{`` for Go, etc. Multi-line signatures collapse
+        to one line. Pure function — no I/O.
+        """
+        ...
+
     def scan_file(self, path: Path, source: bytes) -> FileScan:
         """Single-call scan for the symbol index builder.
 

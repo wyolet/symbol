@@ -150,6 +150,17 @@ class Language:
     def colors(cls):
         return sorted([lang for lang in cls._languages if lang.color], key=lambda lang: lang.name.lower())
 
+    @property
+    def key(self) -> str:
+        """Canonical lowercase id used across the rest of the system.
+
+        Matches what ``LanguageRegistry.register`` and ``_detect_language``
+        already produce via ``name.lower()``. Use this anywhere a language
+        needs to cross a module boundary (adapter lookup, index ``S_LANG``
+        column, finding tags) instead of re-lowercasing ad hoc.
+        """
+        return self.name.lower()
+
     def default_alias(self):
         return self.name.lower().replace(" ", "-")
 

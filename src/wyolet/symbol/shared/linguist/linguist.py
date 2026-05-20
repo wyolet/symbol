@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from .blob import Blob
 from .language import Language
@@ -62,9 +63,15 @@ class Linguist:
         ManpageStrategy(),
     ]
     statistics: dict[str, LanguageStatistics]
+    file_languages: dict[Path, Language]
 
     def __init__(self):
         self.statistics = {}
+        # Populated by detect_directory / classify_project. Single source of
+        # truth for "which files exist in this project and what language each
+        # one is." Consumers (ASTCache, SymbolIndex, audit) read this instead
+        # of re-walking or matching extensions.
+        self.file_languages = {}
 
     def detect(self, blob: Blob, allow_empty=False):
         if blob.symlink or blob.likely_binary or blob.binary or (not allow_empty and blob.empty):
@@ -95,7 +102,23 @@ class Linguist:
         # then by popularity of the language type for this file context.
         return _best_candidate(languages, blob)
 
-    def detect_directory(self, absolute_path: str, exclude: list[str] | None = None):
+    def detect_directory(
+        self,
+        absolute_path: str,
+        exclude: list[str] | None = None,
+        *,
+        collect_stats: bool = True,
+    ):
+        """Walk a project once: classify every file, optionally tally LOC stats.
+
+        Always populates ``self.file_languages`` (the path→Language map).
+        When ``collect_stats`` is True (default), also accumulates the
+        ``LanguageStatistics`` used by ``symbol loc`` and returns the
+        stats dict — that path decodes every file to count lines.
+
+        Callers that only need the classification (audit, index) should
+        pass ``collect_stats=False`` to skip the line-counting work.
+        """
         paths = self._get_all_file_paths(absolute_path, exclude=exclude)
 
         for file_path in paths:
@@ -104,12 +127,32 @@ class Linguist:
             if not (language := self.detect(blob)):
                 continue
 
+            self.file_languages[Path(file_path)] = language
+
+            if not collect_stats:
+                continue
+
             if language.language_id not in self.statistics:
                 self.statistics[language.language_id] = LanguageStatistics(language)
             self.statistics[language.language_id].add(blob)
 
-        self.calculate_percentages()
-        return self.to_dict()
+        if collect_stats:
+            self.calculate_percentages()
+            return self.to_dict()
+        return None
+
+    def classify_project(
+        self,
+        absolute_path: str,
+        exclude: list[str] | None = None,
+    ) -> dict[Path, Language]:
+        """Walk + classify only — no LOC accounting. Returns file_languages.
+
+        Cheap variant for callers that just need 'what language is each file?'
+        without the cost of decoding every file to count lines.
+        """
+        self.detect_directory(absolute_path, exclude=exclude, collect_stats=False)
+        return self.file_languages
 
     def calculate_percentages(self):
         counted_langs = [lang for lang in self.statistics.values() if lang.is_counted]

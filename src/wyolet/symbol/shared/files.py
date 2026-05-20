@@ -1,7 +1,13 @@
-"""Shared file collection with include/exclude glob support."""
+"""Path filtering with include/exclude glob support.
+
+File discovery is owned by ``Linguist`` (single project walk, single source
+of truth for path → language). This module only filters a caller-supplied
+iterable of paths — no walking, no extension matching.
+"""
 
 import fnmatch
-from pathlib import Path, PurePath
+from collections.abc import Iterable
+from pathlib import Path
 
 
 def _matches(rel_path: str, pattern: str) -> bool:
@@ -18,22 +24,26 @@ def _matches(rel_path: str, pattern: str) -> bool:
     return False
 
 
-def collect_py_files(
+def filter_paths(
+    paths: Iterable[Path],
+    *,
     project_root: Path,
     include: list[str] | None = None,
     exclude: list[str] | None = None,
 ) -> list[Path]:
-    """Collect Python files respecting include/exclude glob patterns.
+    """Apply include/exclude glob patterns to a caller-supplied path iterable.
 
     Dotfile directories (e.g. .git, .venv) are always skipped as a safety net.
     Exclude patterns (from spec.toml [checker] exclude) handle the rest.
     """
     all_excludes = list(exclude or [])
-
     results: list[Path] = []
 
-    for py_file in sorted(project_root.rglob("*.py")):
-        rel = py_file.relative_to(project_root)
+    for path in paths:
+        try:
+            rel = path.relative_to(project_root)
+        except ValueError:
+            continue
         rel_str = str(rel)
         parts = rel.parts
 
@@ -46,6 +56,6 @@ def collect_py_files(
         if all_excludes and any(_matches(rel_str, pat) for pat in all_excludes):
             continue
 
-        results.append(py_file)
+        results.append(path)
 
     return results

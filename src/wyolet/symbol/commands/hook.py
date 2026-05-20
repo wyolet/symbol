@@ -215,7 +215,7 @@ def _edit_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -
         f'  • InsertSymbol(anchor=..., position=before|after|start|end, content=...) — auto-indented, structural\n'
         f"  • DeleteSymbol(qualified_path=...) — refuses if callers exist\n"
         f'  • RenameSymbol(qualified_path=..., new_name=...) — atomic across files, transactional (Undo-able)\n'
-        f"Use Edit only on non-Python files."
+        f"Use Edit only on files symbol does not index."
     )
 
 

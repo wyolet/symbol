@@ -44,7 +44,7 @@ def to_findings(items: list[str], ctx: AnalysisContext) -> list[Finding]:
         Finding(
             section="unused_deps",
             message=dep,
-            detail="in pyproject.toml, 0 imports found",
+            detail="declared dependency, 0 imports found",
             severity=sev,
             location=dep,
         )

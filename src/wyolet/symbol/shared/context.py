@@ -5,6 +5,7 @@ from pathlib import Path
 
 from wyolet.symbol.shared.ast_cache import ASTCache
 from wyolet.symbol.shared.findings import Severity
+from wyolet.symbol.shared.linguist.linguist import Linguist
 from wyolet.symbol.shared.project_config import ProjectConfig
 from wyolet.symbol.shared.spec import Spec
 
@@ -59,6 +60,7 @@ class AnalysisContext:
     config: ProjectConfig
     resolved: ResolvedConfig
     cache: ASTCache
+    linguist: Linguist
     frameworks: list[ActiveFramework]
     deps: list[str]
     verbose: bool = False
@@ -96,6 +98,11 @@ def build_context(
     from wyolet.symbol.shared.registry import load_custom_checkers
     from wyolet.symbol.shared.spec import load_spec
 
+    # Resolve to absolute up front: linguist returns absolute paths, and
+    # downstream filtering does ``path.relative_to(project_root)``, which
+    # only works when both sides agree on absolute-vs-relative form.
+    project_root = project_root.resolve()
+
     config = load_project_config(project_root)
 
     if config.custom_checkers:
@@ -122,11 +129,18 @@ def build_context(
     )
     checker_include = include or config.checker.include or list(spec.checker.include) or None
 
+    # Single project walk. Linguist owns file discovery and per-file
+    # language classification; downstream consumers (ASTCache, SymbolIndex)
+    # read from this map instead of re-walking or matching extensions.
+    linguist = Linguist()
+    linguist.classify_project(str(project_root), exclude=checker_exclude or None)
+
     if cache is None:
         cache = ASTCache(
             project_root,
             include=checker_include or None,
             exclude=checker_exclude or None,
+            linguist=linguist,
         )
 
     frameworks = detect_active_frameworks(deps, spec, project_root)
@@ -138,6 +152,7 @@ def build_context(
         config=config,
         resolved=resolved,
         cache=cache,
+        linguist=linguist,
         frameworks=frameworks,
         deps=deps,
         verbose=verbose,

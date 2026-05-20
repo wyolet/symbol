@@ -216,6 +216,59 @@ class PythonAstAdapter(LanguageAdapter):
                 error_message=e.msg,
             )
 
+    def module_prefix(self, rel_path: str) -> str:
+        """Repo-relative path → Python dotted module path.
+
+        Strips a leading ``src/`` (PEP 517 src-layout) and the ``.py``
+        extension, flattens ``__init__`` packages to the parent directory.
+        """
+        parts = rel_path.split("/")
+        if parts and parts[0] == "src":
+            parts = parts[1:]
+        if not parts:
+            return ""
+        last = parts[-1]
+        if last.endswith(".py"):
+            last = last[:-3]
+        if last == "__init__":
+            parts = parts[:-1]
+        else:
+            parts[-1] = last
+        return ".".join(parts)
+
+    def signature_from_text(self, text: str) -> str:
+        """Python declaration line(s) — up to and including the body-opening ``:``.
+
+        Handles multi-line signatures (wrapped args). Skips colons inside
+        parens, brackets, and strings. Collapses whitespace to one line.
+        """
+        depth = 0
+        in_str = False
+        quote = ""
+        i = 0
+        n = len(text)
+        while i < n:
+            c = text[i]
+            if in_str:
+                if c == "\\":
+                    i += 2
+                    continue
+                if c == quote:
+                    in_str = False
+            else:
+                if c in ('"', "'"):
+                    in_str = True
+                    quote = c
+                elif c in "([{":
+                    depth += 1
+                elif c in ")]}":
+                    depth -= 1
+                elif c == ":" and depth == 0:
+                    return " ".join(text[: i + 1].split())
+            i += 1
+        first = text.splitlines()[0] if text else ""
+        return first.strip()
+
     def preview(self, body: str, signature: str, max_lines: int = 3) -> str:
         """First few meaningful code lines after the signature.
 

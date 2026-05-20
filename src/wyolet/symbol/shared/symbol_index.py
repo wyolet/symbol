@@ -130,7 +130,7 @@ class SymbolIndex:
             self._lang_ids[l] = lid
         return lid
 
-    def _file_id(self, rel: str, language: str = "python") -> int:
+    def _file_id(self, rel: str, language: str) -> int:
         fid = self._file_ids.get(rel)
         if fid is None:
             fid = len(self.files)
@@ -159,6 +159,7 @@ class SymbolIndex:
         bookkeeping.
         """
         from wyolet.symbol.adapters import default_registry
+        from wyolet.symbol.adapters.registry import UnsupportedLanguage
 
         rel = str(path.relative_to(self.project_root))
         try:
@@ -166,11 +167,19 @@ class SymbolIndex:
         except OSError:
             return
 
+        # Prefer the pre-classified language from the project-wide linguist
+        # pass (full builds always have a cache). Refresh paths load the
+        # index from disk with no cache and fall back to per-file detection
+        # inside ``registry.for_file``.
+        language = self.cache.language_of(path) if self.cache is not None else None
         try:
-            adapter = default_registry().for_file(path)
-        except Exception:
+            if language is not None:
+                adapter = default_registry().for_language(language)
+            else:
+                adapter = default_registry().for_file(path)
+        except UnsupportedLanguage:
             return
-        scan = adapter.scan_file(path, source, module_prefix=self._module_name(rel))
+        scan = adapter.scan_file(path, source, module_prefix=adapter.module_prefix(rel))
         if not scan.ok:
             return
 
@@ -226,21 +235,6 @@ class SymbolIndex:
                 name_id, kind = _unpack_ref(packed)
                 by.setdefault(name_id, []).append((src_row, line, kind))
         self.by_name_id = by
-
-    def _module_name(self, rel: str) -> str:
-        parts = rel.split("/")
-        if parts and parts[0] == "src":
-            parts = parts[1:]
-        if not parts:
-            return ""
-        last = parts[-1]
-        if last.endswith(".py"):
-            last = last[:-3]
-        if last == "__init__":
-            parts = parts[:-1]
-        else:
-            parts[-1] = last
-        return ".".join(parts)
 
     # ---------------------------------------------------------- accessors
 
@@ -315,12 +309,14 @@ class SymbolIndex:
             return f.read(s[S_EBYTE] - s[S_SBYTE]).decode("utf-8", errors="replace")
 
     def signature(self, row: int) -> str:
-        """Declaration line(s) only — everything up to the opening ``:`` of the body.
+        """Declaration line(s) only. Delegates to the row's language adapter.
 
-        Handles multi-line signatures (wrapped args). Skips colons inside
-        parens/brackets/strings. Returns a single-line string with the
-        body suffix stripped.
+        The index reads the leading bytes of the symbol's body; the adapter
+        decides where the declaration ends (``:`` for Python, ``{`` for Go).
         """
+        from wyolet.symbol.adapters import default_registry
+        from wyolet.symbol.adapters.registry import UnsupportedLanguage
+
         s = self.symbols[row]
         abs_path = self.project_root / self.files[s[S_FILE]]
         span = min(s[S_EBYTE] - s[S_SBYTE], 4096)
@@ -328,32 +324,12 @@ class SymbolIndex:
             f.seek(s[S_SBYTE])
             data = f.read(span)
         text = data.decode("utf-8", errors="replace")
-        depth = 0
-        in_str = False
-        quote = ""
-        i = 0
-        n = len(text)
-        while i < n:
-            c = text[i]
-            if in_str:
-                if c == "\\":
-                    i += 2
-                    continue
-                if c == quote:
-                    in_str = False
-            else:
-                if c in ('"', "'"):
-                    in_str = True
-                    quote = c
-                elif c in "([{":
-                    depth += 1
-                elif c in ")]}":
-                    depth -= 1
-                elif c == ":" and depth == 0:
-                    return " ".join(text[: i + 1].split())
-            i += 1
-        first = text.splitlines()[0] if text else ""
-        return first.strip()
+        language = self.language_of(row)
+        try:
+            adapter = default_registry().for_language(language)
+        except UnsupportedLanguage:
+            return text.splitlines()[0].strip() if text else ""
+        return adapter.signature_from_text(text)
 
     # ---------------------------------------------------------- composite row ops
     #
@@ -446,7 +422,7 @@ class SymbolIndex:
             "start_line": start,
             "end_line": end,
             "kind": "slice",
-            "language": "python",
+            "language": self.language_of_file(file),
             "signature": None,
             "body": body,
             "imports": [],
@@ -522,23 +498,49 @@ class SymbolIndex:
         except (subprocess.CalledProcessError, FileNotFoundError, OSError):
             return set()
 
-    def _git_tracked_py(self) -> set[str] | None:
-        """Every `.py` path git knows about (tracked + untracked, respecting .gitignore)."""
+    def _git_tracked_sources(self) -> set[str] | None:
+        """Every path git knows about that linguist classifies as a language we
+        have an adapter for. Tracked + untracked, respecting .gitignore.
+
+        No extension filter: git enumerates, linguist classifies, the adapter
+        registry decides eligibility. This is the only extension-free path
+        for new-file discovery in incremental refresh.
+        """
         try:
             tracked = subprocess.check_output(
-                ["git", "ls-files", "-z", "*.py"],
+                ["git", "ls-files", "-z"],
                 cwd=self.project_root,
                 stderr=subprocess.DEVNULL,
             ).decode()
             untracked = subprocess.check_output(
-                ["git", "ls-files", "-z", "--others", "--exclude-standard", "*.py"],
+                ["git", "ls-files", "-z", "--others", "--exclude-standard"],
                 cwd=self.project_root,
                 stderr=subprocess.DEVNULL,
             ).decode()
         except (subprocess.CalledProcessError, FileNotFoundError, OSError):
             return None
-        out = {p for p in tracked.split("\0") if p}
-        out |= {p for p in untracked.split("\0") if p}
+        rels = {p for p in tracked.split("\0") if p}
+        rels |= {p for p in untracked.split("\0") if p}
+
+        from wyolet.symbol.adapters import default_registry
+        from wyolet.symbol.shared.linguist.blob import Blob
+        from wyolet.symbol.shared.linguist.linguist import Linguist
+
+        linguist = Linguist()
+        registry = default_registry()
+        out: set[str] = set()
+        for rel in rels:
+            abs_path = self.project_root / rel
+            try:
+                blob = Blob(str(abs_path))
+            except (OSError, IsADirectoryError):
+                continue
+            lang = linguist.detect(blob)
+            if lang is None or lang.name == "Unknown":
+                continue
+            if not registry.has_adapter(lang.key):
+                continue
+            out.add(rel)
         return out
 
     def _in_scope(self, rel: str) -> bool:
@@ -578,7 +580,7 @@ class SymbolIndex:
                 stale.add(rel)
 
         # 3) Enumerate current in-scope files to detect additions and deletions.
-        current = self._git_tracked_py()
+        current = self._git_tracked_sources()
         if current is None:
             # No git — we can't cheaply enumerate. Added/deleted detection
             # silently skipped on the incremental path; next ``symbol index``

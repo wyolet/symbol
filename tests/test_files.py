@@ -1,8 +1,10 @@
-"""Tests for shared file collection."""
+"""Tests for file collection — exercised through ASTCache, which is the only
+real entry point now that linguist owns project file enumeration.
+"""
 
 from pathlib import Path
 
-from wyolet.symbol.shared.files import collect_py_files
+from wyolet.symbol.shared.ast_cache import ASTCache
 from wyolet.symbol.shared.spec import load_spec
 
 SPEC = load_spec()
@@ -12,12 +14,14 @@ def _make_files(tmp_path: Path, paths: list[str]) -> None:
     for p in paths:
         f = tmp_path / p
         f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text("# placeholder")
+        # Real Python content so linguist classifies correctly via the
+        # extension strategy (heuristics need parseable hints).
+        f.write_text("x = 1\n" if p.endswith(".py") else "placeholder\n")
 
 
 def _collect(tmp_path: Path, exclude: list[str] | None = None, **kwargs):
     combined_exclude = list(SPEC.checker.exclude) + (exclude or [])
-    return collect_py_files(tmp_path, exclude=combined_exclude, **kwargs)
+    return ASTCache(tmp_path, exclude=combined_exclude, **kwargs).files
 
 
 def test_collects_py_files(tmp_path: Path):
