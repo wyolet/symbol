@@ -896,6 +896,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "jsonschema" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
@@ -904,6 +905,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "chardet", specifier = ">=7.4.1" },
+    { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.26.0" },
     { name = "mcp", specifier = ">=1.27.0" },
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },

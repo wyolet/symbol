@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/wyolet/symbol/main/schemas/symbol.spec.schema.json",
+  "title": "symbol per-package spec",
+  "description": "Schema for per-package spec.toml files under src/wyolet/symbol/data/specs/<package>/spec.toml. See docs/spec-schema.md for prose docs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "category"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Package name (PyPI name, or stdlib module name)."
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Category key — must match a key in [categories] of the global data/spec.toml."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["lib", "tool", "app"],
+      "default": "lib",
+      "description": "Package role. lib = importable library; tool = CLI/dev tool; app = end-user app."
+    },
+    "stdlib": {
+      "type": "boolean",
+      "default": false,
+      "description": "True for Python stdlib modules. Stdlib specs are always loaded regardless of project deps."
+    },
+    "import_name": {
+      "type": "string",
+      "description": "Import name when it differs from the package name (e.g. Pillow → PIL, PyYAML → yaml)."
+    },
+    "runtime_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "True for packages used only at runtime (not imported in source — e.g. wsgi servers like gunicorn)."
+    },
+    "detect": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Heuristics for detecting this package as active in a project.",
+      "properties": {
+        "deps": {
+          "$ref": "#/$defs/stringArray",
+          "description": "PyPI names that, if present in project deps, mark this package as active."
+        },
+        "config_files": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Config-file basenames that indicate this package is active (e.g. alembic.ini)."
+        }
+      }
+    },
+    "checker": {
+      "$ref": "#/$defs/excludeOnly",
+      "description": "AST-checker file filters applied when this package is active."
+    },
+    "scanner": {
+      "$ref": "#/$defs/excludeOnly",
+      "description": "LOC-scanner file filters applied when this package is active."
+    },
+    "checkers": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-checker configuration.",
+      "properties": {
+        "orphan": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "patterns": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Glob patterns of files that should never be flagged as orphans (e.g. fastapi/staticfiles.py)."
+            }
+          }
+        },
+        "side_effects": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "$ref": "#/$defs/severity",
+              "description": "Default severity for module-level side effects from this package. Defaults to warning."
+            },
+            "calls": {
+              "$ref": "#/$defs/severityStringArrayMap",
+              "description": "Call names (bare identifiers like `include_router`, not `app.include_router(...)`) grouped by severity. Use `skip = [...]` to silence known-safe calls and `error = [...]` to escalate dangerous ones."
+            },
+            "patterns": {
+              "$ref": "#/$defs/severityStringArrayMap",
+              "description": "File basename or path globs (e.g. `handlers.py`, `tests/**`) grouped by severity. Used to demote/promote findings based on file role."
+            }
+          }
+        }
+      }
+    },
+    "orphan": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Legacy alias for [checkers.orphan]. Prefer [checkers.orphan] for new specs.",
+      "properties": {
+        "patterns": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Legacy alias for [checkers.side_effects]. Prefer [checkers.side_effects] for new specs.",
+      "properties": {
+        "module_level": {
+          "$ref": "#/$defs/severity",
+          "description": "Legacy: default severity for module-level side effects."
+        },
+        "safe_calls": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Legacy: equivalent to checkers.side_effects.calls.skip."
+        },
+        "known_effects": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Legacy: equivalent to checkers.side_effects.calls.error."
+        },
+        "file_roles": {
+          "$ref": "#/$defs/severityStringArrayMap",
+          "description": "Legacy: equivalent to checkers.side_effects.patterns."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "severity": {
+      "type": "string",
+      "enum": ["skip", "debug", "info", "warning", "error", "critical"]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "excludeOnly": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exclude": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "severityStringArrayMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skip":     { "$ref": "#/$defs/stringArray" },
+        "debug":    { "$ref": "#/$defs/stringArray" },
+        "info":     { "$ref": "#/$defs/stringArray" },
+        "warning":  { "$ref": "#/$defs/stringArray" },
+        "error":    { "$ref": "#/$defs/stringArray" },
+        "critical": { "$ref": "#/$defs/stringArray" }
+      }
+    }
+  }
+}
