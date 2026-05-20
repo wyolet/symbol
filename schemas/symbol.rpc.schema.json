@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/wyolet/symbol/main/schemas/symbol.rpc.schema.json",
+  "title": "symbol language-adapter RPC wire types",
+  "description": "JSON Schema for data crossing the symbol↔language-daemon boundary. Hand-synced with Python dataclasses in src/wyolet/symbol/protocols/types.py and Go structs in tools/<lang>-scan/internal/rpc/types.go. CI validates both sides against this contract.",
+  "type": "object",
+  "$defs": {
+    "LineRange": {
+      "type": "array",
+      "description": "Inclusive 1-indexed line range [start, end].",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "ByteRange": {
+      "type": "array",
+      "description": "Byte range [start, end) with exclusive end.",
+      "items": { "type": "integer", "minimum": 0 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "ScannedRef": {
+      "type": "object",
+      "description": "A name reference inside a symbol's body.",
+      "additionalProperties": false,
+      "required": ["name", "kind", "line"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["name", "attr"],
+          "description": "name = bare identifier; attr = attribute access (the tail of x.foo)."
+        },
+        "line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ScannedImport": {
+      "type": "object",
+      "description": "One import binding (per-alias, not per-statement).",
+      "additionalProperties": false,
+      "required": ["local", "source", "line"],
+      "properties": {
+        "local": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name visible in the importing file (alias or first segment)."
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Module this binding came from (e.g. 'a.b' for `import a.b`; 'x' for `from x import y`)."
+        },
+        "line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ScannedSymbol": {
+      "type": "object",
+      "description": "A declared symbol plus refs from its direct scope. Children carry nested symbols (a class's methods) in the natural tree shape.",
+      "additionalProperties": false,
+      "required": ["kind", "name", "qualified_path", "byte_range", "line_range"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Per-language kind label (e.g. 'class', 'function', 'method', 'struct', 'interface'). Not normalized across languages."
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "qualified_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Language-native qualified path (e.g. 'services.user.UserService.save', 'github.com/wyolet/x.Run')."
+        },
+        "byte_range": { "$ref": "#/$defs/ByteRange" },
+        "line_range": { "$ref": "#/$defs/LineRange" },
+        "refs": {
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/ScannedRef" }
+        },
+        "children": {
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/ScannedSymbol" }
+        }
+      }
+    },
+    "FileScan": {
+      "type": "object",
+      "description": "Full scan of one file. ok=false with an error means the file couldn't be parsed.",
+      "additionalProperties": false,
+      "required": ["language", "ok"],
+      "properties": {
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical lowercase language key matching linguist (e.g. 'python', 'go')."
+        },
+        "ok": { "type": "boolean" },
+        "error": { "type": ["string", "null"], "default": null },
+        "imports": {
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/ScannedImport" }
+        },
+        "symbols": {
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/ScannedSymbol" }
+        }
+      }
+    },
+    "ParseResult": {
+      "type": "object",
+      "description": "Result of a syntax validation check.",
+      "additionalProperties": false,
+      "required": ["ok"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "error_line": { "type": ["integer", "null"], "minimum": 1 },
+        "error_message": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

@@ -1,7 +1,19 @@
 .DEFAULT_GOAL := help
-.PHONY: help install sync test test-fast lint validate validate-specs audit clean
+.PHONY: help install sync test test-fast lint validate validate-specs audit clean \
+        build-go-scan build-go-scan-all
 
 UV ?= uv
+GO ?= go
+GO_SCAN_DIR := src/wyolet/symbol/adapters/go_ast/daemon
+BIN_DIR := src/wyolet/symbol/bin
+# Cross-compile targets shipped in wheels. Keep this list in sync with
+# the CI workflow under .github/workflows/ci.yml.
+GO_SCAN_TARGETS := \
+  darwin-arm64 \
+  darwin-amd64 \
+  linux-arm64 \
+  linux-amd64 \
+  windows-amd64
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,3 +42,16 @@ audit: ## Run `symbol audit` on this repo (dogfood)
 
 clean: ## Remove caches
 	rm -rf .pytest_cache .ruff_cache **/__pycache__ .symbol/transactions
+
+build-go-scan: ## Build go-scan daemon for the current platform (dev convenience)
+	cd $(GO_SCAN_DIR) && $(GO) build -o go-scan .
+
+build-go-scan-all: ## Cross-compile go-scan for every shipped target → src/wyolet/symbol/bin/
+	@mkdir -p $(BIN_DIR)
+	@for target in $(GO_SCAN_TARGETS); do \
+	  GOOS=$${target%-*} GOARCH=$${target#*-} \
+	    suffix=$$([ "$${target%-*}" = "windows" ] && echo .exe || echo ""); \
+	  echo "→ $(BIN_DIR)/go-scan-$$target$$suffix"; \
+	  GOOS=$${target%-*} GOARCH=$${target#*-} \
+	    $(GO) -C $(GO_SCAN_DIR) build -o ../../../../../../$(BIN_DIR)/go-scan-$$target$$suffix .; \
+	done

@@ -47,8 +47,17 @@ class LanguageRegistry:
         bucket.sort(key=lambda pair: pair[0], reverse=True)
 
     def has_adapter(self, language: str) -> bool:
-        """True if some adapter is registered for ``language`` (canonical key)."""
-        return language.lower() in self._classes
+        """True if some *enabled* adapter is registered for ``language``.
+
+        Walks the priority bucket and returns True if any adapter reports
+        ``is_enabled``; adapters missing the property are treated as enabled
+        (the Python in-process adapter has nothing to check).
+        """
+        try:
+            self.for_language(language)
+            return True
+        except UnsupportedLanguage:
+            return False
 
     def for_language(self, language: str) -> LanguageAdapter:
         lang = language.lower()
@@ -58,10 +67,19 @@ class LanguageRegistry:
         bucket = self._classes.get(lang)
         if not bucket:
             raise UnsupportedLanguage(f"no adapter registered for language {lang!r}")
-        cls = bucket[0][1]
-        inst = cls()
-        self._instances[lang] = inst
-        return inst
+        # Tiering: walk priority bucket high → low, pick the first adapter
+        # whose ``is_enabled`` returns True. Adapters that omit the property
+        # are assumed enabled (covers in-process adapters with no toolchain
+        # dependency, like PythonAstAdapter).
+        for _, cls in bucket:
+            candidate = cls()
+            if getattr(candidate, "is_enabled", True):
+                self._instances[lang] = candidate
+                return candidate
+        raise UnsupportedLanguage(
+            f"no enabled adapter for language {lang!r}; install the toolchain "
+            f"for one of the registered adapters or wait for a lower-tier fallback"
+        )
 
     def supports(self, path: Path, *, language: str | None = None) -> bool:
         """True if some registered adapter can handle this file.
@@ -116,10 +134,12 @@ def _detect_language(path: Path) -> str | None:
 
 def _register_builtins() -> None:
     from wyolet.symbol.adapters.python_ast import PythonAstAdapter
+    from wyolet.symbol.adapters.go_ast import GoAstAdapter
     # Side-effect import: registers Python dep parsers against the DEPS pipeline.
     from wyolet.symbol.adapters import python_deps  # noqa: F401
 
     _default.register("python", PythonAstAdapter, priority=0)
+    _default.register("go", GoAstAdapter, priority=10)
 
 
 _register_builtins()

@@ -25,6 +25,12 @@ jobs:
           enable-cache: true
       - name: Set up Python ${{ matrix.python }}
         run: uv python install ${{ matrix.python }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build go-scan (dev binary for GoAdapter tests)
+        run: make build-go-scan
       - name: Sync dependencies
         run: uv sync --all-extras
       - name: Lint (ruff)
@@ -32,3 +38,41 @@ jobs:
         continue-on-error: true  # TODO: clean up pre-existing lint debt, then make blocking
       - name: Test (pytest)
         run: uv run pytest -q
+
+  go-scan-cross-compile:
+    name: go-scan cross-compile (${{ matrix.goos }}-${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep this list in sync with GO_SCAN_TARGETS in the Makefile and
+        # with _bundled_binary() in src/wyolet/symbol/adapters/go_ast/__init__.py.
+        include:
+          - { goos: darwin,  goarch: arm64 }
+          - { goos: darwin,  goarch: amd64 }
+          - { goos: linux,   goarch: arm64 }
+          - { goos: linux,   goarch: amd64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build go-scan for ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p src/wyolet/symbol/bin
+          suffix=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then suffix=".exe"; fi
+          go -C src/wyolet/symbol/adapters/go_ast/daemon \
+            build -o "../../../../../../src/wyolet/symbol/bin/go-scan-${{ matrix.goos }}-${{ matrix.goarch }}$suffix" .
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-scan-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: src/wyolet/symbol/bin/go-scan-*
+          if-no-files-found: error
+          retention-days: 7

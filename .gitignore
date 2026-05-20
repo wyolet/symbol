@@ -20,3 +20,11 @@ wheels/
 
 # Local scratchpad (per CLAUDE.md convention)
 .tmp/
+
+# Built language-adapter daemons (dev). CI rebuilds these from source and
+# bundles them under src/wyolet/symbol/bin/ in the wheel.
+src/wyolet/symbol/adapters/*/daemon/go-scan
+src/wyolet/symbol/adapters/*/daemon/*-scan
+# Cross-compiled per-platform binaries (built by `make build-go-scan-all`
+# locally or by CI before wheel build). Not committed.
+src/wyolet/symbol/bin/

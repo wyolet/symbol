@@ -54,6 +54,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/wyolet"]
 
+[tool.hatch.build]
+# Per-platform language-adapter binaries that CI cross-compiles into
+# src/wyolet/symbol/bin/ before the wheel is built. ``artifacts`` uses
+# glob patterns and is lenient when files are missing — a local wheel
+# build without the Go toolchain just ships without the bin/ payload
+# (Go adapter falls back to ``is_enabled = False``). Per-platform wheel
+# automation belongs in the release workflow.
+artifacts = ["src/wyolet/symbol/bin/go-scan-*"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py313"
