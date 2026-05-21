@@ -15,13 +15,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wyolet/symbol/go-scan/internal/rename"
 	"github.com/wyolet/symbol/go-scan/internal/rpc"
 	"github.com/wyolet/symbol/go-scan/internal/scan"
 )
 
 // Bumped when the worker implementation changes in user-visible ways
 // (new fields, behavior). Independent of the JSON-RPC protocol version.
-const workerVersion = "0.2.0"
+const workerVersion = "0.2.1"
 
 // Capabilities this worker advertises beyond the v1 minimum.
 // Empty for now — scan_file + validate_syntax are required of every
@@ -35,6 +36,8 @@ func main() {
 	srv.Register("validate_syntax", handleValidateSyntax)
 	srv.Register("scan_file", handleScanFile)
 	srv.Register("signature", handleSignature)
+	srv.Register("rename_member", handleRenameMember)
+	srv.Register("rename_module_binding", handleRenameModuleBinding)
 	srv.Register("shutdown", func(params json.RawMessage) (any, error) {
 		srv.Stop()
 		return nil, nil
@@ -96,6 +99,22 @@ func handleSignature(params json.RawMessage) (any, error) {
 		return nil, &rpc.JSONRPCError{Code: rpc.ErrInvalidParams, Message: err.Error()}
 	}
 	return rpc.SignatureResult{Signature: signatureFromSource(p.Source)}, nil
+}
+
+func handleRenameMember(params json.RawMessage) (any, error) {
+	var p rpc.RenameMemberParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, &rpc.JSONRPCError{Code: rpc.ErrInvalidParams, Message: err.Error()}
+	}
+	return rename.Member(p)
+}
+
+func handleRenameModuleBinding(params json.RawMessage) (any, error) {
+	var p rpc.RenameModuleBindingParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, &rpc.JSONRPCError{Code: rpc.ErrInvalidParams, Message: err.Error()}
+	}
+	return rename.ModuleBinding(p)
 }
 
 // signatureFromSource parses ``source`` as a partial Go file (synthesizing

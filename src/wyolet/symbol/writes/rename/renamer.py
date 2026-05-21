@@ -25,6 +25,7 @@ from wyolet.symbol.protocols.types import SymbolPath
 from wyolet.symbol.shared.symbol_index import SymbolIndex
 from wyolet.symbol.writes.rename.index_query import RenamerIndexQuery
 from wyolet.symbol.writes.rename.result import (
+    AffectedInterface,
     FileRewriteCount,
     RenameResult,
     Rewrite,
@@ -94,6 +95,7 @@ class SymbolRenamer:
     # ── dispatch ─────────────────────────────────────────────────
     def _dispatch(self) -> dict[str, Callable]:
         return {
+            # python kinds
             "method":         self._rename_member,
             "async_method":   self._rename_member,
             "function":       self._rename_module_binding,
@@ -104,6 +106,10 @@ class SymbolRenamer:
             "local":          self._rename_local,
             "parameter":      self._rename_local,
             "constant":       self._rename_module_binding,
+            # go kinds — emitted by the go-scan adapter
+            "type":           self._rename_class,
+            "var":            self._rename_module_binding,
+            "const":          self._rename_module_binding,
         }
 
     # ── per-kind: member (method/async_method) ───────────────────
@@ -174,17 +180,24 @@ class SymbolRenamer:
                     file=rel, refs_updated=len(analysis.rewrites),
                 ))
 
+        # Optional adapter extension: project-wide interface-contract
+        # impacts (Go via go/types). The declaring file's adapter owns
+        # this data; we ask it once after the per-file loop. Adapters
+        # without the hook contribute nothing.
+        affected = self._collect_affected_interfaces(decl)
+
         if not per_file_edits:
             return RenameResult(
-                status="needs_review" if all_unresolved or all_skipped else "error",
+                status="needs_review" if all_unresolved or all_skipped or affected else "error",
                 qualified_path=decl.qpath,
                 new_qualified_path=decl.new_qpath,
                 declaring_file=decl.declaring_file,
                 rewrites=(),
                 skipped_mismatch=tuple(all_skipped),
                 unresolved=tuple(all_unresolved),
-                error_code=None if (all_unresolved or all_skipped) else "nothing_to_rename",
-                message=_format_message(0, 0, all_unresolved, all_skipped, decl.old_leaf),
+                affected_interfaces=affected,
+                error_code=None if (all_unresolved or all_skipped or affected) else "nothing_to_rename",
+                message=_format_message(0, 0, all_unresolved, all_skipped, affected, decl.old_leaf),
             )
 
         tx = commit_edits(
@@ -218,11 +231,13 @@ class SymbolRenamer:
             rewrites=tuple(all_rewrites),
             skipped_mismatch=tuple(all_skipped),
             unresolved=tuple(all_unresolved),
+            affected_interfaces=affected,
             message=_format_message(
                 len(per_file_edits),
                 sum(c.refs_updated for c in per_file_counts),
                 all_unresolved,
                 all_skipped,
+                affected,
                 decl.old_leaf,
             ),
         )
@@ -353,6 +368,32 @@ class SymbolRenamer:
                     break
         return files
 
+    def _collect_affected_interfaces(self, decl) -> tuple[AffectedInterface, ...]:
+        """Pull project-wide interface impacts from the declaring file's
+        adapter via the optional `pop_affected_interfaces` hook. Empty
+        tuple for adapters that don't implement it."""
+        abs_path = self.project_root / decl.declaring_file
+        adapter = self._adapter_for(abs_path)
+        if adapter is None or not hasattr(adapter, "pop_affected_interfaces"):
+            return ()
+        raw = adapter.pop_affected_interfaces(self.project_root, decl.qpath)
+        if not raw:
+            return ()
+        seen: set[str] = set()
+        out: list[AffectedInterface] = []
+        for entry in raw:
+            qp = entry.get("interface_qpath", "")
+            if not qp or qp in seen:
+                continue
+            seen.add(qp)
+            out.append(AffectedInterface(
+                interface_qpath=qp,
+                method_qpath=entry.get("method_qpath", ""),
+                file=entry.get("file", ""),
+                line=entry.get("line", 0),
+            ))
+        return tuple(out)
+
     def _adapter_for(self, abs_path: Path) -> LanguageAdapter | None:
         rel = str(abs_path.relative_to(self.project_root))
         lang = self.index.language_of_file(rel)
@@ -360,8 +401,9 @@ class SymbolRenamer:
             adapter = self.registry.for_file(abs_path, language=lang)
         except Exception:
             return None
-        # Only adapters that implement the engine protocol can participate;
-        # those that don't (currently: Go) stay on the regex path entry.
+        # Engine requires both rename methods. Adapters that don't yet
+        # implement them are silently skipped (no rewrites contributed
+        # from those files).
         if not hasattr(adapter, "rename_member") or not hasattr(adapter, "rename_module_binding"):
             return None
         return adapter
@@ -379,6 +421,7 @@ def _format_message(
     refs_updated: int,
     unresolved: list,
     skipped: list,
+    affected: tuple,
     leaf: str,
 ) -> str:
     parts: list[str] = []
@@ -400,4 +443,12 @@ def _format_message(
         )
         for s in skipped:
             parts.append(f"  - {s.file}:{s.line}:{s.col + 1}  `{s.receiver_source}.{leaf}`  → {s.resolved_to_qpath}")
+    if affected:
+        parts.append(
+            f"affects {len(affected)} interface contract(s) — the rename "
+            f"target also implements these; renaming will leave them "
+            f"unsatisfied unless you rename the contract method too:"
+        )
+        for a in affected:
+            parts.append(f"  - {a.method_qpath}  ({a.file}:{a.line})")
     return "\n".join(parts)

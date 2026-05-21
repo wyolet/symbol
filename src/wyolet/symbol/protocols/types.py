@@ -207,7 +207,7 @@ class RenameAnalysis:
     """One file's classification produced by `adapter.rename_*` methods.
 
     Adapter owns the algorithm; the neutral renamer applies the uniform
-    policy (abort on any unresolved unless `force`). Empty tuples mean
+    policy (apply rewrites, surface unresolved). Empty tuples mean
     nothing of that kind was found in the file.
     """
 
