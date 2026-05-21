@@ -63,23 +63,41 @@ def _render(result: RenameSymbolResult, *, format: str, agent: bool) -> None:
 
 
 def _render_agent(result: RenameSymbolResult) -> None:
-    verb = "would rename" if result.status == "dry_run" else "renamed"
+    verb = "would rename" if result.status == "dry_run" else (
+        "needs review" if result.status == "needs_review" else "renamed"
+    )
+    tier = "ast" if (result.unresolved or result.skipped_mismatch) else "textual"
+    leaf = result.qualified_path.rsplit(".", 1)[-1]
     print(f"status: {result.status}")
     print(f"{verb}: {result.qualified_path} → {result.new_qualified_path}")
     print(f"files_changed: {result.files_changed}")
     print(f"refs_updated: {result.refs_updated}")
-    print(f"tier: textual")
+    print(f"tier: {tier}")
     print()
     for f in result.per_file:
         print(f"  {f.file}  ({f.refs_updated} refs)")
+    if result.skipped_mismatch:
+        print()
+        print(f"skipped {len(result.skipped_mismatch)} site(s) — receiver resolved to a different declaration:")
+        for s in result.skipped_mismatch:
+            print(f"  {s.file}:{s.line}:{s.col + 1}  `{s.receiver_source}.{leaf}`  → {s.resolved_to_qpath}")
+    if result.unresolved:
+        print()
+        print(f"unresolved {len(result.unresolved)} site(s) — review manually:")
+        for u in result.unresolved:
+            print(f"  {u.file}:{u.line}:{u.col + 1}  `{u.receiver_source}.{leaf}`  ({u.why})")
     if result.status == "applied":
         print()
-        print("undo: git reset --hard HEAD~1  # if no intervening commits")
+        print("undo: symbol undo")
 
 
 def _render_rich(result: RenameSymbolResult) -> None:
-    color = "green" if result.status == "applied" else "yellow"
-    title = "renamed" if result.status == "applied" else "dry run"
+    if result.status == "applied":
+        color, title = "green", "renamed"
+    elif result.status == "dry_run":
+        color, title = "yellow", "dry run"
+    else:
+        color, title = "magenta", "needs review"
     console.print(
         f"[{color}]{title}[/{color}]  "
         f"[bold]{result.qualified_path}[/bold] → [bold]{result.new_qualified_path}[/bold]  "
@@ -94,8 +112,32 @@ def _render_rich(result: RenameSymbolResult) -> None:
             t.add_row(f.file, str(f.refs_updated))
         console.print(t)
 
+    leaf = result.qualified_path.rsplit(".", 1)[-1]
+    if result.skipped_mismatch:
+        console.print(
+            f"\n[dim]skipped {len(result.skipped_mismatch)} site(s) "
+            f"(receiver bound to a different declaration):[/dim]"
+        )
+        for s in result.skipped_mismatch:
+            console.print(
+                f"  [dim]{s.file}:{s.line}:{s.col + 1}[/dim]  "
+                f"[yellow]{s.receiver_source}.{leaf}[/yellow] → "
+                f"[bold]{s.resolved_to_qpath}[/bold]"
+            )
+    if result.unresolved:
+        console.print(
+            f"\n[bold magenta]needs review[/bold magenta] — "
+            f"{len(result.unresolved)} site(s) the receiver type "
+            f"couldn't be resolved statically:"
+        )
+        for u in result.unresolved:
+            console.print(
+                f"  [dim]{u.file}:{u.line}:{u.col + 1}[/dim]  "
+                f"[yellow]{u.receiver_source}.{leaf}[/yellow]  [dim]({u.why})[/dim]"
+            )
+
     if result.status == "applied":
-        console.print("\n[dim]Undo:[/dim] [bold]git reset --hard HEAD~1[/bold]")
+        console.print("\n[dim]Undo:[/dim] [bold]symbol undo[/bold]")
 
 
 def _render_error(result: RenameSymbolResult, *, agent: bool) -> None:

@@ -28,3 +28,9 @@ src/wyolet/symbol/adapters/*/daemon/*-scan
 # Cross-compiled per-platform binaries (built by `make build-go-scan-all`
 # locally or by CI before wheel build). Not committed.
 src/wyolet/symbol/bin/
+
+# Demo recordings (generated locally; .cast + .svg already cover docs).
+# Heavy binaries don't belong in git history — upload to a GitHub
+# release asset if you need to embed them somewhere.
+docs/demos/*.gif
+docs/demos/*.mp4

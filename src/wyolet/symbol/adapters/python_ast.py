@@ -13,16 +13,20 @@ import builtins as _builtins
 import hashlib
 from pathlib import Path
 
+from wyolet.symbol.adapters import _python_ast_rename as _rename
 from wyolet.symbol.protocols import (
     FileScan,
+    IndexQuery,
     LanguageAdapter,
     ParseResult,
     RawImport,
     RawRef,
     RawSymbol,
+    RenameAnalysis,
     ScannedImport,
     ScannedRef,
     ScannedSymbol,
+    SymbolPath,
 )
 
 _BUILTINS: frozenset[str] = frozenset(dir(_builtins))
@@ -177,7 +181,9 @@ class PythonAstAdapter(LanguageAdapter):
                         ScannedImport(local=local, source=source_mod, line=node.lineno)
                     )
 
-        symbols = self._scan_scope(tree, path_prefix=prefix, line_offsets=line_offsets)
+        symbols = self._scan_scope(
+            tree, path_prefix=prefix, line_offsets=line_offsets, parent_is_class=False,
+        )
         return FileScan(
             language=self.lang,
             imports=tuple(imports),
@@ -190,12 +196,18 @@ class PythonAstAdapter(LanguageAdapter):
         *,
         path_prefix: str,
         line_offsets: list[int],
+        parent_is_class: bool,
     ) -> list[ScannedSymbol]:
         out: list[ScannedSymbol] = []
         for child in ast.iter_child_nodes(node):
             kind = _SYMBOL_KINDS.get(type(child))
             if kind is None:
                 continue
+            if parent_is_class:
+                if kind == "function":
+                    kind = "method"
+                elif kind == "async_function":
+                    kind = "async_method"
             name = child.name  # type: ignore[attr-defined]
             qpath = f"{path_prefix}.{name}" if path_prefix else name
             start_line = _decorated_start_line(child)
@@ -206,7 +218,8 @@ class PythonAstAdapter(LanguageAdapter):
             )
             refs = _scan_refs(child)
             children = self._scan_scope(
-                child, path_prefix=qpath, line_offsets=line_offsets
+                child, path_prefix=qpath, line_offsets=line_offsets,
+                parent_is_class=isinstance(child, ast.ClassDef),
             )
             out.append(
                 ScannedSymbol(
@@ -337,6 +350,58 @@ class PythonAstAdapter(LanguageAdapter):
     def invalidate(self, path: Path) -> None:
         key_prefix = str(path)
         self._cache = {k: v for k, v in self._cache.items() if k[0] != key_prefix}
+
+    # ---------------------------------------------------------- rename
+
+    def rename_member(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_owner_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        return _rename.rename_member(
+            source=source,
+            leaf=leaf,
+            new_name=new_name,
+            target_qpath=target_qpath,
+            target_owner_qpath=target_owner_qpath,
+            index=index,
+            is_declaring_file=is_declaring_file,
+            decl_byte_range=decl_byte_range,
+            module_prefix=self.module_prefix(path, project_root),
+        )
+
+    def rename_module_binding(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_module_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        return _rename.rename_module_binding(
+            source=source,
+            leaf=leaf,
+            new_name=new_name,
+            target_qpath=target_qpath,
+            target_module_qpath=target_module_qpath,
+            index=index,
+            is_declaring_file=is_declaring_file,
+            decl_byte_range=decl_byte_range,
+            module_prefix=self.module_prefix(path, project_root),
+        )
 
     # ---------------------------------------------------------- internals
 

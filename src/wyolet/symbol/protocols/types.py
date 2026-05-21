@@ -155,3 +155,62 @@ class ReferenceResult:
     refs: tuple[RawRef, ...] = ()
     reason: str | None = None
     unsupported: bool = False
+
+
+@dataclass(frozen=True)
+class ByteRewrite:
+    """A single byte-range edit produced by an adapter for the renamer.
+
+    Byte range is the exact identifier token — never wraps punctuation,
+    never falls inside a string/comment, never spans a different name.
+    `line`/`col` are informational (for telemetry and result surfaces).
+    `receiver_source` is the source text of an attribute receiver
+    (`"self"`, `"b"`, `"Foo.bar"`) or empty for non-attribute rewrites.
+    """
+
+    byte_start: int
+    byte_end: int
+    new_text: str
+    line: int
+    col: int
+    receiver_source: str = ""
+
+
+@dataclass(frozen=True)
+class SkippedMismatchSite:
+    """An identifier with the right leaf name that resolved to a *different*
+    declaration — correctly skipped by the discriminator."""
+
+    byte_start: int
+    byte_end: int
+    line: int
+    col: int
+    receiver_source: str
+    resolved_to_qpath: SymbolPath
+
+
+@dataclass(frozen=True)
+class UnresolvedSite:
+    """An identifier with the right leaf name whose binding the adapter
+    could not resolve. Aborts the rename unless `force=True`."""
+
+    byte_start: int
+    byte_end: int
+    line: int
+    col: int
+    receiver_source: str
+    why: str
+
+
+@dataclass(frozen=True)
+class RenameAnalysis:
+    """One file's classification produced by `adapter.rename_*` methods.
+
+    Adapter owns the algorithm; the neutral renamer applies the uniform
+    policy (abort on any unresolved unless `force`). Empty tuples mean
+    nothing of that kind was found in the file.
+    """
+
+    rewrites: tuple[ByteRewrite, ...] = ()
+    skipped_mismatch: tuple[SkippedMismatchSite, ...] = ()
+    unresolved: tuple[UnresolvedSite, ...] = ()

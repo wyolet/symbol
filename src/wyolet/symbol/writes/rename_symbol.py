@@ -42,13 +42,34 @@ class RenameSymbolRequest:
     new_name: str
     new_qualified_path: str
     declaring_file: str
-    edits: tuple[FileEdit, ...]
-    per_file_counts: tuple[FileRename, ...]
+    edits: tuple[FileEdit, ...] = ()
+    per_file_counts: tuple[FileRename, ...] = ()
+    # v2 engine routing — when True, the request carries no precomputed
+    # edits; apply_rename_symbol delegates to SymbolRenamer instead.
+    via_engine: bool = False
+
+
+@dataclass(frozen=True)
+class _UnresolvedSitePub:
+    file: str
+    line: int
+    col: int
+    receiver_source: str
+    why: str
+
+
+@dataclass(frozen=True)
+class _SkippedSitePub:
+    file: str
+    line: int
+    col: int
+    receiver_source: str
+    resolved_to_qpath: str
 
 
 @dataclass(frozen=True)
 class RenameSymbolResult:
-    status: Literal["applied", "dry_run", "error"]
+    status: Literal["applied", "dry_run", "needs_review", "error"]
     qualified_path: str = ""
     new_qualified_path: str = ""
     files_changed: int = 0
@@ -57,6 +78,9 @@ class RenameSymbolResult:
     declaring_file: str = ""
     error_code: str | None = None
     message: str | None = None
+    # v2 engine output (empty on tier-1 textual path)
+    unresolved: tuple[_UnresolvedSitePub, ...] = ()
+    skipped_mismatch: tuple[_SkippedSitePub, ...] = ()
     candidates: tuple[str, ...] = ()
 
 
@@ -129,6 +153,27 @@ def resolve_rename_symbol(
             message=f"{collision_path!r} already exists",
         )
 
+    # v2 engine routing: methods, functions, classes go through
+    # SymbolRenamer (AST-based, with cross-type collision discrimination).
+    # Currently only the Python adapter implements the protocol methods;
+    # other languages stay on the tier-1 regex path until their adapters
+    # land. Other kinds also fall through to regex.
+    kind = index.kind_of(row)
+    declaring_lang = index.language_of_file(declaring_file_rel)
+    if (
+        declaring_lang == "python"
+        and kind in ("method", "async_method", "function", "async_function", "class", "constant")
+    ):
+        new_qpath = f"{prefix}{new_name}" if prefix else new_name
+        return RenameSymbolRequest(
+            qualified_path=qualified_path,
+            old_leaf=old_leaf,
+            new_name=new_name,
+            new_qualified_path=new_qpath,
+            declaring_file=declaring_file_rel,
+            via_engine=True,
+        )
+
     # Collect every file that references the old leaf, plus the declaring file.
     ref_files: set[str] = {declaring_file_rel}
     for src_row, _line, _kind in index.callers_of(old_leaf):
@@ -178,12 +223,59 @@ def resolve_rename_symbol(
     )
 
 
+def _apply_via_engine(
+    request: RenameSymbolRequest,
+    *,
+    project_root: Path,
+    dry_run: bool,
+    index: SymbolIndex | None,
+) -> RenameSymbolResult:
+    from wyolet.symbol.adapters.registry import default_registry
+    from wyolet.symbol.writes.rename import SymbolRenamer
+
+    if index is None:
+        from wyolet.symbol.shared.symbol_index import get_or_build_index
+        index, _ = get_or_build_index(project_root)
+
+    renamer = SymbolRenamer(index, project_root, default_registry())
+    r = renamer.rename(request.qualified_path, request.new_name, dry_run=dry_run)
+
+    return RenameSymbolResult(
+        status=r.status,
+        qualified_path=r.qualified_path,
+        new_qualified_path=r.new_qualified_path,
+        files_changed=r.files_changed,
+        refs_updated=r.refs_updated,
+        per_file=tuple(FileRename(file=f.file, refs_updated=f.refs_updated) for f in r.per_file),
+        declaring_file=r.declaring_file,
+        error_code=r.error_code,
+        message=r.message,
+        unresolved=tuple(
+            _UnresolvedSitePub(
+                file=u.file, line=u.line, col=u.col,
+                receiver_source=u.receiver_source, why=u.why,
+            ) for u in r.unresolved
+        ),
+        skipped_mismatch=tuple(
+            _SkippedSitePub(
+                file=s.file, line=s.line, col=s.col,
+                receiver_source=s.receiver_source,
+                resolved_to_qpath=s.resolved_to_qpath,
+            ) for s in r.skipped_mismatch
+        ),
+    )
+
+
 def apply_rename_symbol(
     request: RenameSymbolRequest,
     *,
     project_root: Path,
     dry_run: bool = False,
+    _index: SymbolIndex | None = None,
 ) -> RenameSymbolResult:
+    if request.via_engine:
+        return _apply_via_engine(request, project_root=project_root, dry_run=dry_run, index=_index)
+
     subject = f"{request.qualified_path} → {request.new_name}"
     tx = commit_edits(
         list(request.edits),
