@@ -62,6 +62,17 @@ Imports go `from wyolet.symbol.X import Y`. PyPI distribution is `wyolet-symbol`
 - **Package spec namespaces**: `[checkers.orphan]`, `[checkers.side_effects.calls]`, `[checkers.side_effects.patterns]`, `[checker]` (AST exclude), `[scanner]` (LOC exclude)
 - **Pipeline hooks** (`shared/pipeline.py`) — `@hook(pipeline, priority)` for `DEPS`, `SKIP_ORPHAN`, `ENTRYPOINTS`, `IMPORTS`. Framework-specific logic lives in package specs, not core checkers.
 
+## Language isolation — non-negotiable
+
+**Language-specific code lives in `adapters/<lang>/` and never leaks out.**
+
+- `import ast`, `tree_sitter`, `go/ast`, `pyright`, or any other language-specific parser/runtime is allowed **only** inside `adapters/<lang>/`. Never in `shared/`, `writes/`, `reads/`, `checkers/`, `commands/`, `mcp/`, or any other neutral layer.
+- Neutral layers operate on the index, on `Hit`/`Ref`/`Symbol` records the adapter produces, and on the adapter protocol. They never branch on language and never parse source.
+- Multi-language tools (rename, callers, search, patch) are written **once** against the adapter protocol. Adding a new language = new adapter, not new branches in the engine.
+- When a write/read operation needs language-aware behavior (receiver resolution, scope walking, ref discovery), extend the adapter protocol with a method and implement it per-language. Never put language logic behind an `if lang == "python"` in a neutral layer.
+
+If you catch yourself writing `import ast` outside `adapters/`, stop — the right move is a method on the adapter protocol.
+
 ## Conventions
 
 - Python 3.13. **Never** `from __future__ import annotations` — use native annotations only.
