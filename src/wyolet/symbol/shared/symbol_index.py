@@ -261,6 +261,10 @@ class SymbolIndex:
         s = self.symbols[row]
         return s[S_SLINE], s[S_ELINE]
 
+    def byte_range_of(self, row: int) -> tuple[int, int]:
+        s = self.symbols[row]
+        return s[S_SBYTE], s[S_EBYTE]
+
     def file_of(self, row: int) -> str:
         return self.files[self.symbols[row][S_FILE]]
 

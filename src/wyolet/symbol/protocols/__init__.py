@@ -11,22 +11,28 @@ from wyolet.symbol.protocols.language import (
 from wyolet.symbol.protocols.read_cache import CachedRead, ReadCache
 from wyolet.symbol.protocols.types import (
     BindingResolution,
+    ByteRewrite,
     FileScan,
     ParseResult,
     RawImport,
     RawRef,
     RawSymbol,
     ReferenceResult,
+    RenameAnalysis,
     ScannedImport,
     ScannedRef,
     ScannedSymbol,
+    SkippedMismatchSite,
     SymbolPath,
+    UnresolvedSite,
 )
 
 __all__ = [
     "BindingResolution",
+    "ByteRewrite",
     "CachedRead",
     "FileScan",
+    "IndexQuery",
     "LanguageAdapter",
     "ParseResult",
     "RawImport",
@@ -34,9 +40,15 @@ __all__ = [
     "RawSymbol",
     "ReadCache",
     "ReferenceResult",
+    "RenameAnalysis",
     "ScannedImport",
     "ScannedRef",
     "ScannedSymbol",
     "SemanticLanguageAdapter",
+    "SkippedMismatchSite",
     "SymbolPath",
+    "UnresolvedSite",
 ]
+
+
+from wyolet.symbol.protocols.index_query import IndexQuery  # noqa: E402

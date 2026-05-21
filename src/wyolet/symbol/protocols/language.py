@@ -16,6 +16,7 @@ party libraries don't need to inherit from our base.
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from wyolet.symbol.protocols.index_query import IndexQuery
 from wyolet.symbol.protocols.types import (
     BindingResolution,
     FileScan,
@@ -24,6 +25,7 @@ from wyolet.symbol.protocols.types import (
     RawRef,
     RawSymbol,
     ReferenceResult,
+    RenameAnalysis,
     SymbolPath,
 )
 
@@ -114,6 +116,74 @@ class LanguageAdapter(Protocol):
 
     def invalidate(self, path: Path) -> None:
         """Drop any cached state for this path. Called after writes."""
+        ...
+
+    # ── rename support ──────────────────────────────────────────────
+    # The adapter owns the full rename algorithm for each symbol kind:
+    # find references, resolve receivers, classify each site as
+    # rewrite / skipped_mismatch / unresolved. Returns a neutral
+    # `RenameAnalysis` the engine then aggregates and commits.
+    #
+    # Uniform policy lives in the engine: any non-empty `unresolved`
+    # aborts the operation unless force=True is passed in. Adapters
+    # never decide to apply or abort — they only classify.
+
+    def rename_module_binding(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_module_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        """Classify every reference to a module-level binding (function,
+        async function, class, module constant) in this file.
+
+        - `target_module_qpath`: qpath of the declaring module (e.g.
+          "services.user" for a function at "services.user.foo").
+        - References fall into three node shapes: `Name(id==leaf)` for
+          bare references, `Attribute(attr==leaf)` for module-qualified
+          access (e.g. `m.foo`), and `alias(name==leaf)` for imports.
+        - For Attribute access, the receiver must resolve to
+          `target_module_qpath`; mismatches go to skipped_mismatch.
+        """
+        ...
+
+    def rename_member(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_owner_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        """Classify every attribute-style reference to `leaf` in this file.
+
+        - `target_qpath`: full qpath of the symbol being renamed
+          (e.g. "services.UserService.save").
+        - `target_owner_qpath`: qpath of the declaring class
+          (e.g. "services.UserService"). Adapter walks MRO against this.
+        - `index`: queries the adapter needs (owners_of_leaf for the
+          fast path, class_bases for MRO, find_declaration for resolved
+          types).
+        - `is_declaring_file` + `decl_byte_range`: when True, include
+          the declaration's own identifier rewrite in the analysis.
+
+        Each non-declaration `Attribute(attr==leaf)` site is bucketed:
+        - rewrite       — receiver resolves to `target_owner_qpath` or a subclass
+        - skipped_mismatch — receiver resolves to a different owner
+        - unresolved    — receiver cannot be resolved statically
+        """
         ...
 
 

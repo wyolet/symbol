@@ -656,6 +656,7 @@ def rename_symbol(
         req,
         project_root=root,
         dry_run=dry_run,
+        _index=index,
     )
     if result.status == "error":
         return _capture_text(_render_rename_error, result, agent=True)
