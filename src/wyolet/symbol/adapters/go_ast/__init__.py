@@ -218,29 +218,27 @@ class GoAstAdapter:
         bare module-level code; we paper over Go's stricter requirement
         here so write engines have a uniform contract across languages.
         """
-        text = source.decode("utf-8", errors="replace")
-        prelude = ""
-        if not _has_package_decl(text):
-            prelude = "package _stub\n"
-            text = prelude + text
-
+        text, prelude_lines = _wrap_for_parsing(source)
         scan = self.scan_file(path, text.encode("utf-8"))
-        out: list[RawSymbol] = []
-        shift = len(prelude.encode("utf-8"))
-        prelude_lines = prelude.count("\n")
-        for s in scan.symbols:
-            out.append(_rawsymbol_from_scanned(s, byte_shift=-shift, line_shift=-prelude_lines))
-        return out
+        shift = -len(_PACKAGE_STUB.encode("utf-8")) if prelude_lines else 0
+        line_shift = -prelude_lines
+        return [
+            _rawsymbol_from_scanned(s, byte_shift=shift, line_shift=line_shift)
+            for s in scan.symbols
+        ]
 
     def validate_syntax(self, source: bytes) -> ParseResult:
-        result = self._call(
-            "validate_syntax",
-            {"source": source.decode("utf-8", errors="replace")},
-        )
+        text, prelude_lines = _wrap_for_parsing(source)
+        result = self._call("validate_syntax", {"source": text})
         d = result or {}
+        # If we prepended a synthetic package line, shift any reported
+        # error line back to caller coordinates.
+        err_line = d.get("error_line")
+        if err_line is not None and prelude_lines:
+            err_line = max(1, err_line - prelude_lines)
         return ParseResult(
             ok=bool(d.get("ok")),
-            error_line=d.get("error_line"),
+            error_line=err_line,
             error_message=d.get("error_message"),
         )
 
@@ -440,6 +438,28 @@ def _rawsymbol_from_scanned(
             for c in s.children
         ),
     )
+
+
+_PACKAGE_STUB = "package _stub\n"
+
+
+def _wrap_for_parsing(source: bytes) -> tuple[str, int]:
+    """Prepend a synthetic ``package`` declaration if ``source`` lacks one.
+
+    Go's parser refuses any file without ``package <name>`` as its first
+    real token. Write engines (ReplaceSymbol, InsertSymbol) pass bare
+    snippets — a function or method body alone — so the adapter pads
+    them with ``package _stub`` and shifts byte/line offsets back to the
+    caller's coordinate system. Real Go files (with their own package
+    line) are returned unchanged.
+
+    Returns ``(text, prelude_lines)`` — ``prelude_lines`` is 0 when no
+    wrapping happened, otherwise the number of newlines prepended.
+    """
+    text = source.decode("utf-8", errors="replace")
+    if _has_package_decl(text):
+        return text, 0
+    return _PACKAGE_STUB + text, _PACKAGE_STUB.count("\n")
 
 
 def _has_package_decl(text: str) -> bool:
