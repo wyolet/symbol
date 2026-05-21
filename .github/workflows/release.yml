@@ -5,7 +5,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: read  # job-level overrides bump this where they need more
 
 jobs:
   build:
@@ -62,3 +62,41 @@ jobs:
           path: dist/
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  github_release:
+    name: Create GitHub release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # required to create the release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Extract release notes for this tag from CHANGELOG.md
+        # Pull the section between this version's heading and the next
+        # ## heading. Falls back to a one-liner if extraction comes up
+        # empty so the release isn't published with no body.
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { flag = 1; next }
+            flag && /^## \[/        { flag = 0 }
+            flag                    { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Release for ${GITHUB_REF_NAME}." > release-notes.md
+          fi
+          echo "----- release-notes.md -----"
+          cat release-notes.md
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: dist/*
