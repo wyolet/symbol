@@ -26,13 +26,19 @@ import threading
 from pathlib import Path
 
 from wyolet.symbol.protocols.types import (
+    ByteRewrite,
     FileScan,
     ParseResult,
     RawSymbol,
+    RenameAnalysis,
     ScannedImport,
     ScannedRef,
     ScannedSymbol,
+    SkippedMismatchSite,
+    SymbolPath,
+    UnresolvedSite,
 )
+from wyolet.symbol.protocols import IndexQuery
 
 _PROTOCOL_VERSION = "1"
 
@@ -69,6 +75,11 @@ class GoAstAdapter:
         # and the daemon's reader is line-oriented so interleaving would
         # corrupt the framing anyway.
         self._lock = threading.Lock()
+        # Per-rename-op cache: (project_root, target_qpath, leaf, new_name)
+        #   -> {rel_file -> RenameAnalysis}
+        # The Go daemon analyzes the whole project in one packages.Load,
+        # so we cache and serve per-file slices to the (per-file) renamer.
+        self._rename_cache: dict[tuple, dict[str, RenameAnalysis]] = {}
         # Per-adapter caches for module_prefix resolution. Cleared only
         # on adapter destruction; go.mod doesn't change mid-session in any
         # realistic workflow.
@@ -351,6 +362,99 @@ class GoAstAdapter:
                 return stripped
         return ""
 
+    # ── rename ─────────────────────────────────────────────────────
+
+    def rename_member(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_owner_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        return self._cached_rename(
+            method="rename_member",
+            path=path,
+            project_root=project_root,
+            leaf=leaf,
+            new_name=new_name,
+            target_qpath=target_qpath,
+            target_container_qpath=target_owner_qpath,
+            container_key="target_owner_qpath",
+            index=index,
+        )
+
+    def rename_module_binding(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_module_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        return self._cached_rename(
+            method="rename_module_binding",
+            path=path,
+            project_root=project_root,
+            leaf=leaf,
+            new_name=new_name,
+            target_qpath=target_qpath,
+            target_container_qpath=target_module_qpath,
+            container_key="target_module_qpath",
+            index=index,
+        )
+
+    def _cached_rename(
+        self,
+        *,
+        method: str,
+        path: Path,
+        project_root: Path,
+        leaf: str,
+        new_name: str,
+        target_qpath: str,
+        target_container_qpath: str,
+        container_key: str,
+        index: IndexQuery,
+    ) -> RenameAnalysis:
+        cache_key = (str(project_root), target_qpath, leaf, new_name, method)
+        rel_path = str(path.resolve().relative_to(project_root.resolve()))
+
+        per_file = self._rename_cache.get(cache_key)
+        if per_file is None:
+            # Resolve the *actual* declaring file via the index — the
+            # per-file protocol means we may be called for non-declaring
+            # files first. The daemon does a project-wide analysis so it
+            # only needs to be told this once.
+            decl = index.find_declaration(target_qpath)
+            if decl is None:
+                return RenameAnalysis()
+            _abs, decl_rel, byte_range, _kind = decl
+            response = self._call(method, {
+                "project_root": str(project_root.resolve()),
+                "leaf": leaf,
+                "new_name": new_name,
+                "target_qpath": target_qpath,
+                container_key: target_container_qpath,
+                "declaring_file": decl_rel,
+                "decl_byte_range": list(byte_range),
+                "candidate_files": [],
+            })
+            per_file = _rename_result_from_dict(response)
+            self._rename_cache[cache_key] = per_file
+
+        return per_file.get(rel_path, RenameAnalysis())
+
     def preview(self, body: str, signature: str, max_lines: int = 3) -> str:
         """First few meaningful body lines after the signature.
 
@@ -472,3 +576,51 @@ def _filescan_from_dict(d: dict) -> FileScan:
         imports=tuple(_import_from_dict(i) for i in (d.get("imports") or [])),
         symbols=tuple(_symbol_from_dict(s) for s in (d.get("symbols") or [])),
     )
+
+
+def _rename_result_from_dict(d: object) -> dict[str, RenameAnalysis]:
+    """Convert a daemon RenameResult JSON object into per-file
+    RenameAnalysis records keyed on relative file path."""
+    if not isinstance(d, dict):
+        return {}
+    files = d.get("files") or {}
+    out: dict[str, RenameAnalysis] = {}
+    for rel, raw in files.items():
+        if not isinstance(raw, dict):
+            continue
+        out[rel] = RenameAnalysis(
+            rewrites=tuple(
+                ByteRewrite(
+                    byte_start=r["byte_start"],
+                    byte_end=r["byte_end"],
+                    new_text=r["new_text"],
+                    line=r.get("line", 0),
+                    col=r.get("col", 0),
+                    receiver_source=r.get("receiver_source", ""),
+                )
+                for r in (raw.get("rewrites") or [])
+            ),
+            skipped_mismatch=tuple(
+                SkippedMismatchSite(
+                    byte_start=s["byte_start"],
+                    byte_end=s["byte_end"],
+                    line=s.get("line", 0),
+                    col=s.get("col", 0),
+                    receiver_source=s.get("receiver_source", ""),
+                    resolved_to_qpath=s.get("resolved_to_qpath", ""),
+                )
+                for s in (raw.get("skipped_mismatch") or [])
+            ),
+            unresolved=tuple(
+                UnresolvedSite(
+                    byte_start=u["byte_start"],
+                    byte_end=u["byte_end"],
+                    line=u.get("line", 0),
+                    col=u.get("col", 0),
+                    receiver_source=u.get("receiver_source", ""),
+                    why=u.get("why", ""),
+                )
+                for u in (raw.get("unresolved") or [])
+            ),
+        )
+    return out
