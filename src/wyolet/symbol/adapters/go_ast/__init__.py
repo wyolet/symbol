@@ -329,38 +329,27 @@ class GoAstAdapter:
             return None
         return None
 
-    def signature_from_text(self, text: str) -> str:
-        """Go declaration line(s) — up to and including the body-opening ``{``.
+    def signature(self, text: str) -> str:
+        """Canonical Go declaration of the first top-level symbol in ``text``.
 
-        Same shape as the Python adapter's colon-based parser, but the
-        body delimiter is ``{`` and Go strings can be backtick-quoted.
-        Skips delimiters inside strings, parens, and brackets.
+        Delegates to the daemon, which parses with ``go/parser`` and
+        formats with ``go/printer`` (FuncDecl body stripped). The result
+        is what gopls/godoc would show — no hand-rolled string parsing
+        on the Python side.
         """
-        depth = 0
-        in_str = False
-        quote = ""
-        i = 0
-        n = len(text)
-        while i < n:
-            c = text[i]
-            if in_str:
-                if c == "\\" and quote != "`":
-                    i += 2
-                    continue
-                if c == quote:
-                    in_str = False
-            else:
-                if c in ('"', "'", "`"):
-                    in_str = True
-                    quote = c
-                elif c in "([":
-                    depth += 1
-                elif c in ")]":
-                    depth -= 1
-                elif c == "{" and depth == 0:
-                    return " ".join(text[: i + 1].split())
-            i += 1
-        return text.splitlines()[0].strip() if text else ""
+        if not text:
+            return ""
+        result = self._call("signature", {"source": text})
+        sig = (result or {}).get("signature") if isinstance(result, dict) else None
+        if sig:
+            return sig
+        # Daemon couldn't parse anything; surface the first non-blank
+        # line so callers still get *something* useful (e.g. a comment).
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped:
+                return stripped
+        return ""
 
     def preview(self, body: str, signature: str, max_lines: int = 3) -> str:
         """First few meaningful body lines after the signature.

@@ -67,6 +67,18 @@ type ValidateSyntaxParams struct {
 	Source string `json:"source"`
 }
 
+// SignatureParams is the input to ``signature``.
+type SignatureParams struct {
+	Source string `json:"source"`
+}
+
+// SignatureResult is the canonical Go declaration of the first
+// top-level symbol in the input, formatted by go/printer with the body
+// stripped. Empty if the input has no top-level declarations.
+type SignatureResult struct {
+	Signature string `json:"signature"`
+}
+
 // ── wire data types (mirror schemas/symbol.rpc.schema.json $defs) ──
 
 // ScannedRef is one name reference inside a symbol's body.

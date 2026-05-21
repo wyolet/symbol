@@ -82,13 +82,24 @@ class LanguageAdapter(Protocol):
         """
         ...
 
-    def signature_from_text(self, text: str) -> str:
-        """Extract the declaration line(s) of a symbol from its body text.
+    def preview(self, body: str, signature: str, max_lines: int = 3) -> str:
+        """First few meaningful body lines after the signature.
 
-        Receives up to a few KB of bytes starting at the symbol's first byte.
-        Returns the declaration up to (and including) the body delimiter:
-        ``:`` for Python, ``{`` for Go, etc. Multi-line signatures collapse
-        to one line. Pure function — no I/O.
+        Skips blank lines and language-appropriate comments (``#`` for
+        Python, ``//`` for Go, …) and any docstring-equivalent at the top
+        of the body. Returns up to ``max_lines`` lines joined by newlines,
+        indentation preserved. Used by ``symbol search`` to show a few
+        lines of context under each hit.
+        """
+        ...
+
+    def signature(self, text: str) -> str:
+        """Canonical declaration of the first top-level symbol in ``text``.
+
+        Receives up to a few KB of bytes starting at the symbol's first
+        byte. The adapter parses with its native AST and formats the
+        declaration — no body, no trailing delimiter. Matches what
+        gopls / godoc / inspect.signature would show.
         """
         ...
 

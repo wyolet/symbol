@@ -78,6 +78,31 @@
             "result": { "$ref": "symbol.rpc.schema.json#/$defs/FileScan" }
           }
         },
+        "signature": {
+          "type": "object",
+          "description": "Return the canonical declaration of the first top-level symbol in the provided source, with any function body stripped. Required of every worker. The worker parses with its native AST/printer — never with hand-rolled string state machines.",
+          "additionalProperties": false,
+          "required": ["params", "result"],
+          "properties": {
+            "params": {
+              "type": "object",
+              "required": ["source"],
+              "properties": {
+                "source": { "type": "string" }
+              }
+            },
+            "result": {
+              "type": "object",
+              "required": ["signature"],
+              "properties": {
+                "signature": {
+                  "type": "string",
+                  "description": "Empty string if the input has no parseable top-level declaration."
+                }
+              }
+            }
+          }
+        },
         "validate_syntax": {
           "type": "object",
           "description": "Cheap syntax-only check. Required of every worker.",

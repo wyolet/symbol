@@ -333,7 +333,7 @@ class SymbolIndex:
             adapter = default_registry().for_language(language)
         except UnsupportedLanguage:
             return text.splitlines()[0].strip() if text else ""
-        return adapter.signature_from_text(text)
+        return adapter.signature(text)
 
     # ---------------------------------------------------------- composite row ops
     #

@@ -52,19 +52,20 @@ def test_validate_syntax_broken_source():
     assert result.error_line >= 1
 
 
-def test_signature_from_text_func():
+def test_signature_func_via_adapter():
     adapter = _skip_if_no_daemon()
-    sig = adapter.signature_from_text("func New(name string) *User {\n\treturn nil\n}")
-    assert sig.endswith("{")
-    assert "func New" in sig
+    sig = adapter.signature("func New(name string) *User {\n\treturn nil\n}")
+    # gopls/godoc convention: declaration WITHOUT the body-opening brace.
+    assert not sig.endswith("{")
+    assert sig == "func New(name string) *User"
 
 
-def test_signature_from_text_method():
+def test_signature_method_via_adapter():
     adapter = _skip_if_no_daemon()
-    sig = adapter.signature_from_text(
+    sig = adapter.signature(
         "func (u *User) Greet() string {\n\treturn \"\"\n}"
     )
-    assert sig == "func (u *User) Greet() string {"
+    assert sig == "func (u *User) Greet() string"
 
 
 def test_module_prefix_uses_go_mod(tmp_path: Path):
