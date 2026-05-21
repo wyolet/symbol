@@ -206,7 +206,9 @@ func extractRefs(fn *ast.FuncDecl, fset *token.FileSet, skip map[string]bool) []
 		line int
 	}
 	seen := map[key]bool{}
-	var refs []rpc.ScannedRef
+	// Initialize as empty slice, not nil — JSON-encodes as `[]`, which
+	// the Python client expects. A nil slice would marshal to `null`.
+	refs := []rpc.ScannedRef{}
 
 	addRef := func(name, kind string, pos token.Pos) {
 		if name == "" || name == "_" || skip[name] {

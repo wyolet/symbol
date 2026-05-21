@@ -28,6 +28,7 @@ from pathlib import Path
 from wyolet.symbol.protocols.types import (
     FileScan,
     ParseResult,
+    RawSymbol,
     ScannedImport,
     ScannedRef,
     ScannedSymbol,
@@ -200,6 +201,36 @@ class GoAstAdapter:
             },
         )
         return _filescan_from_dict(result)  # type: ignore[arg-type]
+
+    def symbols(self, path: Path, source: bytes) -> list[RawSymbol]:
+        """Top-level symbols declared in ``source``.
+
+        Projection of ``scan_file``: ``ScannedSymbol`` (which carries refs
+        from its scope) → ``RawSymbol`` (which doesn't — that's the
+        SemanticLanguageAdapter tier). ``signature_line`` is the symbol's
+        first line, matching the Python adapter's convention.
+
+        Go requires every file to begin with a ``package`` declaration,
+        so a snippet that's "just a function" won't parse on its own.
+        When the input lacks a package line we prepend a synthetic one
+        and shift byte offsets back so the returned ranges still point
+        into the caller-supplied bytes. The Python ``ast`` module accepts
+        bare module-level code; we paper over Go's stricter requirement
+        here so write engines have a uniform contract across languages.
+        """
+        text = source.decode("utf-8", errors="replace")
+        prelude = ""
+        if not _has_package_decl(text):
+            prelude = "package _stub\n"
+            text = prelude + text
+
+        scan = self.scan_file(path, text.encode("utf-8"))
+        out: list[RawSymbol] = []
+        shift = len(prelude.encode("utf-8"))
+        prelude_lines = prelude.count("\n")
+        for s in scan.symbols:
+            out.append(_rawsymbol_from_scanned(s, byte_shift=-shift, line_shift=-prelude_lines))
+        return out
 
     def validate_syntax(self, source: bytes) -> ParseResult:
         result = self._call(
@@ -379,9 +410,49 @@ def _symbol_from_dict(d: dict) -> ScannedSymbol:
         qualified_path=d["qualified_path"],
         byte_range=(d["byte_range"][0], d["byte_range"][1]),
         line_range=(d["line_range"][0], d["line_range"][1]),
-        refs=tuple(_ref_from_dict(r) for r in d.get("refs", [])),
-        children=tuple(_symbol_from_dict(c) for c in d.get("children", [])),
+        refs=tuple(_ref_from_dict(r) for r in (d.get("refs") or [])),
+        children=tuple(_symbol_from_dict(c) for c in (d.get("children") or [])),
     )
+
+
+def _rawsymbol_from_scanned(
+    s: ScannedSymbol, *, byte_shift: int = 0, line_shift: int = 0
+) -> RawSymbol:
+    """ScannedSymbol → RawSymbol projection.
+
+    Drops refs (RawSymbol carries no refs — that's the
+    SemanticLanguageAdapter tier). ``signature_line`` is the symbol's
+    first line. ``byte_shift`` / ``line_shift`` translate ranges back to
+    caller coordinates when the adapter parsed a wrapped buffer (see
+    ``GoAstAdapter.symbols``).
+    """
+    br = (s.byte_range[0] + byte_shift, s.byte_range[1] + byte_shift)
+    lr = (s.line_range[0] + line_shift, s.line_range[1] + line_shift)
+    return RawSymbol(
+        kind=s.kind,
+        name=s.name,
+        qualified_path=s.qualified_path,
+        byte_range=br,
+        line_range=lr,
+        signature_line=lr[0],
+        children=tuple(
+            _rawsymbol_from_scanned(c, byte_shift=byte_shift, line_shift=line_shift)
+            for c in s.children
+        ),
+    )
+
+
+def _has_package_decl(text: str) -> bool:
+    """True if ``text`` already starts with a Go ``package`` declaration
+    (ignoring leading blank lines, comments, and the build-constraint
+    ``//go:build`` directive that comes before package in real files).
+    """
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("//") or line.startswith("/*"):
+            continue
+        return line.startswith("package ") or line == "package"
+    return False
 
 
 def _filescan_from_dict(d: dict) -> FileScan:
@@ -389,6 +460,6 @@ def _filescan_from_dict(d: dict) -> FileScan:
         language=d["language"],
         ok=bool(d["ok"]),
         error=d.get("error"),
-        imports=tuple(_import_from_dict(i) for i in d.get("imports", [])),
-        symbols=tuple(_symbol_from_dict(s) for s in d.get("symbols", [])),
+        imports=tuple(_import_from_dict(i) for i in (d.get("imports") or [])),
+        symbols=tuple(_symbol_from_dict(s) for s in (d.get("symbols") or [])),
     )
