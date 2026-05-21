@@ -123,3 +123,80 @@ type ParseResult struct {
 	ErrorLine    *int    `json:"error_line,omitempty"`
 	ErrorMessage *string `json:"error_message,omitempty"`
 }
+
+// ── rename ─────────────────────────────────────────────────────────
+
+// RenameMemberParams is the input to rename_member.
+//
+// The daemon loads the project under ProjectRoot via packages.Load with
+// full type info, then classifies every SelectorExpr matching Leaf
+// against TargetOwnerQpath using info.Selections. Receiver-type
+// resolution is exact (uses go/types) — no tier-1 limits.
+type RenameMemberParams struct {
+	ProjectRoot      string   `json:"project_root"`
+	Leaf             string   `json:"leaf"`
+	NewName          string   `json:"new_name"`
+	TargetQpath      string   `json:"target_qpath"`
+	TargetOwnerQpath string   `json:"target_owner_qpath"`
+	DeclaringFile    string   `json:"declaring_file"`
+	DeclByteRange    [2]int   `json:"decl_byte_range"`
+	CandidateFiles   []string `json:"candidate_files"`
+}
+
+// RenameModuleBindingParams is the input to rename_module_binding.
+type RenameModuleBindingParams struct {
+	ProjectRoot       string   `json:"project_root"`
+	Leaf              string   `json:"leaf"`
+	NewName           string   `json:"new_name"`
+	TargetQpath       string   `json:"target_qpath"`
+	TargetModuleQpath string   `json:"target_module_qpath"`
+	DeclaringFile     string   `json:"declaring_file"`
+	DeclByteRange     [2]int   `json:"decl_byte_range"`
+	CandidateFiles    []string `json:"candidate_files"`
+}
+
+// ByteRewrite is one identifier-token rewrite. Mirrors the neutral
+// protocols.types.ByteRewrite.
+type ByteRewrite struct {
+	ByteStart      int    `json:"byte_start"`
+	ByteEnd        int    `json:"byte_end"`
+	NewText        string `json:"new_text"`
+	Line           int    `json:"line"`
+	Col            int    `json:"col"`
+	ReceiverSource string `json:"receiver_source"`
+}
+
+// SkippedMismatchSite is a leaf hit correctly identified as a
+// different declaration (different receiver type, different package).
+type SkippedMismatchSite struct {
+	ByteStart        int    `json:"byte_start"`
+	ByteEnd          int    `json:"byte_end"`
+	Line             int    `json:"line"`
+	Col              int    `json:"col"`
+	ReceiverSource   string `json:"receiver_source"`
+	ResolvedToQpath  string `json:"resolved_to_qpath"`
+}
+
+// UnresolvedSite is a leaf hit the daemon could not classify. Should
+// be rare with go/types — surface for agent review.
+type UnresolvedSite struct {
+	ByteStart      int    `json:"byte_start"`
+	ByteEnd        int    `json:"byte_end"`
+	Line           int    `json:"line"`
+	Col            int    `json:"col"`
+	ReceiverSource string `json:"receiver_source"`
+	Why            string `json:"why"`
+}
+
+// RenameFileAnalysis is the three-bucket result for one file.
+type RenameFileAnalysis struct {
+	Rewrites        []ByteRewrite         `json:"rewrites"`
+	SkippedMismatch []SkippedMismatchSite `json:"skipped_mismatch"`
+	Unresolved      []UnresolvedSite      `json:"unresolved"`
+}
+
+// RenameResult maps file relative paths to per-file analyses. Files
+// the daemon analyzed but produced no hits for may be omitted.
+type RenameResult struct {
+	Files map[string]RenameFileAnalysis `json:"files"`
+}
