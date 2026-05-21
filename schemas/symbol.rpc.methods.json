@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/wyolet/symbol/main/schemas/symbol.rpc.methods.json",
+  "title": "symbol language-adapter RPC methods",
+  "description": "Method registry for the symbol↔language-daemon JSON-RPC 2.0 protocol. Each method's params and result reference types in symbol.rpc.schema.json. Host-agnostic: the same protocol applies whether Python orchestrates Go, Go orchestrates Python, or anything else.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "methods"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1",
+      "description": "Protocol major version. Bump only on breaking wire changes."
+    },
+    "methods": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "initialize": {
+          "type": "object",
+          "description": "Handshake. Worker reports its language and version; host advertises its protocol version. Called once per daemon lifetime, before any other method.",
+          "additionalProperties": false,
+          "required": ["params", "result"],
+          "properties": {
+            "params": {
+              "type": "object",
+              "required": ["protocol_version"],
+              "properties": {
+                "protocol_version": { "type": "string", "const": "1" }
+              }
+            },
+            "result": {
+              "type": "object",
+              "required": ["language", "worker_version", "capabilities"],
+              "properties": {
+                "language": {
+                  "type": "string",
+                  "description": "Canonical lowercase language key the worker handles (e.g. 'go')."
+                },
+                "worker_version": {
+                  "type": "string",
+                  "description": "Daemon implementation version. Independent of protocol_version."
+                },
+                "capabilities": {
+                  "type": "array",
+                  "description": "Method names this worker supports beyond the v1 minimum (scan_file, validate_syntax). Lets workers ship incrementally — host falls back gracefully when a capability is missing.",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "scan_file": {
+          "type": "object",
+          "description": "Parse one file and return its full FileScan. Required of every worker.",
+          "additionalProperties": false,
+          "required": ["params", "result"],
+          "properties": {
+            "params": {
+              "type": "object",
+              "required": ["path", "source"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Absolute path to the file. Used for diagnostics only; worker reads bytes from `source`."
+                },
+                "source": {
+                  "type": "string",
+                  "description": "UTF-8 file contents. Passed across the wire so the worker doesn't re-read disk."
+                },
+                "module_prefix": {
+                  "type": "string",
+                  "default": "",
+                  "description": "Qualifier prefix the worker should prepend to top-level symbol names. Host computes this from layout (e.g. Python dotted module path, Go package import path)."
+                }
+              }
+            },
+            "result": { "$ref": "symbol.rpc.schema.json#/$defs/FileScan" }
+          }
+        },
+        "signature": {
+          "type": "object",
+          "description": "Return the canonical declaration of the first top-level symbol in the provided source, with any function body stripped. Required of every worker. The worker parses with its native AST/printer — never with hand-rolled string state machines.",
+          "additionalProperties": false,
+          "required": ["params", "result"],
+          "properties": {
+            "params": {
+              "type": "object",
+              "required": ["source"],
+              "properties": {
+                "source": { "type": "string" }
+              }
+            },
+            "result": {
+              "type": "object",
+              "required": ["signature"],
+              "properties": {
+                "signature": {
+                  "type": "string",
+                  "description": "Empty string if the input has no parseable top-level declaration."
+                }
+              }
+            }
+          }
+        },
+        "validate_syntax": {
+          "type": "object",
+          "description": "Cheap syntax-only check. Required of every worker.",
+          "additionalProperties": false,
+          "required": ["params", "result"],
+          "properties": {
+            "params": {
+              "type": "object",
+              "required": ["source"],
+              "properties": {
+                "source": { "type": "string" }
+              }
+            },
+            "result": { "$ref": "symbol.rpc.schema.json#/$defs/ParseResult" }
+          }
+        },
+        "shutdown": {
+          "type": "object",
+          "description": "Graceful shutdown notification. No response. Worker should flush state and exit.",
+          "additionalProperties": false,
+          "properties": {
+            "params": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

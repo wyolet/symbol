@@ -54,11 +54,45 @@ class ASTCache:
             )
         )
         self._cache: dict[Path, ast.Module | None] = {}
+        self._indexable_files: list[Path] | None = None
         self.failed: list[tuple[Path, str]] = []  # (filepath, error message)
 
     @property
     def files(self) -> list[Path]:
+        """Python files only. Used by Python AST-shape checkers.
+
+        Cross-language consumers (SymbolIndex) should use ``indexable_files``
+        which spans every language with a registered, enabled adapter.
+        """
         return self._files
+
+    @property
+    def indexable_files(self) -> list[Path]:
+        """Every linguist-classified file whose language has an enabled adapter.
+
+        Excludes nothing for include/exclude — those filters are applied on
+        construction. Falls back to ``files`` if the adapter registry isn't
+        reachable (defensive; shouldn't happen in normal runs).
+        """
+        if self._indexable_files is None:
+            from wyolet.symbol.adapters import default_registry
+
+            registry = default_registry()
+            from .files import filter_paths
+
+            all_paths = list(
+                filter_paths(
+                    (
+                        path for path, lang in self._linguist.file_languages.items()
+                        if registry.has_adapter(lang.key)
+                    ),
+                    project_root=self.project_root,
+                    include=list(self._include_patterns) or None,
+                    exclude=list(self._exclude_patterns) or None,
+                )
+            )
+            self._indexable_files = sorted(all_paths)
+        return self._indexable_files
 
     def language_of(self, path: Path) -> str | None:
         """Linguist's classification for this path as a canonical language key

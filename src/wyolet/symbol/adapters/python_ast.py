@@ -35,9 +35,25 @@ _SYMBOL_KINDS: dict[type, str] = {
 
 
 class PythonAstAdapter(LanguageAdapter):
-    """Tier-1 Python adapter. Handmade tier-2 capability lands later."""
+    """Tier: AST (mid). Language: Python.
+
+    Capabilities: symbol index, signatures, imports, references in-scope
+    (module-level binding only — full semantic resolution is the planned
+    SemanticLanguageAdapter tier, pyright-backed or in-process).
+
+    Requires: nothing beyond the stdlib ``ast`` module. Runs in-process.
+
+    Enable: always enabled (no toolchain dependency, no external binary).
+
+    Disabled fallback: none needed — the in-process path is the lowest-cost
+    implementation already.
+    """
 
     lang = "python"
+    # No toolchain to check, no binary to find. In-process adapters that
+    # have no dependency to verify should set this to True so the
+    # registry's tier-ladder check finds them.
+    is_enabled = True
 
     def __init__(self) -> None:
         self._cache: dict[tuple[str, str], ast.Module] = {}
@@ -216,13 +232,19 @@ class PythonAstAdapter(LanguageAdapter):
                 error_message=e.msg,
             )
 
-    def module_prefix(self, rel_path: str) -> str:
-        """Repo-relative path → Python dotted module path.
+    def module_prefix(self, path: Path, project_root: Path) -> str:
+        """Source file path → Python dotted module path.
 
         Strips a leading ``src/`` (PEP 517 src-layout) and the ``.py``
         extension, flattens ``__init__`` packages to the parent directory.
+        Pure layout-driven — Python doesn't have a per-project module
+        manifest, so the dir tree IS the import path.
         """
-        parts = rel_path.split("/")
+        try:
+            rel = str(path.relative_to(project_root))
+        except ValueError:
+            rel = str(path)
+        parts = rel.split("/")
         if parts and parts[0] == "src":
             parts = parts[1:]
         if not parts:
@@ -236,38 +258,31 @@ class PythonAstAdapter(LanguageAdapter):
             parts[-1] = last
         return ".".join(parts)
 
-    def signature_from_text(self, text: str) -> str:
-        """Python declaration line(s) — up to and including the body-opening ``:``.
+    def signature(self, text: str) -> str:
+        """Canonical declaration of the first top-level symbol in ``text``.
 
-        Handles multi-line signatures (wrapped args). Skips colons inside
-        parens, brackets, and strings. Collapses whitespace to one line.
+        Parses with ``ast.parse`` and builds the signature directly from
+        the node fields (name, args, returns, bases). Matches gopls/godoc
+        convention: declaration only, no trailing body-opening ``:``.
+        No string parsing — the AST is the authority.
         """
-        depth = 0
-        in_str = False
-        quote = ""
-        i = 0
-        n = len(text)
-        while i < n:
-            c = text[i]
-            if in_str:
-                if c == "\\":
-                    i += 2
-                    continue
-                if c == quote:
-                    in_str = False
-            else:
-                if c in ('"', "'"):
-                    in_str = True
-                    quote = c
-                elif c in "([{":
-                    depth += 1
-                elif c in ")]}":
-                    depth -= 1
-                elif c == ":" and depth == 0:
-                    return " ".join(text[: i + 1].split())
-            i += 1
-        first = text.splitlines()[0] if text else ""
-        return first.strip()
+        if not text:
+            return ""
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            # Caller passed something that's not a full module (e.g. the
+            # leading 4KB of a class body cut off mid-statement). Surface
+            # the first non-blank line as a best-effort fallback.
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    return stripped
+            return ""
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                return _python_signature(node)
+        return ""
 
     def preview(self, body: str, signature: str, max_lines: int = 3) -> str:
         """First few meaningful code lines after the signature.
@@ -399,6 +414,33 @@ class PythonAstAdapter(LanguageAdapter):
 
 
 # ---------------------------------------------------------- helpers
+
+
+def _python_signature(node: ast.AST) -> str:
+    """Canonical signature string for a top-level Python declaration.
+
+    Built from AST fields directly via ``ast.unparse`` on the relevant
+    subtrees — no string parsing of the source. Output matches what
+    ``inspect.signature`` / typical IDE hover shows: declaration only,
+    no trailing colon, no decorators.
+    """
+    if isinstance(node, ast.ClassDef):
+        parts: list[str] = [ast.unparse(b) for b in node.bases]
+        parts.extend(
+            f"**{ast.unparse(k.value)}" if k.arg is None else f"{k.arg}={ast.unparse(k.value)}"
+            for k in node.keywords
+        )
+        if parts:
+            return f"class {node.name}({', '.join(parts)})"
+        return f"class {node.name}"
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
+        args = ast.unparse(node.args)
+        sig = f"{prefix} {node.name}({args})"
+        if node.returns is not None:
+            sig += f" -> {ast.unparse(node.returns)}"
+        return sig
+    return ""
 
 
 def _decorated_start_line(node: ast.AST) -> int:

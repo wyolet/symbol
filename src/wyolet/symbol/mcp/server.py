@@ -213,32 +213,29 @@ class _State:
         cls._index_mtime = p.stat().st_mtime if p.exists() else cls._index_mtime
 
 
-def _file_part_of_target(target: str) -> str | None:
-    """Extract a file path from a target if path-shaped, else None.
+def _existing_file_part(target: str) -> str | None:
+    """If ``target`` names a real file on disk, return its path component.
 
-    SymbolBody and SymbolOutline accept either a qualified symbol path
-    ("wyolet.symbol.cli.main") or a file address ("src/foo.py" or
-    "src/foo.py:10-20"). On-the-fly indexing only kicks in for file forms
-    — qualified paths must already resolve through the index.
+    Language-neutral: no string heuristics about what "looks like" a
+    symbol vs a file. The only test is whether the path exists. Supports
+    the ``file:start-end`` form by splitting on ``:`` and using the head
+    when the tail is a numeric line range.
 
-    Path-shaped means: contains a slash, OR exists on disk (so a bare
-    "foo.py" in cwd works). A dotted name like "pkg.module.fn" has no
-    slash and (almost certainly) doesn't exist as a file, so it's left
-    to the qualified-path resolver.
+    Callers should consult the index first via ``code_read`` / ``outline_read``
+    — those are the authority on "is this a known symbol." This helper
+    exists only to drive on-the-fly indexing when a file the user named
+    isn't in the index yet.
     """
     head, sep, tail = target.partition(":")
     base = head if (sep and "-" in tail and tail.replace("-", "").isdigit()) else target
-    if "/" in base or "\\" in base:
-        return base
-    # Bare filename in cwd (no separator): only treat as a path if the file
-    # actually exists on disk. Avoids treating qualified paths like
-    # "wyolet.symbol.cli" as files just because Path.suffix returns ".cli".
     root = _State.project_root
-    if root is not None:
+    if root is None:
+        return None
+    try:
         p = (root / base).resolve()
-        if p.is_file():
-            return base
-    return None
+    except OSError:
+        return None
+    return base if p.is_file() else None
 
 
 def _ensure_or_error_dict(file: str) -> dict | None:
@@ -320,17 +317,33 @@ def symbol_body(
     limit: int | None = None,
 ) -> dict:
     root = _State.require_root()
-    file_part = _file_part_of_target(target)
-    if file_part is not None:
+    index = _State.require_index()
+    cache = _State.require_cache()
+
+    # code_read is the authority on resolution (qualified path or file:range).
+    # If it can't find the target, fall back to "maybe this is an unindexed
+    # file on disk" — language-neutral test, retry once after indexing.
+    try:
+        hit = code_read(index, target)
+    except CodeNotFound:
+        file_part = _existing_file_part(target)
+        if file_part is None:
+            return {"ok": False, "error_code": "not_found", "message": f"no symbol matches {target!r}"}
         err = _ensure_or_error_dict(file_part)
         if err is not None:
             return err
-    index = _State.require_index()
-    cache = _State.require_cache()
-    try:
-        hit = code_read(index, target)
-    except CodeNotFound as e:
-        return {"ok": False, "error_code": "not_found", "message": str(e)}
+        index = _State.require_index()
+        try:
+            hit = code_read(index, target)
+        except CodeNotFound as e:
+            return {"ok": False, "error_code": "not_found", "message": str(e)}
+        except CodeAmbiguous as e:
+            return {
+                "ok": False,
+                "error_code": "ambiguous",
+                "message": str(e),
+                "candidates": e.candidates,
+            }
     except CodeAmbiguous as e:
         return {
             "ok": False,
@@ -367,13 +380,10 @@ def symbol_body(
 @mcp.tool(name="SymbolOutline", description=descriptions.SYMBOL_OUTLINE)
 def symbol_outline(target: str) -> dict:
     root = _State.require_root()
-    file_part = _file_part_of_target(target)
-    if file_part is not None:
-        err = _ensure_or_error_dict(file_part)
-        if err is not None:
-            return err
     index = _State.require_index()
 
+    # Try outline as-given first. outline_read handles both qualified paths
+    # and file paths; the index is the authority on what's known.
     arg = target
     fs_candidate = Path(target)
     if fs_candidate.exists():
@@ -383,6 +393,18 @@ def symbol_outline(target: str) -> dict:
             arg = target
 
     roots = outline_read(index, arg)
+    if not roots:
+        # Empty outline can mean "unindexed file" — fall back to neutral
+        # disk check, index if found, and retry once.
+        file_part = _existing_file_part(target)
+        if file_part is not None:
+            err = _ensure_or_error_dict(file_part)
+            if err is not None:
+                return err
+            index = _State.require_index()
+            arg = file_part
+            roots = outline_read(index, arg)
+
     _prune_empty_children(roots)
     return {"ok": True, "target": arg, "roots": roots}
 

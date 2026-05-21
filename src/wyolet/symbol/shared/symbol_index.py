@@ -145,7 +145,7 @@ class SymbolIndex:
         if self._built:
             return
         assert self.cache is not None, "build() requires an ASTCache"
-        for path in self.cache.files:
+        for path in self.cache.indexable_files:
             self._walk_file(path)
         self._build_by_name_id()
         self._built = True
@@ -179,7 +179,11 @@ class SymbolIndex:
                 adapter = default_registry().for_file(path)
         except UnsupportedLanguage:
             return
-        scan = adapter.scan_file(path, source, module_prefix=adapter.module_prefix(rel))
+        scan = adapter.scan_file(
+            path,
+            source,
+            module_prefix=adapter.module_prefix(path, self.project_root),
+        )
         if not scan.ok:
             return
 
@@ -329,7 +333,7 @@ class SymbolIndex:
             adapter = default_registry().for_language(language)
         except UnsupportedLanguage:
             return text.splitlines()[0].strip() if text else ""
-        return adapter.signature_from_text(text)
+        return adapter.signature(text)
 
     # ---------------------------------------------------------- composite row ops
     #
