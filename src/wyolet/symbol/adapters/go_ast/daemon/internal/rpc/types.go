@@ -188,11 +188,28 @@ type UnresolvedSite struct {
 	Why            string `json:"why"`
 }
 
-// RenameFileAnalysis is the three-bucket result for one file.
+// AffectedInterface flags an interface whose method-set contains the
+// rename target's leaf AND whose receiver-type the target implements.
+// Renaming the target's method will leave the interface unsatisfied;
+// the engine surfaces these as a "this would break contracts" note
+// without auto-renaming the implementation set (gopls-style multi-
+// rename is a separate, opt-in operation).
+type AffectedInterface struct {
+	InterfaceQpath string `json:"interface_qpath"`  // e.g. "example/iface.Saver"
+	MethodQpath    string `json:"method_qpath"`     // e.g. "example/iface.Saver.Save"
+	File           string `json:"file"`             // rel path to the interface declaration
+	Line           int    `json:"line"`
+}
+
+// RenameFileAnalysis is the three-bucket result for one file, plus an
+// optional set of project-wide interface impacts. The daemon stamps
+// AffectedInterfaces on a single file (typically the declaring file)
+// to ride the per-file protocol; the engine deduplicates on aggregation.
 type RenameFileAnalysis struct {
-	Rewrites        []ByteRewrite         `json:"rewrites"`
-	SkippedMismatch []SkippedMismatchSite `json:"skipped_mismatch"`
-	Unresolved      []UnresolvedSite      `json:"unresolved"`
+	Rewrites           []ByteRewrite         `json:"rewrites"`
+	SkippedMismatch    []SkippedMismatchSite `json:"skipped_mismatch"`
+	Unresolved         []UnresolvedSite      `json:"unresolved"`
+	AffectedInterfaces []AffectedInterface   `json:"affected_interfaces,omitempty"`
 }
 
 // RenameResult maps file relative paths to per-file analyses. Files

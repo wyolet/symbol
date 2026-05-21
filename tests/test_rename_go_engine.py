@@ -223,6 +223,13 @@ def test_interface_call_resolves_to_interface_not_implementer(tmp_path: Path):
     assert "example/iface.Saver.Save" in qpaths
     assert "example/iface.B.Save" in qpaths
 
+    # The interface contract impact is surfaced separately — the agent
+    # sees that A implements Saver and the rename leaves it unsatisfied.
+    affected_qpaths = {a.interface_qpath for a in result.affected_interfaces}
+    assert "example/iface.Saver" in affected_qpaths, (
+        f"expected Saver in affected_interfaces; got {result.affected_interfaces}"
+    )
+
 
 # ── factory-returned receiver (tier-2 win over Python tier-1) ──────
 

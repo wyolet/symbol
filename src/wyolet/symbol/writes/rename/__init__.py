@@ -2,6 +2,7 @@
 
 from wyolet.symbol.writes.rename.renamer import SymbolRenamer
 from wyolet.symbol.writes.rename.result import (
+    AffectedInterface,
     RenameResult,
     Rewrite,
     SkippedMismatch,
@@ -9,6 +10,7 @@ from wyolet.symbol.writes.rename.result import (
 )
 
 __all__ = [
+    "AffectedInterface",
     "SymbolRenamer",
     "RenameResult",
     "Rewrite",

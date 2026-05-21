@@ -86,6 +86,15 @@ def _render_agent(result: RenameSymbolResult) -> None:
         print(f"unresolved {len(result.unresolved)} site(s) — review manually:")
         for u in result.unresolved:
             print(f"  {u.file}:{u.line}:{u.col + 1}  `{u.receiver_source}.{leaf}`  ({u.why})")
+    if result.affected_interfaces:
+        print()
+        print(
+            f"affects {len(result.affected_interfaces)} interface contract(s) — "
+            f"the rename target also implements these; renaming will leave them "
+            f"unsatisfied unless you rename the contract method too:"
+        )
+        for a in result.affected_interfaces:
+            print(f"  {a.method_qpath}  ({a.file}:{a.line})")
     if result.status == "applied":
         print()
         print("undo: symbol undo")
@@ -134,6 +143,19 @@ def _render_rich(result: RenameSymbolResult) -> None:
             console.print(
                 f"  [dim]{u.file}:{u.line}:{u.col + 1}[/dim]  "
                 f"[yellow]{u.receiver_source}.{leaf}[/yellow]  [dim]({u.why})[/dim]"
+            )
+
+    if result.affected_interfaces:
+        console.print(
+            f"\n[bold yellow]affects {len(result.affected_interfaces)} interface "
+            f"contract(s)[/bold yellow] — the target type implements these; "
+            f"renaming leaves them unsatisfied unless you also rename the "
+            f"contract method:"
+        )
+        for a in result.affected_interfaces:
+            console.print(
+                f"  [yellow]{a.method_qpath}[/yellow]  "
+                f"[dim]({a.file}:{a.line})[/dim]"
             )
 
     if result.status == "applied":

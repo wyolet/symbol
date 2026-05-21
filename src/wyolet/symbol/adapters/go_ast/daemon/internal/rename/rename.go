@@ -50,6 +50,19 @@ func Member(params rpc.RenameMemberParams) (rpc.RenameResult, error) {
 			}
 		}
 	}
+
+	// Project-wide check: which interfaces does the target type satisfy
+	// that have a method with the same leaf? Renaming the method leaves
+	// those contracts unsatisfied. We surface but never auto-rename.
+	affected := findAffectedInterfaces(pkgs, params.TargetOwnerQpath, params.Leaf, params.ProjectRoot)
+	if len(affected) > 0 {
+		// Stamp on the declaring file so the per-file protocol surfaces
+		// them; the Python engine deduplicates across files.
+		analysis := result.Files[params.DeclaringFile]
+		analysis.AffectedInterfaces = affected
+		result.Files[params.DeclaringFile] = analysis
+	}
+
 	return result, nil
 }
 
@@ -251,6 +264,100 @@ func analyzeModuleBinding(pkg *packages.Package, file *ast.File, params rpc.Rena
 }
 
 // ─── helpers ──────────────────────────────────────────────────────
+
+// findAffectedInterfaces returns interfaces whose method-set contains
+// `leaf` AND that the target type (`targetOwnerQpath`) satisfies. Each
+// such interface means the rename will leave a contract unsatisfied —
+// we surface but never silently extend the rename to cover them.
+func findAffectedInterfaces(
+	pkgs []*packages.Package, targetOwnerQpath, leaf, projectRoot string,
+) []rpc.AffectedInterface {
+	var targetType *types.Named
+	for _, pkg := range pkgs {
+		if pkg.Types == nil {
+			continue
+		}
+		if t := lookupNamed(pkg.Types.Scope(), targetOwnerQpath); t != nil {
+			targetType = t
+			break
+		}
+	}
+	if targetType == nil {
+		return nil
+	}
+
+	var out []rpc.AffectedInterface
+	seen := map[string]bool{}
+	ptrTarget := types.NewPointer(targetType)
+
+	for _, pkg := range pkgs {
+		if pkg.Types == nil {
+			continue
+		}
+		scope := pkg.Types.Scope()
+		for _, name := range scope.Names() {
+			obj := scope.Lookup(name)
+			tn, ok := obj.(*types.TypeName)
+			if !ok {
+				continue
+			}
+			named, ok := tn.Type().(*types.Named)
+			if !ok {
+				continue
+			}
+			iface, ok := named.Underlying().(*types.Interface)
+			if !ok {
+				continue
+			}
+			if !interfaceHasMethod(iface, leaf) {
+				continue
+			}
+			if !types.Implements(targetType, iface) && !types.Implements(ptrTarget, iface) {
+				continue
+			}
+			ifaceQpath := qpathOfType(named)
+			if seen[ifaceQpath] {
+				continue
+			}
+			seen[ifaceQpath] = true
+			pos := pkg.Fset.Position(named.Obj().Pos())
+			out = append(out, rpc.AffectedInterface{
+				InterfaceQpath: ifaceQpath,
+				MethodQpath:    ifaceQpath + "." + leaf,
+				File:           relTo(projectRoot, pos.Filename),
+				Line:           pos.Line,
+			})
+		}
+	}
+	return out
+}
+
+func lookupNamed(scope *types.Scope, qpath string) *types.Named {
+	for _, name := range scope.Names() {
+		obj := scope.Lookup(name)
+		tn, ok := obj.(*types.TypeName)
+		if !ok {
+			continue
+		}
+		named, ok := tn.Type().(*types.Named)
+		if !ok {
+			continue
+		}
+		if qpathOfType(named) == qpath {
+			return named
+		}
+	}
+	return nil
+}
+
+func interfaceHasMethod(iface *types.Interface, leaf string) bool {
+	for i := 0; i < iface.NumMethods(); i++ {
+		if iface.Method(i).Name() == leaf {
+			return true
+		}
+	}
+	return false
+}
 
 // selObjMethodOwnerQpath returns the qpath of the type that *owns* the
 // method behind a Selection — not the type of the selector expression.

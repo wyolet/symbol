@@ -80,6 +80,12 @@ class GoAstAdapter:
         # The Go daemon analyzes the whole project in one packages.Load,
         # so we cache and serve per-file slices to the (per-file) renamer.
         self._rename_cache: dict[tuple, dict[str, RenameAnalysis]] = {}
+        # Affected interfaces (project-wide impact, surfaced separately
+        # from per-file analysis) keyed on the same cache key — popped
+        # by the renamer via the optional pop_affected_interfaces hook.
+        # Stored as plain dicts (the daemon's wire shape); the renamer
+        # converts to the typed result-surface record.
+        self._affected_cache: dict[tuple, tuple[dict, ...]] = {}
         # Per-adapter caches for module_prefix resolution. Cleared only
         # on adapter destruction; go.mod doesn't change mid-session in any
         # realistic workflow.
@@ -452,8 +458,30 @@ class GoAstAdapter:
             })
             per_file = _rename_result_from_dict(response)
             self._rename_cache[cache_key] = per_file
+            # Pull the project-wide "affected_interfaces" off the
+            # declaring file's wire entry and stash separately so the
+            # renamer's optional pop hook can retrieve it after the
+            # per-file loop.
+            files_dict = (response or {}).get("files") if isinstance(response, dict) else None
+            if isinstance(files_dict, dict):
+                decl_entry = files_dict.get(decl_rel) or {}
+                affected = decl_entry.get("affected_interfaces") or []
+                if affected:
+                    self._affected_cache[(str(project_root), target_qpath)] = tuple(affected)
 
         return per_file.get(rel_path, RenameAnalysis())
+
+    def pop_affected_interfaces(self, project_root: Path, target_qpath: SymbolPath) -> tuple[dict, ...]:
+        """Optional renamer-extension hook. Returns and clears any
+        project-wide "this rename impacts these interface contracts"
+        records produced by the most recent rename op on this target.
+
+        Returned as raw dicts (interface_qpath, method_qpath, file, line)
+        so the adapter doesn't need to import the result-surface type.
+        The renamer constructs the typed AffectedInterface record.
+        """
+        key = (str(project_root.resolve()), target_qpath)
+        return self._affected_cache.pop(key, ())
 
     def preview(self, body: str, signature: str, max_lines: int = 3) -> str:
         """First few meaningful body lines after the signature.

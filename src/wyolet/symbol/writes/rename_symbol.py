@@ -68,6 +68,14 @@ class _SkippedSitePub:
 
 
 @dataclass(frozen=True)
+class _AffectedInterfacePub:
+    interface_qpath: str
+    method_qpath: str
+    file: str
+    line: int
+
+
+@dataclass(frozen=True)
 class RenameSymbolResult:
     status: Literal["applied", "dry_run", "needs_review", "error"]
     qualified_path: str = ""
@@ -81,6 +89,7 @@ class RenameSymbolResult:
     # v2 engine output (empty on tier-1 textual path)
     unresolved: tuple[_UnresolvedSitePub, ...] = ()
     skipped_mismatch: tuple[_SkippedSitePub, ...] = ()
+    affected_interfaces: tuple[_AffectedInterfacePub, ...] = ()
     candidates: tuple[str, ...] = ()
 
 
@@ -267,6 +276,14 @@ def _apply_via_engine(
                 receiver_source=s.receiver_source,
                 resolved_to_qpath=s.resolved_to_qpath,
             ) for s in r.skipped_mismatch
+        ),
+        affected_interfaces=tuple(
+            _AffectedInterfacePub(
+                interface_qpath=a.interface_qpath,
+                method_qpath=a.method_qpath,
+                file=a.file,
+                line=a.line,
+            ) for a in r.affected_interfaces
         ),
     )
 

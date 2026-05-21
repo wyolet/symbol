@@ -55,6 +55,30 @@ class FileRewriteCount:
 
 
 @dataclass(frozen=True)
+class AffectedInterface:
+    """A contract type the rename target implements whose method-set
+    contains a method named the rename leaf — renaming will leave the
+    contract unsatisfied.
+
+    Surface-only concept: lives here next to the other render-facing
+    records (Rewrite / SkippedMismatch / Unresolved) and **not** in
+    protocols/types.py. The protocol contract (RenameAnalysis) doesn't
+    know about it; adapters that compute it expose it via the optional
+    `pop_affected_interfaces` extension method, which the renamer
+    invokes only if present.
+
+    Today only the Go adapter populates these (via go/types interface
+    satisfaction). Python tier-1 doesn't compute Protocol/ABC impacts;
+    adding it later would slot into the same field.
+    """
+
+    interface_qpath: str
+    method_qpath: str
+    file: str
+    line: int
+
+
+@dataclass(frozen=True)
 class RenameResult:
     status: Status
     qualified_path: str = ""
@@ -68,6 +92,11 @@ class RenameResult:
     rewrites: tuple[Rewrite, ...] = ()
     skipped_mismatch: tuple[SkippedMismatch, ...] = ()
     unresolved: tuple[Unresolved, ...] = ()
+
+    # Surface-only: contract types the rename impacts. Populated by
+    # adapters that compute it (Go via go/types interface satisfaction)
+    # through the optional `pop_affected_interfaces` extension method.
+    affected_interfaces: tuple[AffectedInterface, ...] = ()
 
     error_code: str | None = None
     message: str | None = None
