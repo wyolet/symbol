@@ -179,7 +179,11 @@ class SymbolIndex:
                 adapter = default_registry().for_file(path)
         except UnsupportedLanguage:
             return
-        scan = adapter.scan_file(path, source, module_prefix=adapter.module_prefix(rel))
+        scan = adapter.scan_file(
+            path,
+            source,
+            module_prefix=adapter.module_prefix(path, self.project_root),
+        )
         if not scan.ok:
             return
 

@@ -67,13 +67,38 @@ def test_signature_from_text_method():
     assert sig == "func (u *User) Greet() string {"
 
 
-def test_module_prefix_uses_directory():
+def test_module_prefix_uses_go_mod(tmp_path: Path):
+    """When a go.mod exists, module_prefix returns the declared module path
+    plus the directory's relative position under that go.mod.
+    """
     adapter = _skip_if_no_daemon()
-    # Layout-driven: matches Go's convention that import paths mirror dirs.
-    assert adapter.module_prefix("github.com/wyolet/foo/pkg/user/user.go") == (
-        "github.com/wyolet/foo/pkg/user"
+    (tmp_path / "go.mod").write_text("module github.com/wyolet/example\n\ngo 1.22\n")
+    pkg_dir = tmp_path / "pkg" / "user"
+    pkg_dir.mkdir(parents=True)
+    file_path = pkg_dir / "user.go"
+    file_path.write_text("package user\n")
+    assert adapter.module_prefix(file_path, tmp_path) == (
+        "github.com/wyolet/example/pkg/user"
     )
-    assert adapter.module_prefix("main.go") == ""
+
+
+def test_module_prefix_root_of_module(tmp_path: Path):
+    adapter = _skip_if_no_daemon()
+    (tmp_path / "go.mod").write_text("module example.com/cli\n")
+    file_path = tmp_path / "main.go"
+    file_path.write_text("package main\n")
+    assert adapter.module_prefix(file_path, tmp_path) == "example.com/cli"
+
+
+def test_module_prefix_no_go_mod_falls_back_to_dir(tmp_path: Path):
+    adapter = _skip_if_no_daemon()
+    pkg_dir = tmp_path / "sub" / "pkg"
+    pkg_dir.mkdir(parents=True)
+    file_path = pkg_dir / "f.go"
+    file_path.write_text("package pkg\n")
+    # No go.mod anywhere — adapter falls back to directory relative to
+    # project_root (not garbage).
+    assert adapter.module_prefix(file_path, tmp_path) == "sub/pkg"
 
 
 # ── scan_file end-to-end ──────────────────────────────────────────

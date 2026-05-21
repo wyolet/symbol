@@ -17,6 +17,7 @@ While disabled, ``.go`` files are skipped during indexing — same as any
 unsupported language.
 """
 
+import atexit
 import json
 import os
 import platform
@@ -62,10 +63,16 @@ class GoAstAdapter:
         self._binary_path = self._find_binary()
         self._proc: subprocess.Popen | None = None
         self._request_id = 0
+        self._atexit_registered = False
         # One in-flight request at a time. v1 doesn't need pipelined RPC,
         # and the daemon's reader is line-oriented so interleaving would
         # corrupt the framing anyway.
         self._lock = threading.Lock()
+        # Per-adapter caches for module_prefix resolution. Cleared only
+        # on adapter destruction; go.mod doesn't change mid-session in any
+        # realistic workflow.
+        self._gomod_cache: dict[Path, tuple[Path | None, str | None]] = {}
+        self._modpath_cache: dict[Path, str] = {}
 
     @property
     def is_enabled(self) -> bool:
@@ -95,7 +102,58 @@ class GoAstAdapter:
             bufsize=1,  # line-buffered stdout
         )
         self._request_id = 0
+        # Register once per adapter instance — atexit handlers stack and
+        # we only want one per spawned daemon. Re-registration on respawn
+        # is fine because _stop() is idempotent.
+        if not self._atexit_registered:
+            atexit.register(self._stop)
+            self._atexit_registered = True
         self._call_raw("initialize", {"protocol_version": _PROTOCOL_VERSION})
+
+    def _stop(self) -> None:
+        """Send shutdown and reap the daemon. Idempotent and safe to call
+        from atexit, __del__, or test teardown. No exceptions propagate.
+        """
+        proc = self._proc
+        if proc is None:
+            return
+        self._proc = None
+        if proc.poll() is not None:
+            return  # already exited
+        try:
+            # Best-effort graceful shutdown via the protocol's own notification.
+            if proc.stdin is not None and not proc.stdin.closed:
+                notif = {"jsonrpc": "2.0", "method": "shutdown", "params": {}}
+                try:
+                    proc.stdin.write(json.dumps(notif) + "\n")
+                    proc.stdin.flush()
+                except (OSError, ValueError):
+                    pass
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
+            try:
+                proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+        except Exception:
+            # atexit handlers must not raise — anything else here is a
+            # cleanup error and we're already shutting down anyway.
+            pass
+
+    def __del__(self) -> None:
+        # Belt-and-braces in case the adapter is GC'd before atexit fires
+        # (e.g. between test cases that re-instantiate the registry).
+        try:
+            self._stop()
+        except Exception:
+            pass
 
     def _call_raw(self, method: str, params: dict) -> object:
         """Send one request and read one response. Caller holds ``self._lock``
@@ -155,16 +213,92 @@ class GoAstAdapter:
             error_message=d.get("error_message"),
         )
 
-    def module_prefix(self, rel_path: str) -> str:
-        """Go qualified-path prefix for a repo-relative file path.
+    def module_prefix(self, path: Path, project_root: Path) -> str:
+        """Go qualified-path prefix: the package's import path.
 
-        Computed Python-side from the file's directory components. The
-        daemon could read ``go.mod`` itself, but that needs filesystem
-        access and the dir-path heuristic is correct for any monorepo
-        layout where directories mirror import paths (the Go convention).
+        Walks up from the file's directory to find the nearest ``go.mod``,
+        reads its ``module`` declaration, then appends the directory path
+        relative to that go.mod. For ``github.com/foo/bar/pkg/user/u.go``
+        under a go.mod that declares ``module github.com/foo/bar``, the
+        result is ``github.com/foo/bar/pkg/user``.
+
+        Falls back to the directory path under project_root when no
+        go.mod is found (e.g. one-off scripts, test fixtures). Result
+        cached per directory; go.mod parsing is cheap but the walk isn't
+        free at scale.
         """
-        parts = [p for p in rel_path.split("/")[:-1] if p]
-        return "/".join(parts)
+        directory = path.parent.resolve()
+        cached = self._modpath_cache.get(directory)
+        if cached is not None:
+            return cached
+
+        module_root, module_name = self._find_go_module(directory)
+        if module_root is None or module_name is None:
+            # No go.mod ancestor — fall back to directory layout from
+            # project root. Better than nothing for one-off files.
+            try:
+                rel_dir = path.parent.resolve().relative_to(project_root.resolve())
+                prefix = "/".join(p for p in str(rel_dir).split("/") if p and p != ".")
+            except ValueError:
+                prefix = ""
+        else:
+            try:
+                rel_dir = directory.relative_to(module_root)
+            except ValueError:
+                rel_dir = Path()
+            rel_str = "/".join(p for p in str(rel_dir).split("/") if p and p != ".")
+            prefix = module_name if not rel_str else f"{module_name}/{rel_str}"
+
+        self._modpath_cache[directory] = prefix
+        return prefix
+
+    def _find_go_module(self, start: Path) -> tuple[Path | None, str | None]:
+        """Walk up from ``start`` to find the nearest go.mod and parse out
+        its ``module`` declaration. Returns ``(module_root, module_name)``
+        or ``(None, None)`` if no go.mod exists in any ancestor.
+        """
+        current: Path | None = start
+        while current is not None:
+            cached = self._gomod_cache.get(current)
+            if cached is not None:
+                return cached
+            gomod = current / "go.mod"
+            if gomod.is_file():
+                name = self._parse_go_module_name(gomod)
+                result = (current, name) if name else (None, None)
+                self._gomod_cache[current] = result
+                return result
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+        return (None, None)
+
+    @staticmethod
+    def _parse_go_module_name(gomod: Path) -> str | None:
+        """Extract the module path from a ``go.mod`` file.
+
+        Reads only the leading lines — ``module`` is required to be the
+        first directive per the spec. Comments and ``//`` are skipped.
+        """
+        try:
+            with gomod.open(encoding="utf-8") as f:
+                for raw in f:
+                    line = raw.strip()
+                    if not line or line.startswith("//"):
+                        continue
+                    if line.startswith("module"):
+                        # ``module github.com/foo/bar`` or ``module "github.com/foo/bar"``
+                        rest = line[len("module"):].strip()
+                        if rest.startswith('"') and rest.endswith('"'):
+                            rest = rest[1:-1]
+                        return rest.split()[0] if rest else None
+                    # First non-comment non-blank line that isn't ``module`` —
+                    # malformed go.mod, give up.
+                    return None
+        except OSError:
+            return None
+        return None
 
     def signature_from_text(self, text: str) -> str:
         """Go declaration line(s) — up to and including the body-opening ``{``.

@@ -39,6 +39,20 @@ class LanguageAdapter(Protocol):
     lang: str
     """Canonical language id (e.g. 'python', 'typescript'). Matches linguist output."""
 
+    is_enabled: bool
+    """Whether this adapter can run in the current environment.
+
+    In-process adapters with no toolchain dependency (e.g. PythonAstAdapter)
+    set this to ``True``. Daemon/LSP-backed adapters check for their binary
+    or server. ``LanguageRegistry.for_language`` consults this and falls
+    through to the next-priority adapter when False.
+
+    Each adapter's class docstring describes — in order — its tier,
+    language, capabilities, what it requires, how to enable it, and what
+    fallback (if any) kicks in when disabled. That docstring is the
+    install contract surfaced by ``symbol doctor``.
+    """
+
     def symbols(self, path: Path, source: bytes) -> list[RawSymbol]:
         """Nested tree of symbols declared in this file."""
         ...
@@ -57,12 +71,14 @@ class LanguageAdapter(Protocol):
         """Check whether bytes form a syntactically valid document."""
         ...
 
-    def module_prefix(self, rel_path: str) -> str:
-        """Symbol-qualifier prefix for a repo-relative path.
+    def module_prefix(self, path: Path, project_root: Path) -> str:
+        """Symbol-qualifier prefix for a source file.
 
-        Python: dotted module path (``a/b/c.py`` → ``a.b.c``, ``__init__``
-        flattened, leading ``src/`` stripped). Go: import path from go.mod.
-        Other languages: whatever makes their qualified-name scheme work.
+        Receives the absolute file path and the project root. The adapter
+        is free to walk the filesystem from ``path`` (e.g. Go reads the
+        nearest ``go.mod``) or compute from layout (e.g. Python's
+        ``a/b/c.py`` → ``a.b.c`` with ``src/`` stripped and ``__init__``
+        flattened).
         """
         ...
 

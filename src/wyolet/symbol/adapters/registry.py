@@ -47,12 +47,7 @@ class LanguageRegistry:
         bucket.sort(key=lambda pair: pair[0], reverse=True)
 
     def has_adapter(self, language: str) -> bool:
-        """True if some *enabled* adapter is registered for ``language``.
-
-        Walks the priority bucket and returns True if any adapter reports
-        ``is_enabled``; adapters missing the property are treated as enabled
-        (the Python in-process adapter has nothing to check).
-        """
+        """True if some *enabled* adapter is registered for ``language``."""
         try:
             self.for_language(language)
             return True
@@ -68,12 +63,13 @@ class LanguageRegistry:
         if not bucket:
             raise UnsupportedLanguage(f"no adapter registered for language {lang!r}")
         # Tiering: walk priority bucket high → low, pick the first adapter
-        # whose ``is_enabled`` returns True. Adapters that omit the property
-        # are assumed enabled (covers in-process adapters with no toolchain
-        # dependency, like PythonAstAdapter).
+        # whose ``is_enabled`` returns True. Every adapter must declare
+        # ``is_enabled`` explicitly — in-process adapters set it to True
+        # (no toolchain to verify), daemon/LSP-backed adapters check for
+        # their binary/server. Missing the attribute is a registration bug.
         for _, cls in bucket:
             candidate = cls()
-            if getattr(candidate, "is_enabled", True):
+            if candidate.is_enabled:
                 self._instances[lang] = candidate
                 return candidate
         raise UnsupportedLanguage(

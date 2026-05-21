@@ -35,9 +35,25 @@ _SYMBOL_KINDS: dict[type, str] = {
 
 
 class PythonAstAdapter(LanguageAdapter):
-    """Tier-1 Python adapter. Handmade tier-2 capability lands later."""
+    """Tier: AST (mid). Language: Python.
+
+    Capabilities: symbol index, signatures, imports, references in-scope
+    (module-level binding only — full semantic resolution is the planned
+    SemanticLanguageAdapter tier, pyright-backed or in-process).
+
+    Requires: nothing beyond the stdlib ``ast`` module. Runs in-process.
+
+    Enable: always enabled (no toolchain dependency, no external binary).
+
+    Disabled fallback: none needed — the in-process path is the lowest-cost
+    implementation already.
+    """
 
     lang = "python"
+    # No toolchain to check, no binary to find. In-process adapters that
+    # have no dependency to verify should set this to True so the
+    # registry's tier-ladder check finds them.
+    is_enabled = True
 
     def __init__(self) -> None:
         self._cache: dict[tuple[str, str], ast.Module] = {}
@@ -216,13 +232,19 @@ class PythonAstAdapter(LanguageAdapter):
                 error_message=e.msg,
             )
 
-    def module_prefix(self, rel_path: str) -> str:
-        """Repo-relative path → Python dotted module path.
+    def module_prefix(self, path: Path, project_root: Path) -> str:
+        """Source file path → Python dotted module path.
 
         Strips a leading ``src/`` (PEP 517 src-layout) and the ``.py``
         extension, flattens ``__init__`` packages to the parent directory.
+        Pure layout-driven — Python doesn't have a per-project module
+        manifest, so the dir tree IS the import path.
         """
-        parts = rel_path.split("/")
+        try:
+            rel = str(path.relative_to(project_root))
+        except ValueError:
+            rel = str(path)
+        parts = rel.split("/")
         if parts and parts[0] == "src":
             parts = parts[1:]
         if not parts:
