@@ -88,7 +88,8 @@ def test_resolve_collects_affected_files(project):
     idx = _index(project)
     r = resolve_rename_symbol(idx, "services.UserService", "NewUserService", project)
     assert isinstance(r, RenameSymbolRequest)
-    files = {e.file_rel for e in r.edits}
+    result = apply_rename_symbol(r, project_root=project, dry_run=True)
+    files = {f.file for f in result.per_file}
     assert "services.py" in files
     assert "caller.py" in files
 
