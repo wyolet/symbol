@@ -22,7 +22,7 @@ import (
 
 // Bumped when the worker implementation changes in user-visible ways
 // (new fields, behavior). Independent of the JSON-RPC protocol version.
-const workerVersion = "0.2.0"
+const workerVersion = "0.2.1"
 
 // Capabilities this worker advertises beyond the v1 minimum.
 // Empty for now — scan_file + validate_syntax are required of every

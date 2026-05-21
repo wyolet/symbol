@@ -4,6 +4,45 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-21
+
+**Closes [#15](https://github.com/wyolet/symbol/issues/15) — `RenameSymbol` is no longer textual.** Both Python and Go now go through AST-based engines with cross-type discrimination, partial-apply with structured reporting, and (Go) `go/types`-backed semantic correctness. Tier-1 regex fallback remains for kinds and languages the engine doesn't cover.
+
+### Added
+- **AST-based rename engine for Python** ([#16](https://github.com/wyolet/symbol/pull/16)). Handles `method` / `async_method` / `function` / `async_function` / `class` / `constant`. Resolves receivers via `self`/`cls` → enclosing class, parameter annotations, assignment scans (`b = Foo()`), import aliases, and same-file class declarations. Walks Name + Attribute + alias for module-binding renames; classifies each site as `rewrite` / `skipped_mismatch` / `unresolved` with a human-readable `why`.
+- **Scope-aware shadowing detection** for module-binding renames. Skips Name references that are locally rebound (assignment, parameter, for-loop variable, with-as, except-as, nested def, local import of an unrelated symbol). A local `from <target_module> import leaf` is correctly recognized as the *same* target and gets rewritten too — not flagged as a shadow.
+- **AST-based rename engine for Go** ([#17](https://github.com/wyolet/symbol/pull/17)) backed by `golang.org/x/tools/go/packages` + `go/types`. Tier-2 from the start since Go ships a stdlib type checker — every limit Python tier-1 documents (factory returns, interface dispatch, embedded-method promotion, generics) is resolved exactly via `info.Selections[sel].Obj()` and `info.Uses[ident]`. Handles cross-package selectors (`pkg.Foo`), value-receiver vs pointer-receiver methods, parent-package re-exports.
+- **Interface-contract impact surfacing for Go.** When renaming a method whose receiver type satisfies one or more interfaces, the result surfaces a `affected_interfaces` list with each interface's qualified path and declaration site. Loud signal, never silent auto-extension. Implementation-set rename (gopls-style) is explicitly out of scope.
+- **Fail-loudly partial-apply policy.** Result now carries three buckets: `rewrites` (what changed), `skipped_mismatch` (correctly identified as a different declaration), `unresolved` (with `file:line:col` + receiver expression + named `why`). Status becomes `needs_review` when nothing applied but uncertain sites exist. No `--force` flag, no silent skips.
+- **`IndexQuery` protocol** (`protocols/index_query.py`) — thin neutral interface (`find_declaration`, `class_bases`, `owners_of_leaf`) so language adapters can ask the index a few questions during rename without importing the index module.
+- **Renamer engine** (`writes/rename/`) — language-neutral orchestrator (`SymbolRenamer`) with declaration resolution, candidate-file enumeration, fail-loudly policy, transaction commit. Adapters return `RenameAnalysis` per file; engine aggregates and applies.
+- **Re-export detection.** `from pkg import Foo` where `pkg/__init__.py` re-exports `Foo` from `pkg.impl` now rewrites correctly when renaming `pkg.impl.Foo`. Same for Go's transitive imports.
+- **`_candidate_files` enumeration also includes import-alias files** — fixes a gap where module-level imports of the leaf weren't tracked as in-body refs and re-export `__init__.py` sites were missed.
+- **20 new tests** locking in the engine's behavior — 13 Python (`tests/test_rename_engine_v2.py`), 9 Go (`tests/test_rename_go_engine.py`). Each Go rename test runs `go build ./...` to verify type identity is preserved.
+
+### Changed
+- **`RenameSymbol` routes Python methods/functions/classes/constants and Go methods/functions/types/vars/consts through the new engine.** Other kinds and unsupported languages keep the tier-1 regex path.
+- **Python adapter: nested functions inside `ClassDef` are now tagged `method` / `async_method`** in the index (was always `function`). Side fix; required for kind-based dispatch but also corrects a latent index bug.
+- **Result types extended** with `unresolved`, `skipped_mismatch`, `affected_interfaces`, plus a richer multi-line `message` field that includes per-site `file:line:col` so any client only seeing the summary string still gets actionable pointers.
+- **CLAUDE.md: codified the language-isolation invariant** — `import ast`, `tree_sitter`, `go/ast`, `pyright`, etc. live only in `adapters/<lang>/` and never leak into `shared/` / `writes/` / `reads/` / `checkers/` / `commands/` / `mcp/`. Multi-language tools are written once against the adapter protocol.
+- **Go daemon takes a `project_root`** for rename operations. Required for `go/types` to operate over a real package set via `packages.Load("./...")`. Other RPC methods still take source bytes; the architectural relaxation only applies to rename.
+- **CHANGELOG entry for 0.2.0 had `RenameSymbol is textual (tier-1)` as a known limitation** — that limit is now closed.
+
+### Fixed
+- **Cross-type method rename ([#15](https://github.com/wyolet/symbol/issues/15)).** Renaming `foo.Service.Save` no longer rewrites `bar.Service.Save()` call sites. Discriminator resolves receiver types and skips mismatches.
+- **String/comment/docstring false positives.** Old `\bleaf\b` regex matched inside string literals, comments, and Python kwargs. AST-driven walks only visit identifier nodes — those bytes are now never touched.
+- **`scan_file`'s underlying go-scan binary version bumped to `0.2.1`** so worker handshake reflects new capabilities.
+
+### Known limitations
+- **Generics.** No specific test for renaming methods on generic types or generic functions. `go/types` handles them and the algorithm should work via the same Selection/Uses paths, but unverified.
+- **Large-project performance.** Go's `packages.Load("./...")` is several seconds on big monorepos. Result is cached per rename op (so the first per-file call pays, subsequent calls are free), but no cross-rename caching. Incremental package loading + scope filtering is a follow-up.
+- **Implementation-set rename (gopls-style multi-rename of an interface's contract method + all implementers).** Surfaced as `affected_interfaces` for review; no auto-extension. Out of scope for 0.2.1.
+- **Python shadowing analysis** doesn't handle comprehension scope (`[save for save in items]`), walrus `:=` outside an enclosing statement, or `global` / `nonlocal` declarations. Rare in practice; rewrite still produces valid Python because Name walker covers identifier nodes only — but the shadowing may not be detected and over-rewrites are possible in these rare patterns.
+- **Python `super().X`** receiver resolution is unimplemented — needs `class_bases` in the index. Surfaces as `unresolved` with a clear why.
+- **Python factory-return receivers** (e.g. `y = make_thing(); y.X()`) — unresolved without a type checker. Tier-2 pyright integration is a future addition. (Go already gets this for free via `go/types`.)
+- **`field` / `local` / `parameter` kinds** aren't emitted by the Python index yet; dispatch stubs return `kind_not_supported`.
+- **Go-only:** `pop_affected_interfaces` is one-shot per (project_root, target_qpath). Renaming the exact same target twice in one process loses the second call's interface impact data. Not a real-world concern; CLI invocations don't repeat.
+
 ## [0.2.0] — 2026-05-21
 
 First release with **multi-language support**. Go projects are now indexed and queryable through every read tool (`search`, `outline`, `code`, `callers`, `todos`, `loc`) and most write tools (`Patch`, `MultiPatch`, `DeleteSymbol`, `InsertSymbol`, `RenameSymbol`, `ReplaceSymbol`) via a JSON-RPC daemon written in Go. Symbol's architecture is no longer Python-only.
@@ -72,7 +111,8 @@ First tagged release.
 - **237 package specs** under `src/wyolet/symbol/data/specs/` covering Django, FastAPI, Celery, SQLAlchemy, LangChain, Pydantic, pytest, and 230+ others.
 - **GitHub Linguist port**: 500+ languages with real GitHub colors, multi-strategy detection (modeline, shebang, filename, extension, XML, manpage).
 
-[Unreleased]: https://github.com/wyolet/symbol/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/wyolet/symbol/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/wyolet/symbol/releases/tag/v0.2.1
 [0.2.0]: https://github.com/wyolet/symbol/releases/tag/v0.2.0
 [0.1.2]: https://github.com/wyolet/symbol/releases/tag/v0.1.2
 [0.1.1]: https://github.com/wyolet/symbol/releases/tag/v0.1.1

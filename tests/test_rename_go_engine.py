@@ -271,6 +271,86 @@ def test_factory_return_receiver_resolved(tmp_path: Path):
     assert _go_build_ok(tmp_path)
 
 
+# ── var / const rename (ValueSpec path in analyzeModuleBinding) ────
+
+
+def test_var_rename_across_packages(tmp_path: Path):
+    """Rename a package-level var; cross-package access via pkg.Var
+    must be rewritten while a same-named var in a different package
+    is left alone."""
+    _skip_if_no_daemon()
+    (tmp_path / "go.mod").write_text("module example/vars\n\ngo 1.22\n")
+    (tmp_path / "foo").mkdir()
+    (tmp_path / "foo" / "foo.go").write_text(
+        'package foo\n\nvar DefaultName = "foo"\n'
+    )
+    (tmp_path / "bar").mkdir()
+    (tmp_path / "bar" / "bar.go").write_text(
+        'package bar\n\nvar DefaultName = "bar"\n'
+    )
+    (tmp_path / "cmd").mkdir()
+    (tmp_path / "cmd" / "main.go").write_text(
+        "package main\n\n"
+        'import (\n    "fmt"\n    "example/vars/bar"\n    "example/vars/foo"\n)\n\n'
+        "func main() {\n"
+        "    fmt.Println(foo.DefaultName)\n"
+        "    fmt.Println(bar.DefaultName)\n"
+        "}\n"
+    )
+    _git_init(tmp_path)
+
+    result = _do_rename(tmp_path, "example/vars/foo.DefaultName", "FallbackName")
+    assert result.status == "applied"
+
+    foo = (tmp_path / "foo" / "foo.go").read_text()
+    bar = (tmp_path / "bar" / "bar.go").read_text()
+    main = (tmp_path / "cmd" / "main.go").read_text()
+
+    assert 'var FallbackName = "foo"' in foo
+    assert 'var DefaultName = "bar"' in bar           # bar untouched
+    assert "foo.FallbackName" in main                 # cross-pkg ref rewritten
+    assert "bar.DefaultName" in main                  # bar.* untouched
+    assert _go_build_ok(tmp_path)
+
+
+def test_const_rename_across_packages(tmp_path: Path):
+    """Same as the var test but for const declarations — also goes
+    through ValueSpec in analyzeModuleBinding."""
+    _skip_if_no_daemon()
+    (tmp_path / "go.mod").write_text("module example/consts\n\ngo 1.22\n")
+    (tmp_path / "foo").mkdir()
+    (tmp_path / "foo" / "foo.go").write_text(
+        "package foo\n\nconst MaxRetries = 3\n"
+    )
+    (tmp_path / "bar").mkdir()
+    (tmp_path / "bar" / "bar.go").write_text(
+        "package bar\n\nconst MaxRetries = 5\n"
+    )
+    (tmp_path / "cmd").mkdir()
+    (tmp_path / "cmd" / "main.go").write_text(
+        "package main\n\n"
+        'import (\n    "fmt"\n    "example/consts/bar"\n    "example/consts/foo"\n)\n\n'
+        "func main() {\n"
+        "    fmt.Println(foo.MaxRetries)\n"
+        "    fmt.Println(bar.MaxRetries)\n"
+        "}\n"
+    )
+    _git_init(tmp_path)
+
+    result = _do_rename(tmp_path, "example/consts/foo.MaxRetries", "MaxAttempts")
+    assert result.status == "applied"
+
+    foo = (tmp_path / "foo" / "foo.go").read_text()
+    bar = (tmp_path / "bar" / "bar.go").read_text()
+    main = (tmp_path / "cmd" / "main.go").read_text()
+
+    assert "const MaxAttempts = 3" in foo
+    assert "const MaxRetries = 5" in bar              # bar untouched
+    assert "foo.MaxAttempts" in main
+    assert "bar.MaxRetries" in main
+    assert _go_build_ok(tmp_path)
+
+
 # ── embedded methods (Go's equivalent of inheritance) ──────────────
 
 
