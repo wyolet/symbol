@@ -94,6 +94,7 @@ class SymbolRenamer:
     # ── dispatch ─────────────────────────────────────────────────
     def _dispatch(self) -> dict[str, Callable]:
         return {
+            # python kinds
             "method":         self._rename_member,
             "async_method":   self._rename_member,
             "function":       self._rename_module_binding,
@@ -104,6 +105,10 @@ class SymbolRenamer:
             "local":          self._rename_local,
             "parameter":      self._rename_local,
             "constant":       self._rename_module_binding,
+            # go kinds — emitted by the go-scan adapter
+            "type":           self._rename_class,
+            "var":            self._rename_module_binding,
+            "const":          self._rename_module_binding,
         }
 
     # ── per-kind: member (method/async_method) ───────────────────
@@ -360,8 +365,9 @@ class SymbolRenamer:
             adapter = self.registry.for_file(abs_path, language=lang)
         except Exception:
             return None
-        # Only adapters that implement the engine protocol can participate;
-        # those that don't (currently: Go) stay on the regex path entry.
+        # Engine requires both rename methods. Adapters that don't yet
+        # implement them are silently skipped (no rewrites contributed
+        # from those files).
         if not hasattr(adapter, "rename_member") or not hasattr(adapter, "rename_module_binding"):
             return None
         return adapter

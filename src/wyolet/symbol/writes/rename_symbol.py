@@ -153,16 +153,21 @@ def resolve_rename_symbol(
             message=f"{collision_path!r} already exists",
         )
 
-    # v2 engine routing: methods, functions, classes go through
-    # SymbolRenamer (AST-based, with cross-type collision discrimination).
-    # Currently only the Python adapter implements the protocol methods;
-    # other languages stay on the tier-1 regex path until their adapters
-    # land. Other kinds also fall through to regex.
+    # v2 engine routing: methods, functions, classes (and Go equivalents)
+    # go through SymbolRenamer. Python uses an in-process AST resolver;
+    # Go delegates to the daemon which uses go/types for semantic-correct
+    # receiver resolution. Other kinds fall through to the tier-1 regex
+    # path below.
     kind = index.kind_of(row)
     declaring_lang = index.language_of_file(declaring_file_rel)
     if (
-        declaring_lang == "python"
-        and kind in ("method", "async_method", "function", "async_function", "class", "constant")
+        declaring_lang in ("python", "go")
+        and kind in (
+            # python
+            "method", "async_method", "function", "async_function", "class", "constant",
+            # go (per adapters/go_ast scan output)
+            "type", "var", "const",
+        )
     ):
         new_qpath = f"{prefix}{new_name}" if prefix else new_name
         return RenameSymbolRequest(
