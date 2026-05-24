@@ -1,0 +1,20 @@
+[checkers.orphan]
+# Standard bot architecture files that shouldn't be flagged as dead code
+filenames = ["handlers.py", "callbacks.py", "middlewares.py", "bot.py"]
+
+[checkers.side_effects.calls]
+# Router inclusions are legitimate side effects at the module scope
+patterns = [
+    "dp.include_router(...)",
+    "dp.include_routers(...)"
+]
+
+[checkers.side_effects.patterns]
+# Prevents handler functions from being marked as unused
+decorators = [
+    "dp.message",
+    "dp.callback_query",
+    "router.message",
+    "router.callback_query",
+    "router.edited_message"
+]
