@@ -4,6 +4,11 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-05-24
+
+### Changed
+- **Claude Code plugin manifest bumped to 0.2.4** (was stuck on 0.1.0) and its description retagged to "AST-native code intelligence, symbol index, and MCP server for Python and Go" (was "for Python projects"). Package and plugin versions are now aligned. The plugin installs from `@main`, so it ships independently of the PyPI wheel.
+
 ## [0.2.3] — 2026-05-24
 
 ### Added

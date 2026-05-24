@@ -1,5 +1,5 @@
 {
   "name": "symbol",
-  "version": "0.1.0",
-  "description": "AST-native codebase audit, symbol index, and MCP server for Python projects"
+  "version": "0.2.4",
+  "description": "AST-native code intelligence, symbol index, and MCP server for Python and Go"
 }

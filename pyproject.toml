@@ -1,6 +1,6 @@
 [project]
 name = "wyolet-symbol"
-version = "0.2.3"
+version = "0.2.4"
 description = "AST-native code intelligence for Python and Go — MCP server for Claude Code (12 agent tools) + standalone audit CLI (dead code, import graph, swallowed exceptions, 500+ language LOC via Linguist port)."
 readme = "README.md"
 requires-python = ">=3.13"
