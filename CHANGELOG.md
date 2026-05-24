@@ -4,6 +4,19 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-05-24
+
+Documentation and agent-facing strings catch up to the Go support shipped in 0.2.1. No behavior changes beyond one CLI highlighting fix.
+
+### Changed
+- **`CLAUDE.md` reframed for multi-language.** Dropped "for Python" from the intro; "Python and Go ship today; TypeScript is next" (was "Go on the roadmap"). Added a **Language coverage** matrix: Go is live for the symbol-level surface (search/outline/body/callers), the rename/write tools, and `loc`; `audit` checkers and the import-graph `map` remain Python-only.
+- **`plugin/skills/symbol/SKILL.md` now states Python *and* Go support.** Previously said "Python codebases" / "Python symbols", which steered agents on Go projects away from the MCP tools entirely. The native-tools carve-out no longer excludes Go.
+- **`InsertSymbol` / `ReplaceSymbol` MCP descriptions:** "Content must parse as Python" → "must parse in the target file's language".
+- **`hook.py` read-nudge tail:** "non-Python regions" → "non-code regions" (the nudge already interpolates `{lang}`, so the hardcoded tail was inconsistent on `.go` files).
+
+### Fixed
+- **`symbol patch` preflight panel highlighted Go source as Python.** The syntax lexer was hardcoded to `"python"`; it's now derived from the file path via `Syntax.guess_lexer`.
+
 ## [0.2.1] — 2026-05-21
 
 **Closes [#15](https://github.com/wyolet/symbol/issues/15) — `RenameSymbol` is no longer textual.** Both Python and Go now go through AST-based engines with cross-type discrimination, partial-apply with structured reporting, and (Go) `go/types`-backed semantic correctness. Tier-1 regex fallback remains for kinds and languages the engine doesn't cover.
