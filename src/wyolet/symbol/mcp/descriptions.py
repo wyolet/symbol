@@ -214,8 +214,8 @@ Parameters: target is the qualified path of the reference symbol. \
 position must be one of before/after/start/end. content is the new \
 definition source. dry_run=true returns the diff without writing.
 
-Content must parse as Python and contain a single top-level \
-definition. Returns error_code="parse_broken" on syntax errors, \
+Content must parse in the target file's language and contain a single \
+top-level definition. Returns error_code="parse_broken" on syntax errors, \
 "invalid_argument" on bad position or missing content, \
 "symbol_not_found" or "symbol_ambiguous" on anchor resolution failures.
 """
@@ -258,8 +258,8 @@ USE WHEN rewriting a complete function or class. Parse-validated — \
 refuses on syntax errors before committing. Send only the new \
 definition; the old body is addressed via the index.
 
-Content must parse as Python and contain exactly one top-level \
-definition. Kind must match the replaced symbol (you cannot replace a \
+Content must parse in the target file's language and contain exactly one \
+top-level definition. Kind must match the replaced symbol (you cannot replace a \
 function with a class).
 
 Parameters: target is the current path of the symbol. content is the \

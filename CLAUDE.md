@@ -1,8 +1,8 @@
 # symbol
 
-AST-native code intelligence for Python. CLI for humans (audit, map, loc) and MCP server for agents (12 symbol-level tools). Static analysis only — never imports or executes target code.
+AST-native code intelligence. CLI for humans (audit, map, loc) and MCP server for agents (12 symbol-level tools). Static analysis only — never imports or executes target code. Python is fully covered; **Go** is live for the symbol-level surface (search/outline/body/callers), the rename/write tools, and loc — audit checkers and the import-graph map remain Python-only (see Language coverage below).
 
-Repo: [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol). Local path: `/Users/abror/projects/wyolet/symbol`. CLI command is `symbol`; PyPI distribution is `wyolet-symbol` (the bare `symbol` name is reserved by PyPI policy). Python is the proving ground; **Go** and **TypeScript** are next on the roadmap (same architecture, different parsers).
+Repo: [`github.com/wyolet/symbol`](https://github.com/wyolet/symbol). Local path: `/Users/abror/projects/wyolet/symbol`. CLI command is `symbol`; PyPI distribution is `wyolet-symbol` (the bare `symbol` name is reserved by PyPI policy). Python and **Go** ship today; **TypeScript** is next on the roadmap (same architecture, different parsers).
 
 ## Commands
 
@@ -61,6 +61,19 @@ Imports go `from wyolet.symbol.X import Y`. PyPI distribution is `wyolet-symbol`
   3. Project config (`symbol.toml` at root, or `[tool.symbol]` in pyproject.toml)
 - **Package spec namespaces**: `[checkers.orphan]`, `[checkers.side_effects.calls]`, `[checkers.side_effects.patterns]`, `[checker]` (AST exclude), `[scanner]` (LOC exclude)
 - **Pipeline hooks** (`shared/pipeline.py`) — `@hook(pipeline, priority)` for `DEPS`, `SKIP_ORPHAN`, `ENTRYPOINTS`, `IMPORTS`. Framework-specific logic lives in package specs, not core checkers.
+
+## Language coverage
+
+| Capability | Python | Go |
+|---|---|---|
+| Index / `search` / SearchSymbol | ✅ | ✅ |
+| `code` / `outline` / `callers` (read tools) | ✅ | ✅ |
+| `patch` + rename/replace/insert/delete (write tools) | ✅ | ✅ |
+| `loc` | ✅ | ✅ |
+| `audit` checkers (stack, orphans, side_effects, …) | ✅ | ❌ |
+| `map` / import graph | ✅ | ❌ |
+
+Go is daemon-backed (`go-scan` over `go/types`, bundled binaries built in CI) and registered at priority 10 in `adapters/registry.py`; whole-project rename runs in a single RPC, so cross-file/interface-impact resolution is richer than Python's per-file AST walk. The Go gaps — audit checkers and the import-graph map — are hardwired to stdlib `ast`/`ASTCache` and have no adapter abstraction yet; closing them means routing those through the adapter protocol, not adding `if lang == "go"` branches.
 
 ## Language isolation — non-negotiable
 

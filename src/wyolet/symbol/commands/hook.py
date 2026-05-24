@@ -129,7 +129,7 @@ def _read_suggestion(index: SymbolIndex, project_root: Path, tool_input: dict) -
         f'  • SymbolBody(target="<qualified.path>") — one named symbol + imports + refs\n'
         f'  • SymbolBody(target="{rel}:START-END") — arbitrary line range with refs\n'
         f"Read only when you genuinely need the unstructured file content (top-level "
-        f"comments, module-level constants, or non-Python regions)."
+        f"comments, module-level constants, or non-code regions)."
     )
 
 

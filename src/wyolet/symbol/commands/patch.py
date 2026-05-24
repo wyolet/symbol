@@ -125,7 +125,12 @@ def _render_needs_confirmation_rich(pre: PatchPreflight) -> None:
     console.print("[dim]The agent hasn't read this range in this session.[/dim]\n")
     console.print(
         Panel(
-            Syntax(current, "python", line_numbers=True, start_line=req.line_range[0]),
+            Syntax(
+                current,
+                Syntax.guess_lexer(req.file_rel, code=current),
+                line_numbers=True,
+                start_line=req.line_range[0],
+            ),
             title="current content",
             border_style="dim",
         )
