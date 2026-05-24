@@ -1,1 +1,1 @@
-"""symbol — codebase audit tools for Python projects."""
+"""symbol — AST-native code intelligence for Python and Go."""

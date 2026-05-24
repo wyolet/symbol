@@ -28,7 +28,7 @@ from .commands.replace_symbol import replace_symbol_cmd
 
 console = Console()
 
-app = typer.Typer(help="symbol — codebase audit toolkit for Python projects.", no_args_is_help=True)
+app = typer.Typer(help="symbol — AST-native code intelligence for Python and Go.", no_args_is_help=True)
 
 # Shared state
 state = {"verbose": False}
@@ -72,12 +72,29 @@ def _maybe_default_audit() -> None:
             sys.argv.insert(1, "audit")
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        from importlib.metadata import version
+
+        console.print(version("wyolet-symbol"))
+        raise typer.Exit()
+
+
 @app.callback(invoke_without_command=True)
 def main(
     verbose: Annotated[bool, typer.Option("-v", "--verbose", help="Show full detail")] = False,
     format: Annotated[str, typer.Option("--format", help="Output format: rich or json")] = "rich",
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Show the installed symbol version and exit",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = False,
 ) -> None:
-    """symbol — codebase audit toolkit for Python projects."""
+    """symbol — AST-native code intelligence for Python and Go."""
     if format not in ("rich", "json"):
         raise typer.BadParameter(f"Invalid format '{format}'. Choose from: rich, json")
     state["verbose"] = verbose
