@@ -4,6 +4,14 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-05-24
+
+### Added
+- **`symbol --version`** — prints the installed version and exits. Reads `importlib.metadata.version("wyolet-symbol")`, so it tracks `pyproject.toml` with no hardcoded string to drift.
+
+### Changed
+- **Tagline updated everywhere from "codebase audit toolkit for Python projects" to "AST-native code intelligence for Python and Go"** — CLI `--help`, the package docstring, and the PyPI project description.
+
 ## [0.2.2] — 2026-05-24
 
 Documentation and agent-facing strings catch up to the Go support shipped in 0.2.1. No behavior changes beyond one CLI highlighting fix.
