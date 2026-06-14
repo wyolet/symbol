@@ -1,4 +1,5 @@
 import os
+import re
 from functools import cache
 from typing import Literal
 from urllib.request import urlopen
@@ -18,6 +19,34 @@ CONFIG_FILES = ["documentation.yml", "vendor.yml", "popular.yml", "languages.yml
 def load_config(config: ConfigType):
     with open(os.path.join(CONFIG_DIR, f"{config}.yml"), encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+# Never-matching regex: used as the fallback when no vendor pattern compiles.
+_NEVER = re.compile(r"(?!)")
+
+
+@cache
+def load_vendor_regex() -> "re.Pattern[str]":
+    """Compile ``vendor.yml`` into one combined regex matched in a single pass.
+
+    ``vendor.yml`` ships ~168 Ruby-flavored path patterns (``(^|/)node_modules/``,
+    ``(^|/)vendors?/``, …). Running 168 ``re.search`` calls per path across a
+    large tree is the wrong primitive — we fold them into a single alternation
+    compiled once. Patterns that aren't valid Python regex (rare Ruby-isms) are
+    skipped rather than failing the whole match.
+
+    Paths are matched verbatim against the patterns, so callers should pass
+    forward-slash, repo-relative paths (directories with a trailing ``/``) the
+    way GitHub Linguist's own ``vendored?`` check does.
+    """
+    valid: list[str] = []
+    for pattern in load_config("vendor"):
+        try:
+            re.compile(pattern)
+        except re.error:
+            continue
+        valid.append(f"(?:{pattern})")
+    return re.compile("|".join(valid)) if valid else _NEVER
 
 
 def update_from_github(callback=None):

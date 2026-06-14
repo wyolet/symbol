@@ -4,21 +4,45 @@ import re
 
 import chardet
 
-from .config.load import load_config
+from .config.load import load_config, load_vendor_regex
 
 
 class Blob:
     MEGABYTE = 1024 * 1024
+    # Hard cap on how much of a file we ever pull into memory. Language
+    # detection only needs the head (shebang, modeline, content heuristics);
+    # LOC counting of files larger than this is intentionally skipped rather
+    # than slurping the whole thing. Without this cap a single multi-GB file
+    # (a data dump, a model blob, a vendored bundle) is read IN FULL per Blob,
+    # and chardet then allocates several× that buffer — the OOM that can take
+    # down the whole machine when several servers index the same tree at once.
+    MAX_READ_BYTES = 5 * 1024 * 1024
+    # chardet builds analyzers across the entire buffer; bound its input hard.
+    ENCODING_SNIFF_BYTES = 64 * 1024
 
     def __init__(self, path, content=None, symlink=False):
         self.path = path
         self._content = content
         self._symlink = symlink
         self._lines = None
+        self._size = None
+        self.truncated = False
 
         if self._content is None:
+            # True size comes from a cheap stat — never from len(content), which
+            # is now capped. Callers relying on .size (large, LOC bytes) stay
+            # correct even when we only read the head.
+            try:
+                self._size = os.path.getsize(path)
+            except OSError:
+                self._size = 0
             with open(self.path, "rb") as f:
-                self._content = f.read()
+                self._content = f.read(self.MAX_READ_BYTES)
+            self.truncated = self._size > len(self._content)
+        elif isinstance(self._content, str):
+            self._size = len(self._content.encode("utf-8", errors="ignore"))
+        else:
+            self._size = len(self._content)
 
     def __repr__(self):
         return f"<Blob {self.path}>"
@@ -35,6 +59,8 @@ class Blob:
 
     @property
     def size(self):
+        if self._size is not None:
+            return self._size
         return len(self._content)
 
     @property
@@ -77,7 +103,8 @@ class Blob:
             return True
 
     def detect_encoding(self):
-        detection = chardet.detect(self._content)
+        sample = self._content[: self.ENCODING_SNIFF_BYTES]
+        detection = chardet.detect(sample)
         if detection["confidence"] > 0.5:
             return detection
         return None
@@ -139,8 +166,7 @@ class Blob:
         return self.size / self.loc > 5000
 
     def vendored(self):
-        vendor_patterns = load_config("vendor")
-        return any(re.search(pattern, self.path) for pattern in vendor_patterns)
+        return bool(load_vendor_regex().search(self.path))
 
     def documentation(self):
         doc_patterns = load_config("documentation")
