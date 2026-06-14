@@ -27,6 +27,9 @@ from wyolet.symbol.shared.symbol import (
 
 _INDEX_PATH = Path(".symbol") / "symbol_index.msgpack.zst"
 _INDEX_VERSION = 6
+# No real source file is this big; anything larger is a data blob mislabeled as
+# code. Skip rather than read it into memory (defense in depth behind Blob's cap).
+_MAX_INDEX_FILE_BYTES = 20 * 1024 * 1024
 _ZSTD_LEVEL = 3
 # If more files than this are stale, full rebuild is cheaper than patching.
 _REBUILD_THRESHOLD = 200
@@ -163,6 +166,8 @@ class SymbolIndex:
 
         rel = str(path.relative_to(self.project_root))
         try:
+            if path.stat().st_size > _MAX_INDEX_FILE_BYTES:
+                return  # never slurp a pathologically large "source" file into RAM
             source = path.read_bytes()
         except OSError:
             return

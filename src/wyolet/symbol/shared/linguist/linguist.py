@@ -108,6 +108,7 @@ class Linguist:
         exclude: list[str] | None = None,
         *,
         collect_stats: bool = True,
+        skip_vendored: bool = True,
     ):
         """Walk a project once: classify every file, optionally tally LOC stats.
 
@@ -118,8 +119,15 @@ class Linguist:
 
         Callers that only need the classification (audit, index) should
         pass ``collect_stats=False`` to skip the line-counting work.
+
+        ``skip_vendored`` (default True) prunes vendored directories
+        (``node_modules/``, ``vendor/``, ``Godeps/``, …) using GitHub
+        Linguist's own ``vendor.yml`` patterns, so the walk never descends
+        into dependency trees. This is the dominant cost on large repos.
         """
-        paths = self._get_all_file_paths(absolute_path, exclude=exclude)
+        paths = self._get_all_file_paths(
+            absolute_path, exclude=exclude, skip_vendored=skip_vendored
+        )
 
         for file_path in paths:
             blob = Blob(file_path)
@@ -145,13 +153,20 @@ class Linguist:
         self,
         absolute_path: str,
         exclude: list[str] | None = None,
+        *,
+        skip_vendored: bool = True,
     ) -> dict[Path, Language]:
         """Walk + classify only — no LOC accounting. Returns file_languages.
 
         Cheap variant for callers that just need 'what language is each file?'
         without the cost of decoding every file to count lines.
         """
-        self.detect_directory(absolute_path, exclude=exclude, collect_stats=False)
+        self.detect_directory(
+            absolute_path,
+            exclude=exclude,
+            collect_stats=False,
+            skip_vendored=skip_vendored,
+        )
         return self.file_languages
 
     def calculate_percentages(self):
@@ -176,8 +191,15 @@ class Linguist:
         return [lang.dict() for lang in self.statistics.values()]
 
     @staticmethod
-    def _get_all_file_paths(directory: str, exclude: list[str] | None = None) -> list[str]:
+    def _get_all_file_paths(
+        directory: str,
+        exclude: list[str] | None = None,
+        *,
+        skip_vendored: bool = True,
+    ) -> list[str]:
         import fnmatch
+
+        from .config.load import load_vendor_regex
 
         def _exc_match(rel: str, pat: str) -> bool:
             if fnmatch.fnmatch(rel, pat):
@@ -186,25 +208,40 @@ class Linguist:
                 return fnmatch.fnmatch(rel, pat[3:])
             return False
 
+        # vendor.yml patterns are forward-slash, repo-relative regexes anchored
+        # like ``(^|/)node_modules/``. Pruning dirs here (so os.walk never
+        # descends) is the single biggest cost saver on dependency-heavy trees;
+        # the small ``[checker] exclude`` glob list never matched the bare dir
+        # name, so the walk used to traverse node_modules/ in full.
+        vendor_re = load_vendor_regex() if skip_vendored else None
+
+        def _rel(rel_root: str, name: str) -> str:
+            rel = os.path.join(rel_root, name).replace(os.sep, "/")
+            return rel[2:] if rel.startswith("./") else rel
+
         paths = []
         abs_dir = os.path.abspath(directory)
         for root, dirs, files in os.walk(abs_dir):
             rel_root = os.path.relpath(root, abs_dir)
-            # Filter subdirs in-place to prevent descending
-            if exclude:
-                dirs[:] = [
-                    d for d in dirs
-                    if not d.startswith(".")
-                    and not any(
-                        _exc_match(os.path.join(rel_root, d), pat)
-                        for pat in exclude
-                    )
-                ]
-            else:
-                dirs[:] = [d for d in dirs if not d.startswith(".")]
+            # Filter subdirs in-place to prevent descending.
+            kept = []
+            for d in dirs:
+                if d.startswith("."):
+                    continue
+                rel_d = _rel(rel_root, d)
+                if vendor_re is not None and vendor_re.search(rel_d + "/"):
+                    continue
+                if exclude and any(_exc_match(rel_d, pat) for pat in exclude):
+                    continue
+                kept.append(d)
+            dirs[:] = kept
             for file in files:
-                rel_path = os.path.join(rel_root, file)
+                rel_path = _rel(rel_root, file)
                 if exclude and any(_exc_match(rel_path, pat) for pat in exclude):
+                    continue
+                # Catches vendored *files* (minified libs, generated bundles)
+                # that don't live under a vendored directory.
+                if vendor_re is not None and vendor_re.search(rel_path):
                     continue
                 paths.append(os.path.abspath(os.path.join(root, file)))
         return paths

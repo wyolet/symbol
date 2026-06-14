@@ -767,10 +767,152 @@ def replace_symbol(
 # ---------------------------------------------------------- entry
 
 
+def _apply_nice() -> None:
+    """Deprioritize this process so a cold-start index burst doesn't starve
+    the user's foreground work (builds, tests, other agents).
+
+    The server's only heavy work is the startup index build; running the whole
+    process at a higher niceness is simpler than trying to scope-and-restore it
+    (POSIX won't let an unprivileged process lower its niceness back), and tool
+    calls are light enough that the added latency under contention is the point.
+
+    Controlled by ``SYMBOL_MCP_NICE`` (default 10); set to 0 to disable.
+    Best-effort and POSIX-only — silently a no-op where ``os.nice`` is absent.
+    """
+    import os
+
+    raw = os.environ.get("SYMBOL_MCP_NICE", "10")
+    try:
+        increment = int(raw)
+    except ValueError:
+        return
+    if increment <= 0:
+        return
+    try:
+        os.nice(increment)  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        pass
+
+
+def _peak_rss_bytes() -> int:
+    """Peak resident memory of this process, normalized to bytes.
+
+    ``ru_maxrss`` is bytes on macOS but kilobytes on Linux — normalize so the
+    ceiling comparison is portable. Peak (not current) is the right signal for
+    a safety kill: if we ever crossed the ceiling we've already misbehaved.
+    """
+    import resource
+    import sys
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak if sys.platform == "darwin" else peak * 1024
+
+
+def _mem_limit_mb() -> int:
+    """Configured soft RSS ceiling in MB (``SYMBOL_MCP_MEM_LIMIT_MB``, 0 = off)."""
+    import os
+
+    try:
+        return int(os.environ.get("SYMBOL_MCP_MEM_LIMIT_MB", "2048"))
+    except ValueError:
+        return 2048
+
+
+def _apply_hard_mem_limit() -> None:
+    """Opt-in kernel ceiling on address space (``RLIMIT_AS``).
+
+    Off by default: ``RLIMIT_AS`` caps *virtual* memory, which Python + zstd +
+    mmap can reserve well above real RSS, so too tight a value causes spurious
+    ``MemoryError``. Enable with ``SYMBOL_MCP_MEM_HARD=1`` to turn the soft
+    ceiling (``SYMBOL_MCP_MEM_LIMIT_MB``) into a hard kernel limit — a runaway
+    then dies with MemoryError instead of taking the machine down.
+
+    Effective on Linux only: macOS silently does not enforce ``RLIMIT_AS``, so
+    there the soft RSS watchdog in ``_install_orphan_watchdog`` is the actual
+    guard. Best-effort everywhere — never fatal if the limit can't be set.
+    """
+    import os
+
+    if os.environ.get("SYMBOL_MCP_MEM_HARD") != "1":
+        return
+    limit_mb = _mem_limit_mb()
+    if limit_mb <= 0:
+        return
+    try:
+        import resource
+
+        cap = limit_mb * 1024 * 1024
+        _soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        new_hard = hard if hard != resource.RLIM_INFINITY and hard < cap else cap
+        resource.setrlimit(resource.RLIMIT_AS, (cap, new_hard))
+    except (ImportError, ValueError, OSError):
+        pass
+
+
+def _install_orphan_watchdog() -> None:
+    """Self-terminate if our parent dies *or* we balloon past the RSS ceiling.
+
+    Two failure modes, one cheap polling thread:
+
+    - **Orphaned**: a stdio server should die with its client, but ``symbol mcp``
+      instances from hours-ago sessions were lingering idle. When the launcher
+      (``uv run`` under the client) exits without reaping us, the OS reparents us
+      to init — ``getppid()`` becomes 1. We can't watch stdin (FastMCP owns the
+      read side), so this reparent check is the non-conflicting disconnect signal.
+    - **Runaway memory**: if peak RSS crosses ``SYMBOL_MCP_MEM_LIMIT_MB`` we exit
+      cleanly rather than let the process OOM the host. Defense in depth behind
+      ``Blob``'s per-file read cap — bounds *accumulation*, not just one file.
+
+    ``SYMBOL_MCP_WATCHDOG=0`` disables the whole thread.
+    """
+    import os
+    import sys
+    import threading
+    import time
+
+    if os.environ.get("SYMBOL_MCP_WATCHDOG") == "0":
+        return
+    if not hasattr(os, "getppid"):
+        return
+
+    try:
+        interval = float(os.environ.get("SYMBOL_MCP_WATCHDOG_INTERVAL", "2.0"))
+    except ValueError:
+        interval = 2.0
+    start_ppid = os.getppid()
+    mem_cap = _mem_limit_mb() * 1024 * 1024  # 0 → disabled
+
+    def _watch() -> None:
+        while True:
+            time.sleep(interval)
+            try:
+                ppid = os.getppid()
+            except OSError:
+                os._exit(0)
+            # Reparented to init (parent died) — we're orphaned.
+            if ppid == 1 or (start_ppid != 1 and ppid != start_ppid):
+                os._exit(0)
+            if mem_cap and _peak_rss_bytes() > mem_cap:
+                print(
+                    f"[symbol-mcp] peak RSS exceeded "
+                    f"{mem_cap // (1 << 20)}MB ceiling — exiting",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                os._exit(137)
+
+    threading.Thread(
+        target=_watch, daemon=True, name="symbol-mcp-orphan-watch"
+    ).start()
+
+
 def serve(project_root: str | Path = ".") -> None:
     """Blocking stdio server loop. Call from CLI subcommand."""
     import sys as _sys
 
+    _apply_nice()
+    _apply_hard_mem_limit()
+    _install_orphan_watchdog()
     _State.initialize(Path(project_root))
     idx = _State._index
     root = _State.project_root
