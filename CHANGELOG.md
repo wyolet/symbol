@@ -4,6 +4,20 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.2.5] — 2026-06-14
+
+### Fixed
+- **MCP server no longer OOMs the host** (#19). `Blob` read entire files into memory to classify language, so a multi-GB data file in a tree was slurped in full per server (then `chardet` multiplied it) — enough to exhaust a 128 GB machine when several sessions indexed at once. `Blob` now caps reads at 5 MB, takes `size` from `os.path.getsize` (accurate without a full read), and sniffs only the first 64 KB for encoding. The index walk skips files larger than 20 MB.
+- **High CPU on startup indexing** (#19). The project walk descended into vendored dependency trees (`node_modules/`, `vendor/`, `Godeps/`, …) and classified every file before discarding them. `vendor.yml` is now compiled into a single cached regex and used to prune vendored directories during the walk, so `os.walk` never descends into them. `loc`, `audit`, and the symbol index all benefit.
+- **Orphaned MCP instances accumulating across sessions** (#19). The server now self-terminates when reparented to init (its launcher/client died), instead of lingering idle for hours.
+
+### Added
+- **MCP memory ceiling** — a soft RSS watchdog exits the server cleanly if peak memory crosses `SYMBOL_MCP_MEM_LIMIT_MB` (default 2048); opt-in hard `RLIMIT_AS` via `SYMBOL_MCP_MEM_HARD=1` (enforced on Linux).
+- **MCP startup is niced** — `os.nice(+10)` by default (`SYMBOL_MCP_NICE`) so the cold-start index burst doesn't starve foreground builds/tests.
+
+### Changed
+- **`loc` and `audit` now skip vendored directories** by default, matching GitHub Linguist semantics and the existing `[scanner] exclude` behavior.
+
 ## [0.2.4] — 2026-05-24
 
 ### Changed
