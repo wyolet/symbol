@@ -58,6 +58,47 @@ fn default_true() -> bool {
     true
 }
 
+// Mirror protocols/types.py rename analysis types.
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ByteRewrite {
+    pub byte_start: usize,
+    pub byte_end: usize,
+    pub new_text: String,
+    pub line: i64,
+    pub col: i64,
+    #[serde(default)]
+    pub receiver_source: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct SkippedMismatchSite {
+    pub line: i64,
+    pub col: i64,
+    #[serde(default)]
+    pub receiver_source: String,
+    pub resolved_to_qpath: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct UnresolvedSite {
+    pub line: i64,
+    pub col: i64,
+    #[serde(default)]
+    pub receiver_source: String,
+    pub why: String,
+}
+
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct RenameAnalysis {
+    #[serde(default)]
+    pub rewrites: Vec<ByteRewrite>,
+    #[serde(default)]
+    pub skipped_mismatch: Vec<SkippedMismatchSite>,
+    #[serde(default)]
+    pub unresolved: Vec<UnresolvedSite>,
+}
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct ParseResult {
     pub ok: bool,
@@ -202,6 +243,40 @@ impl Adapter {
             serde_json::json!({ "body": body, "signature": signature, "max_lines": max_lines }),
         )?;
         Ok(result["preview"].as_str().unwrap_or_default().to_owned())
+    }
+
+    /// v2 engine rename analysis for one file. `owner_or_module_qpath` maps
+    /// to target_owner_qpath (member) or target_module_qpath (binding).
+    pub fn rename_analysis(
+        &self,
+        member: bool,
+        path: &Path,
+        leaf: &str,
+        target_qpath: &str,
+        owner_or_module_qpath: &str,
+        is_declaring_file: bool,
+        decl_byte_range: Option<(i64, i64)>,
+        new_name: &str,
+    ) -> Result<RenameAnalysis> {
+        let mut params = serde_json::json!({
+            "path": path.to_string_lossy(),
+            "leaf": leaf,
+            "target_qpath": target_qpath,
+            "is_declaring_file": is_declaring_file,
+            "new_name": new_name,
+        });
+        if let Some((s, e)) = decl_byte_range {
+            params["decl_byte_range"] = serde_json::json!([s, e]);
+        }
+        let method = if member {
+            params["target_owner_qpath"] = owner_or_module_qpath.into();
+            "rename_member"
+        } else {
+            params["target_module_qpath"] = owner_or_module_qpath.into();
+            "rename_module_binding"
+        };
+        let result = self.daemon.call(method, params)?;
+        Ok(serde_json::from_value(result)?)
     }
 
     pub fn normalize_blank_gaps(&self, source: &str) -> Result<String> {

@@ -30,7 +30,7 @@ Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
 
 ## Documented divergences (tonight's cut lines)
 
-- **rename-symbol is tier-1 textual for ALL kinds** (word-boundary regex
+- **rename-symbol**: Python engine kinds now run the REAL v2 receiver-aware analysis (pyscan loads the shared on-disk index and executes rename_member/rename_module_binding; verified byte-identical to Python including discriminator skips). Go engine kinds remain tier-1 until go-scan's rename RPC is mirrored; results carry "engine": "v2" or "tier1".
   over index-implicated files). Python routes python/go
   method/function/class kinds through the v2 SymbolRenamer engine
   (receiver-aware, adapter-resolved). Results carry `"engine": "tier1"`.

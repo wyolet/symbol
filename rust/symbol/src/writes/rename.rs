@@ -1,12 +1,11 @@
-//! Port of writes/rename_symbol.py — TIER-1 TEXTUAL rename: resolve the
-//! declaration via the index, word-boundary regex rewrite across every file
-//! the ref table implicates, atomic multi-file commit.
+//! Port of writes/rename_symbol.py + writes/rename/renamer.py.
 //!
-//! DIVERGENCE (documented): Python routes python/go method/function/class
-//! kinds through the v2 SymbolRenamer engine (adapter-resolved, receiver-
-//! aware). That engine's per-file RPC surface isn't wired here yet, so ALL
-//! kinds take the tier-1 path; the result carries "engine": "tier1" so
-//! callers can tell.
+//! Engine routing mirrors Python: python-language symbols of engine kinds go
+//! through the v2 receiver-aware analysis — executed in the pyscan daemon,
+//! which loads the shared on-disk index and runs the real
+//! rename_member/rename_module_binding. Everything else (and Go, until the
+//! go-scan rename RPC is mirrored) takes the tier-1 textual path; results
+//! carry "engine": "v2" | "tier1".
 
 use std::path::Path;
 
@@ -14,6 +13,9 @@ use crate::adapters::Registry;
 use crate::index::Index;
 use crate::writes::ops::resolve_single as resolve_symbol_row;
 use crate::writes::tx::{commit_edits, FileEdit};
+
+const MEMBER_KINDS: [&str; 2] = ["method", "async_method"];
+const BINDING_KINDS: [&str; 4] = ["function", "async_function", "class", "constant"];
 
 pub fn rename_symbol(
     index: &mut Index,
@@ -57,13 +59,207 @@ pub fn rename_symbol(
         });
     }
 
+    let kind = index.kind_of(row).to_owned();
+    let language = index
+        .language_of_file(&declaring_file_rel)
+        .unwrap_or("")
+        .to_owned();
+    let member = MEMBER_KINDS.contains(&kind.as_str());
+    let engine = language == "python" && (member || BINDING_KINDS.contains(&kind.as_str()));
+
+    if engine {
+        rename_via_engine(
+            index, qualified_path, &new_qpath, &old_leaf, new_name, row, member,
+            &declaring_file_rel, prefix, project_root, reg, dry_run,
+        )
+    } else {
+        rename_tier1(
+            index, qualified_path, &new_qpath, &old_leaf, new_name,
+            &declaring_file_rel, project_root, dry_run,
+        )
+    }
+}
+
+// ---------------------------------------------------------- v2 engine path
+
+#[allow(clippy::too_many_arguments)]
+fn rename_via_engine(
+    index: &mut Index,
+    qualified_path: &str,
+    new_qpath: &str,
+    old_leaf: &str,
+    new_name: &str,
+    row: i64,
+    member: bool,
+    declaring_file_rel: &str,
+    prefix: &str,
+    project_root: &Path,
+    reg: &Registry,
+    dry_run: bool,
+) -> serde_json::Value {
+    // The daemon resolves against the ON-DISK index; make sure it reflects
+    // any in-memory refresh resolve_single may have done.
+    let _ = index.save();
+
+    let Ok(adapter) = reg.for_language("python") else {
+        return serde_json::json!({
+            "status": "error", "error_code": "no_adapter",
+            "message": "pyscan daemon unavailable",
+        });
+    };
+
+    let owner_qpath = prefix.trim_end_matches('.').to_owned();
+    let decl_byte_range = index.byte_range_of(row);
+
+    // _candidate_files: declaring + in-body refs + module-level import aliases.
+    let mut candidates: std::collections::BTreeSet<String> =
+        std::collections::BTreeSet::from([declaring_file_rel.to_owned()]);
+    for (src_row, _line, _kind) in index.callers_of(old_leaf) {
+        candidates.insert(index.file_of(src_row).to_owned());
+    }
+    for file_id in 0..index.files.len() as i64 {
+        if index
+            .imports_for(file_id)
+            .iter()
+            .any(|(local, _, _)| *local == old_leaf)
+        {
+            candidates.insert(index.files[file_id as usize].clone());
+        }
+    }
+
+    let mut rewrites_out: Vec<serde_json::Value> = vec![];
+    let mut skipped_out: Vec<serde_json::Value> = vec![];
+    let mut unresolved_out: Vec<serde_json::Value> = vec![];
+    let mut edits: Vec<FileEdit> = vec![];
+    let mut per_file: Vec<serde_json::Value> = vec![];
+
+    for rel in &candidates {
+        // Engine analyzes python files only; skip other languages in the
+        // candidate set exactly like _adapter_for's silent skip.
+        if index.language_of_file(rel) != Some("python") {
+            continue;
+        }
+        let abs = project_root.join(rel);
+        let Ok(source) = std::fs::read(&abs) else { continue };
+        let is_declaring = rel == declaring_file_rel;
+        let analysis = match adapter.rename_analysis(
+            member,
+            &abs,
+            old_leaf,
+            qualified_path,
+            &owner_qpath,
+            is_declaring,
+            is_declaring.then_some(decl_byte_range),
+            new_name,
+        ) {
+            Ok(a) => a,
+            Err(e) => {
+                return serde_json::json!({
+                    "status": "error", "error_code": "adapter_failed",
+                    "message": format!("rename analysis failed for {rel}: {e}"),
+                })
+            }
+        };
+
+        for r in &analysis.rewrites {
+            rewrites_out.push(serde_json::json!({
+                "file": rel, "line": r.line, "col": r.col,
+                "receiver_source": r.receiver_source,
+                "resolved_to_qpath": qualified_path,
+            }));
+        }
+        for s in &analysis.skipped_mismatch {
+            skipped_out.push(serde_json::json!({
+                "file": rel, "line": s.line, "col": s.col,
+                "receiver_source": s.receiver_source,
+                "resolved_to_qpath": s.resolved_to_qpath,
+            }));
+        }
+        for u in &analysis.unresolved {
+            unresolved_out.push(serde_json::json!({
+                "file": rel, "line": u.line, "col": u.col,
+                "receiver_source": u.receiver_source, "why": u.why,
+            }));
+        }
+
+        if !analysis.rewrites.is_empty() {
+            let mut buf = source.clone();
+            let mut sorted = analysis.rewrites.clone();
+            sorted.sort_by_key(|r| std::cmp::Reverse(r.byte_start));
+            for r in &sorted {
+                if r.byte_end <= buf.len() && r.byte_start <= r.byte_end {
+                    buf.splice(r.byte_start..r.byte_end, r.new_text.bytes());
+                }
+            }
+            per_file.push(serde_json::json!({
+                "file": rel, "refs_updated": analysis.rewrites.len(),
+            }));
+            edits.push(FileEdit {
+                file_abs: abs,
+                file_rel: rel.clone(),
+                new_content: buf,
+            });
+        }
+    }
+
+    if edits.is_empty() {
+        let review = !unresolved_out.is_empty() || !skipped_out.is_empty();
+        return serde_json::json!({
+            "status": if review { "needs_review" } else { "error" },
+            "engine": "v2",
+            "error_code": if review { serde_json::Value::Null } else { "nothing_to_rename".into() },
+            "qualified_path": qualified_path,
+            "new_qualified_path": new_qpath,
+            "declaring_file": declaring_file_rel,
+            "skipped_mismatch": skipped_out,
+            "unresolved": unresolved_out,
+        });
+    }
+
+    let subject = format!("{qualified_path} → {new_name}");
+    let tx = commit_edits(&edits, project_root, "rename-symbol", &subject, dry_run);
+    if tx.status == "error" {
+        return serde_json::json!({
+            "status": "error", "error_code": tx.error_code, "message": tx.message,
+            "qualified_path": qualified_path, "new_qualified_path": new_qpath,
+        });
+    }
+    let total: i64 = per_file.iter().map(|f| f["refs_updated"].as_i64().unwrap_or(0)).sum();
+    serde_json::json!({
+        "status": if dry_run { "dry_run" } else { "applied" },
+        "engine": "v2",
+        "qualified_path": qualified_path,
+        "new_qualified_path": new_qpath,
+        "declaring_file": declaring_file_rel,
+        "files_changed": edits.len(),
+        "refs_updated": total,
+        "per_file": per_file,
+        "rewrites": rewrites_out,
+        "skipped_mismatch": skipped_out,
+        "unresolved": unresolved_out,
+        "transaction_id": tx.transaction_id,
+    })
+}
+
+// ---------------------------------------------------------- tier-1 path
+
+fn rename_tier1(
+    index: &mut Index,
+    qualified_path: &str,
+    new_qpath: &str,
+    old_leaf: &str,
+    new_name: &str,
+    declaring_file_rel: &str,
+    project_root: &Path,
+    dry_run: bool,
+) -> serde_json::Value {
     let mut ref_files: std::collections::BTreeSet<String> =
-        std::collections::BTreeSet::from([declaring_file_rel.clone()]);
-    for (src_row, _line, _kind) in index.callers_of(&old_leaf) {
+        std::collections::BTreeSet::from([declaring_file_rel.to_owned()]);
+    for (src_row, _line, _kind) in index.callers_of(old_leaf) {
         ref_files.insert(index.file_of(src_row).to_owned());
     }
 
-    let pattern = regex::Regex::new(&format!(r"\b{}\b", regex::escape(&old_leaf))).unwrap();
+    let pattern = regex::Regex::new(&format!(r"\b{}\b", regex::escape(old_leaf))).unwrap();
     let mut edits: Vec<FileEdit> = vec![];
     let mut per_file: Vec<serde_json::Value> = vec![];
     for rel in &ref_files {

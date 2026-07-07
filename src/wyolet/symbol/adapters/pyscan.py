@@ -64,6 +64,51 @@ class _Daemon:
             )
         }
 
+    # ------------------------------------------------------ v2 rename engine
+    # The daemon loads the on-disk symbol index (format is shared with the
+    # Rust core) and runs the real receiver-aware rename analysis, so a
+    # non-Python caller gets engine-quality renames, not tier-1 regex.
+
+    def _index_query(self):
+        from wyolet.symbol.shared.symbol_index import SymbolIndex
+        from wyolet.symbol.writes.rename.index_query import RenamerIndexQuery
+
+        assert self.project_root is not None, "initialize with project_root first"
+        idx_path = self.project_root / ".symbol" / "symbol_index.msgpack.zst"
+        mtime = idx_path.stat().st_mtime if idx_path.exists() else None
+        if getattr(self, "_iq_mtime", "unset") != mtime:
+            index = SymbolIndex.load(self.project_root)
+            if index is None:
+                raise RuntimeError("no loadable symbol index on disk")
+            self._iq = RenamerIndexQuery(index, self.project_root)
+            self._iq_mtime = mtime
+        return self._iq
+
+    def _rename_common(self, params: dict) -> dict:
+        path = Path(params["path"])
+        decl = params.get("decl_byte_range")
+        return {
+            "path": path,
+            "project_root": self.project_root,
+            "source": path.read_bytes(),
+            "leaf": params["leaf"],
+            "target_qpath": params["target_qpath"],
+            "index": self._index_query(),
+            "is_declaring_file": bool(params["is_declaring_file"]),
+            "decl_byte_range": tuple(decl) if decl else None,
+            "new_name": params["new_name"],
+        }
+
+    def rename_member(self, params: dict) -> dict:
+        kwargs = self._rename_common(params)
+        kwargs["target_owner_qpath"] = params["target_owner_qpath"]
+        return asdict(self.adapter.rename_member(**kwargs))
+
+    def rename_module_binding(self, params: dict) -> dict:
+        kwargs = self._rename_common(params)
+        kwargs["target_module_qpath"] = params["target_module_qpath"]
+        return asdict(self.adapter.rename_module_binding(**kwargs))
+
     def normalize_blank_gaps(self, params: dict) -> dict:
         """PEP 8 blank-run normalization (writes/_blank_lines) on raw source."""
         from wyolet.symbol.writes._blank_lines import normalize_blank_gaps
