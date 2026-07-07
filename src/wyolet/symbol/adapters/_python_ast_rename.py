@@ -7,18 +7,26 @@ Algorithm for member rename per file:
      every hit is a rewrite without further checks.
   3. Otherwise (careful mode): resolve each receiver to a class qpath
      via local name analysis (self/cls, imports, same-file class defs,
-     assignment scan, annotation scan). Compare to `target_owner_qpath`.
-     Equal → rewrite. Different → skipped_mismatch. Unresolvable →
-     unresolved (with a human-readable why).
+     assignment scan, annotation scan). Then test the rename target's
+     owner class for *static MRO membership*: `target_owner_qpath` is
+     rewritten when it is the receiver's class OR any of its transitive
+     bases (via `index.class_bases`). In set → rewrite. Not in set →
+     skipped_mismatch. Unresolvable receiver → unresolved (with a
+     human-readable why).
 
-Limitations of tier-1 (local AST only, no type checker):
+Tier-2 static MRO (this file, static analysis only — NO type inference):
 
-  - `super().x` not yet resolved — needs `class_bases` in the index.
-  - Subclass call sites resolve to the subclass's own qpath, so we can
-    only equality-match against `target_owner_qpath`; cross-class
-    inheritance is skipped pending the same `class_bases` work.
+  - Subclass call sites resolve to the subclass's own qpath, then match
+    `target_owner_qpath` against the subclass's inclusive ancestor set
+    (`_ancestor_set`). Cross-class inheritance now rewrites correctly.
+  - `super()` (plain, no-arg) resolves statically to the ancestors of
+    the enclosing class, EXCLUDING the class itself. Two-arg `super(A, b)`
+    stays unresolved (needs type inference on the second argument).
+
+Remaining tier-2 gaps (need a real type checker):
+
   - Receivers bound to call expressions (factories, returns) are
-    unresolved — needs tier-2 type inference.
+    unresolved — needs type inference.
 
 Each unresolved site carries a `why` string. Every new `why` seen in
 practice is a candidate to extend this resolver.
@@ -209,11 +217,40 @@ class _PerFileResolver:
             return None, f"attribute chain `{ast.unparse(recv)}` not resolved to a class"
         if isinstance(recv, ast.Call):
             if isinstance(recv.func, ast.Name) and recv.func.id == "super":
-                return None, "super() receiver resolution not yet implemented"
+                # Plain `super()` is handled statically by the caller via
+                # `resolve_super_receiver` (see rename_member). Reaching here
+                # means the two-arg form `super(A, b)`, whose bound type needs
+                # inference on the second argument.
+                return None, "two-arg super(...) receiver — needs type checker"
             return None, "receiver bound to call expression — needs type checker"
         if isinstance(recv, ast.Subscript):
             return None, "receiver is a subscript expression — needs type checker"
         return None, f"unsupported receiver kind: {type(recv).__name__}"
+
+    def resolve_super_receiver(self, recv: ast.expr) -> str | None:
+        """If `recv` is a plain no-arg `super()` call inside a class, return
+        that enclosing class's qpath. Returns None for anything else —
+        including the two-arg `super(A, b)` form and `super()` outside any
+        class — leaving those to the normal `resolve_receiver` path.
+
+        The caller treats the returned class's ancestor set MINUS the class
+        itself as the receiver's owner-set (super() dispatches to bases, not
+        to the class it appears in).
+        """
+        if not (
+            isinstance(recv, ast.Call)
+            and isinstance(recv.func, ast.Name)
+            and recv.func.id == "super"
+            and not recv.args
+            and not recv.keywords
+        ):
+            return None
+        cls = self._enclosing_class(recv)
+        if cls is None:
+            return None
+        chain = self._class_chain(cls)
+        prefix = self.module_prefix
+        return ".".join([prefix, *chain]) if prefix else ".".join(chain)
 
     def _resolve_name_receiver(self, recv: ast.Name) -> tuple[str | None, str | None]:
         if recv.id in ("self", "cls"):
@@ -536,6 +573,51 @@ def _decl_rewrite(
 
 
 # ──────────────────────────────────────────────────────────────────────
+# static MRO membership
+
+def _ancestor_set(index: IndexQuery, qp: str, cap: int = 32) -> set[str]:
+    """Inclusive ancestor set of `qp`: ``{qp}`` plus the transitive closure
+    over ``index.class_bases(...)``. Used to decide whether a rename target's
+    owner class is `qp` or any of `qp`'s (statically resolvable) bases.
+
+    Traversal is a cycle-safe BFS with a `visited` set and a size cap
+    (~`cap` classes) — hand-written illegal cycles (``A(B)``, ``B(A)``) and
+    absurdly deep hierarchies both terminate.
+
+    Terminal handling: a base qpath returned by `class_bases` that has NO row
+    in the index (external/aliased phantom — stdlib, third-party, or an
+    aliased import like ``from x import Base as B`` yielding ``x.B``) is
+    *terminal*. It is included in the returned set but never expanded (we
+    can't resolve its bases). Including it is harmless: membership is tested
+    against a real project-local `target_owner_qpath`, which can only equal a
+    real qpath, never a phantom.
+
+    Design note — unresolvable bases stay `skipped_mismatch`, NOT
+    `unresolved`. An earlier plan draft wanted "unresolvable base →
+    unresolved", but unresolvable bases are overwhelmingly external code
+    (stdlib / third-party) which cannot inherit a project-local target;
+    bucketing every such receiver as unresolved would drown real codebases in
+    review noise. So a receiver whose class inherits only phantoms simply
+    fails membership and is reported as a clean mismatch.
+    """
+    seen: set[str] = set()
+    queue: list[str] = [qp]
+    while queue and len(seen) < cap:
+        cur = queue.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        # Only expand qpaths that actually have a row. A phantom base is a
+        # terminal member of the set (added above, never expanded here).
+        if index.find_declaration(cur) is None:
+            continue
+        for base in index.class_bases(cur):
+            if base not in seen:
+                queue.append(base)
+    return seen
+
+
+# ──────────────────────────────────────────────────────────────────────
 # public entry
 
 def rename_member(
@@ -589,6 +671,26 @@ def rename_member(
             ))
             continue
 
+        # Plain `super()` receiver: resolves statically to the enclosing
+        # class's ancestors, EXCLUDING the class itself (super dispatches to
+        # bases). Handled before resolve_receiver so its Call/super branch
+        # only sees the two-arg form.
+        enclosing = resolver.resolve_super_receiver(node.value)
+        if enclosing is not None:
+            owner_set = _ancestor_set(index, enclosing) - {enclosing}
+            if target_owner_qpath in owner_set:
+                rewrites.append(ByteRewrite(
+                    byte_start=start, byte_end=end, new_text=new_name,
+                    line=line, col=attr_col, receiver_source=recv_text,
+                ))
+            else:
+                skipped.append(SkippedMismatchSite(
+                    byte_start=start, byte_end=end,
+                    line=line, col=attr_col, receiver_source=recv_text,
+                    resolved_to_qpath=f"super() in {enclosing}",
+                ))
+            continue
+
         qp, why = resolver.resolve_receiver(node.value)
         if qp is None:
             unresolved.append(UnresolvedSite(
@@ -596,7 +698,7 @@ def rename_member(
                 line=line, col=attr_col, receiver_source=recv_text,
                 why=why or "unknown",
             ))
-        elif qp == target_owner_qpath:
+        elif target_owner_qpath in _ancestor_set(index, qp):
             rewrites.append(ByteRewrite(
                 byte_start=start, byte_end=end, new_text=new_name,
                 line=line, col=attr_col, receiver_source=recv_text,
