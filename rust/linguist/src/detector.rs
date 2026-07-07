@@ -42,13 +42,13 @@ fn type_priority(t: &str) -> u8 {
 
 pub struct Detector {
     pub reg: Registry,
-    strategies: Vec<Box<dyn Strategy + Sync>>,
+    strategies: Vec<Box<dyn Strategy + Sync + Send>>,
     pub heuristic_rules_dropped: usize,
 }
 
 impl Detector {
     pub fn new(configs: &Configs, reg: Registry, heuristics_enabled: bool) -> Detector {
-        let mut strategies: Vec<Box<dyn Strategy + Sync>> = vec![
+        let mut strategies: Vec<Box<dyn Strategy + Sync + Send>> = vec![
             Box::new(ModeLineStrategy),
             Box::new(FilenameStrategy),
             Box::new(ShebangStrategy),

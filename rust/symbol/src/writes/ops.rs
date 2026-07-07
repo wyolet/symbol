@@ -1,0 +1,413 @@
+//! Port of writes/delete_symbol.py and writes/replace_symbol.py — the
+//! index-driven symbol-level edits. Language-specific bits (parsing new
+//! content, PEP 8 blank-gap normalization) go through the daemon adapter.
+
+use std::path::Path;
+
+use anyhow::Result;
+
+use crate::adapters::Registry;
+use crate::index::{Index, S_EBYTE, S_SBYTE};
+use crate::writes::content::{indent_at_byte, normalize_content};
+use crate::writes::patch::{apply_patch, PatchRequest};
+use crate::writes::read_cache::ReadCache;
+use crate::writes::tx::{commit_edits, FileEdit};
+
+fn ident_ok(name: &str) -> bool {
+    static IDENT_RE: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"^[A-Za-z_][A-Za-z_0-9]*$").unwrap());
+    IDENT_RE.is_match(name)
+}
+
+/// Resolve a qualified path to exactly one live row, with ensure_fresh
+/// re-resolution — the shared preamble of delete/replace/rename.
+pub(crate) fn resolve_single(
+    index: &mut Index,
+    qualified_path: &str,
+    reg: &Registry,
+) -> Result<i64, serde_json::Value> {
+    let rows: Vec<i64> = index.by_path.get(qualified_path).cloned().unwrap_or_default();
+    if rows.is_empty() {
+        return Err(serde_json::json!({
+            "status": "error", "error_code": "symbol_not_found",
+            "message": format!("no symbol at {qualified_path:?}"),
+        }));
+    }
+    if rows.len() > 1 {
+        let candidates: Vec<String> = rows
+            .iter()
+            .map(|&r| {
+                format!(
+                    "{}:{}-{}",
+                    index.file_of(r),
+                    index.range_of(r).0,
+                    index.range_of(r).1
+                )
+            })
+            .collect();
+        return Err(serde_json::json!({
+            "status": "error", "error_code": "symbol_ambiguous",
+            "message": format!("{} symbols match {qualified_path:?}", rows.len()),
+            "candidates": candidates,
+        }));
+    }
+    let mut row = rows[0];
+    let file_rel = index.file_of(row).to_owned();
+    if index.ensure_fresh(&file_rel, reg) {
+        let rows: Vec<i64> = index.by_path.get(qualified_path).cloned().unwrap_or_default();
+        if rows.is_empty() {
+            return Err(serde_json::json!({
+                "status": "error", "error_code": "symbol_not_found",
+                "message": format!("symbol {qualified_path:?} no longer exists after refresh"),
+            }));
+        }
+        row = rows[0];
+    }
+    Ok(row)
+}
+
+fn normalize_blank_gaps_via_adapter(file_abs: &Path, language: &str, reg: &Registry) {
+    let Ok(adapter) = reg.for_language(language) else { return };
+    let Ok(source) = std::fs::read(file_abs) else { return };
+    let text = String::from_utf8_lossy(&source).into_owned();
+    if let Ok(normalized) = adapter.normalize_blank_gaps(&text) {
+        if normalized != text {
+            let _ = crate::writes::patch::atomic_write(file_abs, normalized.as_bytes());
+        }
+    }
+}
+
+// ---------------------------------------------------------- delete-symbol
+
+pub fn delete_symbol(
+    index: &mut Index,
+    qualified_path: &str,
+    project_root: &Path,
+    reg: &Registry,
+    force: bool,
+    dry_run: bool,
+) -> serde_json::Value {
+    let row = match resolve_single(index, qualified_path, reg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let file_rel = index.file_of(row).to_owned();
+    let file_abs = project_root.join(&file_rel);
+    let line_range = index.range_of(row);
+    let byte_range = (
+        index.symbols[row as usize][S_SBYTE] as usize,
+        index.symbols[row as usize][S_EBYTE] as usize,
+    );
+    let kind = index.kind_of(row).to_owned();
+    let language = index.language_of(row).to_owned();
+
+    let leaf = qualified_path.rsplit('.').next().unwrap_or(qualified_path);
+    let callers: Vec<serde_json::Value> = index
+        .callers_of(leaf)
+        .into_iter()
+        .filter(|&(src_row, _, _)| src_row != row)
+        .map(|(src_row, line, kind_label)| {
+            serde_json::json!({
+                "file": index.file_of(src_row),
+                "source_path": index.path_of(src_row),
+                "line": line,
+                "kind": kind_label,
+            })
+        })
+        .collect();
+
+    if !callers.is_empty() && !force {
+        return serde_json::json!({
+            "status": "error", "error_code": "has_live_references",
+            "message": format!(
+                "{qualified_path} is referenced by {} other symbol(s); use --force to delete anyway",
+                callers.len()
+            ),
+            "qualified_path": qualified_path, "kind": kind,
+            "file_rel": file_rel, "line_range": line_range, "callers": callers,
+        });
+    }
+
+    let cache = ReadCache::for_session(project_root);
+    let patch_req = PatchRequest {
+        file_abs: file_abs.clone(),
+        file_rel: file_rel.clone(),
+        line_range,
+        byte_range,
+        content: vec![],
+        force: true, // delete-symbol bypasses the cache check by design
+    };
+    let result = apply_patch(&patch_req, &cache, dry_run, 5);
+    if result.status == "applied" {
+        normalize_blank_gaps_via_adapter(&file_abs, &language, reg);
+        cache.invalidate(&file_rel);
+    }
+    if result.status == "error" {
+        return serde_json::json!({
+            "status": "error", "error_code": result.error_code, "message": result.message,
+            "qualified_path": qualified_path, "file_rel": file_rel,
+        });
+    }
+    serde_json::json!({
+        "status": result.status,
+        "qualified_path": qualified_path,
+        "kind": kind,
+        "file_rel": file_rel,
+        "line_range": line_range,
+        "callers": callers,
+        "diff": result.diff,
+        "lines_removed": result.lines_removed,
+    })
+}
+
+// ---------------------------------------------------------- replace-symbol
+
+fn kinds_compatible(old_kind: &str, new_kind: &str) -> bool {
+    if old_kind == new_kind {
+        return true;
+    }
+    let families: [&[&str]; 2] = [&["function", "async_function"], &["method", "async_method"]];
+    families
+        .iter()
+        .any(|fam| fam.contains(&old_kind) && fam.contains(&new_kind))
+}
+
+/// Python's textwrap.dedent (used before parsing the new content): remove
+/// the longest common leading whitespace from all non-blank lines.
+fn dedent(text: &str) -> String {
+    let mut prefix: Option<&str> = None;
+    for line in text.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let ws = &line[..line.len() - line.trim_start().len()];
+        prefix = Some(match prefix {
+            None => ws,
+            Some(p) => {
+                let common: usize = p
+                    .bytes()
+                    .zip(ws.bytes())
+                    .take_while(|(a, b)| a == b)
+                    .count();
+                &p[..common]
+            }
+        });
+    }
+    let prefix = prefix.unwrap_or("");
+    text.lines()
+        .map(|l| {
+            if l.trim().is_empty() {
+                l
+            } else {
+                l.strip_prefix(prefix).unwrap_or(l)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub fn replace_symbol(
+    index: &mut Index,
+    qualified_path: &str,
+    content: &str,
+    project_root: &Path,
+    reg: &Registry,
+    dry_run: bool,
+) -> serde_json::Value {
+    let row = match resolve_single(index, qualified_path, reg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let declaring_file_rel = index.file_of(row).to_owned();
+    let declaring_file_abs = project_root.join(&declaring_file_rel);
+    let old_leaf = qualified_path.rsplit('.').next().unwrap_or(qualified_path).to_owned();
+    let old_kind = index.kind_of(row).to_owned();
+    let language = index.language_of(row).to_owned();
+    let old_byte_range = (
+        index.symbols[row as usize][S_SBYTE] as usize,
+        index.symbols[row as usize][S_EBYTE] as usize,
+    );
+
+    let err = |code: &str, msg: String| {
+        serde_json::json!({ "status": "error", "error_code": code, "message": msg })
+    };
+
+    let Ok(adapter) = reg.for_language(&language) else {
+        return err("no_adapter", format!("no adapter for {language}"));
+    };
+    let parse_text = dedent(content);
+    match adapter.validate_syntax(&parse_text) {
+        Ok(parse) if !parse.ok => {
+            return err(
+                "parse_broken",
+                format!(
+                    "new content doesn't parse: line {}: {}",
+                    parse.error_line.unwrap_or(0),
+                    parse.error_message.unwrap_or_default()
+                ),
+            )
+        }
+        Err(e) => return err("no_adapter", format!("{e}")),
+        _ => {}
+    }
+    let scan = match adapter.scan_content(&parse_text) {
+        Ok(s) => s,
+        Err(e) => return err("parse_broken", format!("{e}")),
+    };
+    if scan.symbols.is_empty() {
+        return err(
+            "invalid_argument",
+            "new content contains no top-level symbol definitions".into(),
+        );
+    }
+    if scan.symbols.len() > 1 {
+        return err(
+            "invalid_argument",
+            format!(
+                "new content has {} top-level definitions; replace-symbol needs exactly one",
+                scan.symbols.len()
+            ),
+        );
+    }
+    let new_sym = &scan.symbols[0];
+    let new_leaf = new_sym.name.clone();
+    if !ident_ok(&new_leaf) {
+        return err(
+            "invalid_argument",
+            format!("new symbol name {new_leaf:?} is not a valid identifier"),
+        );
+    }
+    if !kinds_compatible(&old_kind, &new_sym.kind) {
+        return err(
+            "invalid_argument",
+            format!(
+                "kind mismatch: old symbol is {old_kind:?}, new content defines a {:?}",
+                new_sym.kind
+            ),
+        );
+    }
+
+    let name_changed = new_leaf != old_leaf;
+    let prefix = &qualified_path[..qualified_path.len() - old_leaf.len()];
+    let new_qpath = if prefix.is_empty() {
+        new_leaf.clone()
+    } else {
+        format!("{prefix}{new_leaf}")
+    };
+    if name_changed && index.by_path.contains_key(&new_qpath) {
+        return err("name_collision", format!("{new_qpath:?} already exists"));
+    }
+
+    let declaring_source = match std::fs::read(&declaring_file_abs) {
+        Ok(s) => s,
+        Err(e) => {
+            return err(
+                "file_not_found",
+                format!("cannot read {declaring_file_rel}: {e}"),
+            )
+        }
+    };
+    let (start, end) = old_byte_range;
+    if end > declaring_source.len() {
+        return err(
+            "conflict",
+            format!("declaring file shrank: byte range {start}-{end} exceeds current size"),
+        );
+    }
+
+    let pattern = name_changed.then(|| {
+        regex::Regex::new(&format!(r"\b{}\b", regex::escape(&old_leaf))).unwrap()
+    });
+    let mut before = declaring_source[..start].to_vec();
+    let mut after = declaring_source[end..].to_vec();
+    let mut declaring_refs_updated = 1i64;
+    if let Some(pat) = &pattern {
+        let before_text = String::from_utf8_lossy(&before).into_owned();
+        let c1 = pat.find_iter(&before_text).count() as i64;
+        before = pat.replace_all(&before_text, new_leaf.as_str()).into_owned().into_bytes();
+        let after_text = String::from_utf8_lossy(&after).into_owned();
+        let c2 = pat.find_iter(&after_text).count() as i64;
+        after = pat.replace_all(&after_text, new_leaf.as_str()).into_owned().into_bytes();
+        declaring_refs_updated += c1 + c2;
+    }
+
+    let target_indent = indent_at_byte(&declaring_source, start);
+    let content_bytes = normalize_content(content, &target_indent);
+    let mut declaring_new = Vec::with_capacity(before.len() + content_bytes.len() + after.len());
+    declaring_new.extend_from_slice(&before);
+    declaring_new.extend_from_slice(&content_bytes);
+    declaring_new.extend_from_slice(&after);
+
+    let mut edits = vec![FileEdit {
+        file_abs: declaring_file_abs.clone(),
+        file_rel: declaring_file_rel.clone(),
+        new_content: declaring_new,
+    }];
+    let mut per_file = vec![serde_json::json!({
+        "file": declaring_file_rel, "refs_updated": declaring_refs_updated,
+    })];
+
+    if let Some(pat) = &pattern {
+        let mut other_files: std::collections::BTreeSet<String> = index
+            .callers_of(&old_leaf)
+            .into_iter()
+            .map(|(src_row, _, _)| index.file_of(src_row).to_owned())
+            .collect();
+        other_files.remove(&declaring_file_rel);
+        for rel in other_files {
+            let abs = project_root.join(&rel);
+            let Ok(src) = std::fs::read(&abs) else { continue };
+            let text = String::from_utf8_lossy(&src).into_owned();
+            let count = pat.find_iter(&text).count() as i64;
+            if count == 0 {
+                continue;
+            }
+            let new_text = pat.replace_all(&text, new_leaf.as_str()).into_owned();
+            edits.push(FileEdit {
+                file_abs: abs,
+                file_rel: rel.clone(),
+                new_content: new_text.into_bytes(),
+            });
+            per_file.push(serde_json::json!({ "file": rel, "refs_updated": count }));
+        }
+    }
+
+    let subject = if name_changed {
+        format!("{qualified_path} → {new_leaf} (rewrite + rename)")
+    } else {
+        format!("{qualified_path} (rewrite)")
+    };
+    let tx = commit_edits(&edits, project_root, "replace-symbol", &subject, dry_run);
+    if tx.status == "error" {
+        return serde_json::json!({
+            "status": "error", "error_code": tx.error_code, "message": tx.message,
+            "qualified_path": qualified_path,
+        });
+    }
+    if !dry_run {
+        normalize_blank_gaps_via_adapter(&declaring_file_abs, &language, reg);
+    }
+
+    let total_refs: i64 = per_file
+        .iter()
+        .map(|f| f["refs_updated"].as_i64().unwrap_or(0))
+        .sum();
+    let new_sig = parse_text
+        .lines()
+        .nth((new_sym.line_range.0 - 1).max(0) as usize)
+        .unwrap_or("")
+        .trim();
+    serde_json::json!({
+        "status": if dry_run { "dry_run" } else { "applied" },
+        "qualified_path": qualified_path,
+        "new_qualified_path": new_qpath,
+        "name_changed": name_changed,
+        "declaring_file": declaring_file_rel,
+        "new_signature": new_sig,
+        "kind": old_kind,
+        "files_changed": edits.len(),
+        "refs_updated": total_refs,
+        "per_file": per_file,
+        "transaction_id": tx.transaction_id,
+    })
+}
