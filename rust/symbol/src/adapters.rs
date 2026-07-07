@@ -101,6 +101,41 @@ pub struct RenameAnalysis {
     pub unresolved: Vec<UnresolvedSite>,
 }
 
+/// Go marshals a nil slice as JSON `null`, which `#[serde(default)]` alone
+/// (absent-key only) won't tolerate — map an explicit null to the default.
+fn null_as_default<'de, D, T>(d: D) -> std::result::Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
+
+/// One interface whose contract the rename would break — surfaced by the
+/// Go engine (project-wide go/types analysis), never auto-renamed.
+#[derive(Deserialize, Debug, Clone)]
+pub struct AffectedInterface {
+    pub interface_qpath: String,
+    pub method_qpath: String,
+    pub file: String,
+    pub line: i64,
+}
+
+/// Per-file result of a Go project-wide rename. Same three buckets as
+/// RenameAnalysis plus optional interface impacts, which the daemon
+/// stamps onto a single file entry (the declaring file).
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct RenameFileAnalysis {
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub rewrites: Vec<ByteRewrite>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub skipped_mismatch: Vec<SkippedMismatchSite>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub unresolved: Vec<UnresolvedSite>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub affected_interfaces: Vec<AffectedInterface>,
+}
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct ParseResult {
     pub ok: bool,
@@ -281,6 +316,47 @@ impl Adapter {
         Ok(serde_json::from_value(result)?)
     }
 
+    /// Go v2 engine rename: ONE project-wide daemon call (the go-scan
+    /// daemon loads the whole project via go/packages itself — no per-file
+    /// calls, no index callbacks). `container_qpath` maps to
+    /// target_owner_qpath (member) or target_module_qpath (module binding).
+    /// Returns the per-file analyses keyed by repo-relative path.
+    #[allow(clippy::too_many_arguments)]
+    pub fn go_rename(
+        &self,
+        member: bool,
+        project_root: &Path,
+        leaf: &str,
+        new_name: &str,
+        target_qpath: &str,
+        container_qpath: &str,
+        declaring_file: &str,
+        decl_byte_range: (i64, i64),
+    ) -> Result<HashMap<String, RenameFileAnalysis>> {
+        let mut params = serde_json::json!({
+            "project_root": project_root.to_string_lossy(),
+            "leaf": leaf,
+            "new_name": new_name,
+            "target_qpath": target_qpath,
+            "declaring_file": declaring_file,
+            "decl_byte_range": [decl_byte_range.0, decl_byte_range.1],
+            "candidate_files": [],
+        });
+        let method = if member {
+            params["target_owner_qpath"] = container_qpath.into();
+            "rename_member"
+        } else {
+            params["target_module_qpath"] = container_qpath.into();
+            "rename_module_binding"
+        };
+        let result = self.daemon.call(method, params)?;
+        let files = result
+            .get("files")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+        Ok(serde_json::from_value(files)?)
+    }
+
     pub fn normalize_blank_gaps(&self, source: &str) -> Result<String> {
         let result = self
             .daemon
@@ -330,9 +406,17 @@ fn goscan_argv() -> Option<Vec<String>> {
         return Some(cmd.split_whitespace().map(str::to_owned).collect());
     }
     let repo = symbol_repo();
-    let dev = repo.join("daemon/go-scan");
-    if dev.is_file() {
-        return Some(vec![dev.to_string_lossy().into_owned()]);
+    // Dev binaries a contributor may have `go build`'t. Mirrors the Python
+    // adapter's dev path (adapters/go_ast/daemon/go-scan) so both engines
+    // pick up the same freshly-built daemon before falling back to the
+    // (CI-built, possibly older) bundled binaries below.
+    for dev in [
+        repo.join("daemon/go-scan"),
+        repo.join("src/wyolet/symbol/adapters/go_ast/daemon/go-scan"),
+    ] {
+        if dev.is_file() {
+            return Some(vec![dev.to_string_lossy().into_owned()]);
+        }
     }
     let system = std::env::consts::OS; // "macos" → python platform says "darwin"
     let system = if system == "macos" { "darwin" } else { system };
