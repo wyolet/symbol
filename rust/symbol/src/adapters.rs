@@ -72,13 +72,99 @@ pub struct ParseResult {
 pub struct Adapter {
     daemon: Daemon,
     pub language: String,
+    project_root: PathBuf,
+}
+
+/// Port of GoAstAdapter.module_prefix: nearest go.mod's `module` declaration
+/// plus the directory path relative to it; directory-layout fallback when no
+/// go.mod ancestor exists. Cached per directory.
+fn go_module_prefix(path: &Path, project_root: &Path) -> String {
+    static CACHE: std::sync::LazyLock<std::sync::Mutex<HashMap<PathBuf, String>>> =
+        std::sync::LazyLock::new(Default::default);
+
+    let directory = path
+        .parent()
+        .map(|d| d.canonicalize().unwrap_or_else(|_| d.to_owned()))
+        .unwrap_or_default();
+    if let Some(hit) = CACHE.lock().unwrap().get(&directory) {
+        return hit.clone();
+    }
+
+    let mut module: Option<(PathBuf, String)> = None;
+    let mut current = directory.clone();
+    loop {
+        let gomod = current.join("go.mod");
+        if gomod.is_file() {
+            if let Some(name) = parse_go_module_name(&gomod) {
+                module = Some((current.clone(), name));
+            }
+            break;
+        }
+        match current.parent() {
+            Some(p) if p != current => current = p.to_owned(),
+            _ => break,
+        }
+    }
+
+    let prefix = match module {
+        Some((module_root, module_name)) => {
+            let rel = directory
+                .strip_prefix(&module_root)
+                .map(|r| r.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/"))
+                .unwrap_or_default();
+            let rel: String = rel
+                .split('/')
+                .filter(|p| !p.is_empty() && *p != ".")
+                .collect::<Vec<_>>()
+                .join("/");
+            if rel.is_empty() {
+                module_name
+            } else {
+                format!("{module_name}/{rel}")
+            }
+        }
+        None => directory
+            .strip_prefix(project_root)
+            .map(|r| {
+                r.to_string_lossy()
+                    .replace(std::path::MAIN_SEPARATOR, "/")
+                    .split('/')
+                    .filter(|p| !p.is_empty() && *p != ".")
+                    .collect::<Vec<_>>()
+                    .join("/")
+            })
+            .unwrap_or_default(),
+    };
+    CACHE.lock().unwrap().insert(directory, prefix.clone());
+    prefix
+}
+
+/// module is the first directive in a valid go.mod; skip blanks/comments.
+fn parse_go_module_name(gomod: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(gomod).ok()?;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("//") {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("module ") {
+            let name = rest.trim().trim_matches('"');
+            return (!name.is_empty()).then(|| name.to_owned());
+        }
+        break;
+    }
+    None
 }
 
 impl Adapter {
     pub fn scan_file(&self, path: &Path, module_prefix: Option<&str>) -> Result<FileScan> {
         let mut params = serde_json::json!({ "path": path.to_string_lossy() });
+        // pyscan self-computes its module prefix (it owns the Python layout
+        // rules); the Go prefix mirrors GoAstAdapter.module_prefix here.
         if let Some(mp) = module_prefix {
             params["module_prefix"] = mp.into();
+        } else if self.language == "go" {
+            params["module_prefix"] = go_module_prefix(path, &self.project_root).into();
         }
         // go-scan takes source inline; pyscan reads from disk when absent.
         if self.language == "go" {
@@ -226,6 +312,7 @@ impl Registry {
         let adapter: &'static Adapter = Box::leak(Box::new(Adapter {
             daemon: Daemon::spawn(name, &argv, init)?,
             language: lang_key.to_owned(),
+            project_root: self.project_root.clone(),
         }));
         self.adapters
             .lock()
