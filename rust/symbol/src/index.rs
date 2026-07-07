@@ -904,9 +904,50 @@ impl Index {
 
 // ---------------------------------------------------------- build / refresh drivers
 
+/// The `[checker] exclude` scope Python's full build applies via
+/// filter_paths: global data/spec.toml baseline + the target project's
+/// `symbol.toml` / `pyproject.toml [tool.symbol.checker]` extensions.
+/// (Per-package spec excludes are not shimmed yet — documented.)
+fn checker_excludes(project_root: &Path) -> Vec<GlobPat> {
+    const EMBEDDED_SPEC: &str =
+        include_str!("../../../src/wyolet/symbol/data/spec.toml");
+
+    let mut patterns: Vec<String> = vec![];
+    let global = std::env::var("SYMBOL_REPO")
+        .map(|r| Path::new(&r).join("src/wyolet/symbol/data/spec.toml"))
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .unwrap_or_else(|| EMBEDDED_SPEC.to_owned());
+    if let Ok(spec) = global.parse::<toml::Table>() {
+        push_excludes(&mut patterns, spec.get("checker"));
+    }
+    if let Ok(text) = std::fs::read_to_string(project_root.join("symbol.toml")) {
+        if let Ok(cfg) = text.parse::<toml::Table>() {
+            push_excludes(&mut patterns, cfg.get("checker"));
+        }
+    }
+    if let Ok(text) = std::fs::read_to_string(project_root.join("pyproject.toml")) {
+        if let Ok(cfg) = text.parse::<toml::Table>() {
+            let checker = cfg
+                .get("tool")
+                .and_then(|t| t.get("symbol"))
+                .and_then(|s| s.get("checker"));
+            push_excludes(&mut patterns, checker);
+        }
+    }
+    patterns.iter().filter_map(|p| GlobPat::new(p)).collect()
+}
+
+fn push_excludes(out: &mut Vec<String>, checker: Option<&toml::Value>) {
+    if let Some(arr) = checker.and_then(|c| c.get("exclude")).and_then(|e| e.as_array()) {
+        out.extend(arr.iter().filter_map(|v| v.as_str().map(str::to_owned)));
+    }
+}
+
 pub fn full_build(project_root: &Path, reg: &Registry) -> Result<Index> {
     let ctx = linguist();
     let mut idx = Index::empty(project_root);
+    let excludes = checker_excludes(project_root);
     let mut files = walk(
         project_root,
         &WalkOptions {
@@ -917,6 +958,10 @@ pub fn full_build(project_root: &Path, reg: &Registry) -> Result<Index> {
     files.sort_by(|a, b| a.rel.cmp(&b.rel));
     for f in files {
         if f.is_symlink {
+            continue;
+        }
+        // filter_paths semantics: [checker] excludes gate the full build.
+        if excludes.iter().any(|g| g.matches(&f.rel)) {
             continue;
         }
         let Some(key) = classify(&f.abs) else { continue };
