@@ -1,5 +1,5 @@
 //! Port of shared/symbol_index.py — the columnar symbol lookup table.
-//! Persisted format is BYTE-COMPATIBLE with Python's v6 index
+//! Persisted format is BYTE-COMPATIBLE with Python's v7 index
 //! (.symbol/symbol_index.msgpack.zst): either side can read the other's.
 
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ use symbol_linguist::walk::{walk, WalkOptions};
 
 use crate::adapters::{Registry, ScannedSymbol};
 
-pub const INDEX_VERSION: i64 = 6;
+pub const INDEX_VERSION: i64 = 7;
 const INDEX_REL_PATH: &str = ".symbol/symbol_index.msgpack.zst";
 const MAX_INDEX_FILE_BYTES: u64 = 20 * 1024 * 1024;
 const ZSTD_LEVEL: i32 = 3;
@@ -71,6 +71,7 @@ struct Payload {
     symbols: Vec<[i64; 9]>,
     imports: Vec<[i64; 4]>,
     refs_of: Vec<Vec<(i64, i64)>>,
+    bases_of: Vec<Vec<i64>>,
     by_path: HashMap<String, Vec<i64>>,
     by_file: HashMap<i64, Vec<i64>>,
     imps_by_file: HashMap<i64, Vec<i64>>,
@@ -139,6 +140,7 @@ pub struct Index {
     pub symbols: Vec<[i64; 9]>,
     pub imports: Vec<[i64; 4]>,
     pub refs_of: Vec<Vec<(i64, i64)>>,
+    pub bases_of: Vec<Vec<i64>>,
     pub by_path: HashMap<String, Vec<i64>>,
     pub by_file: HashMap<i64, Vec<i64>>,
     pub imps_by_file: HashMap<i64, Vec<i64>>,
@@ -167,6 +169,7 @@ impl Index {
             symbols: vec![],
             imports: vec![],
             refs_of: vec![],
+            bases_of: vec![],
             by_path: HashMap::new(),
             by_file: HashMap::new(),
             imps_by_file: HashMap::new(),
@@ -295,6 +298,8 @@ impl Index {
             packed.push((pack_ref(name_id, kind_bit), r.line));
         }
         self.refs_of.push(packed);
+        let bases: Vec<i64> = sym.bases.iter().map(|b| self.intern(b)).collect();
+        self.bases_of.push(bases);
         self.by_path
             .entry(sym.qualified_path.clone())
             .or_default()
@@ -388,6 +393,14 @@ impl Index {
                 let (name_id, kind) = unpack_ref(packed);
                 (self.strings[name_id as usize].as_str(), ref_label(kind), line)
             })
+            .collect()
+    }
+
+    /// Base-class expression strings for a symbol row (empty for non-classes).
+    pub fn bases_for(&self, row: i64) -> Vec<&str> {
+        self.bases_of[row as usize]
+            .iter()
+            .map(|&b| self.strings[b as usize].as_str())
             .collect()
     }
 
@@ -784,6 +797,7 @@ impl Index {
             };
             self.symbols[row as usize] = [0, fid, 0, 0, 0, 0, 0, 0, -1];
             self.refs_of[row as usize] = vec![];
+            self.bases_of[row as usize] = vec![];
             if !path.is_empty() {
                 if let Some(rows) = self.by_path.get_mut(&path) {
                     rows.retain(|&r| r != row);
@@ -822,6 +836,7 @@ impl Index {
             symbols: self.symbols.clone(),
             imports: self.imports.clone(),
             refs_of: self.refs_of.clone(),
+            bases_of: self.bases_of.clone(),
             by_path: self.by_path.clone(),
             by_file: self.by_file.clone(),
             imps_by_file: self.imps_by_file.clone(),
@@ -894,6 +909,7 @@ impl Index {
         idx.symbols = payload.symbols;
         idx.imports = payload.imports;
         idx.refs_of = payload.refs_of;
+        idx.bases_of = payload.bases_of;
         idx.by_path = payload.by_path;
         idx.by_file = payload.by_file;
         idx.imps_by_file = payload.imps_by_file;
@@ -1030,4 +1046,48 @@ fn git(cwd: &Path, args: &[&str]) -> Option<String> {
 fn git_bytes(cwd: &Path, args: &[&str]) -> Option<Vec<u8>> {
     let out = Command::new("git").args(args).current_dir(cwd).output().ok()?;
     out.status.success().then_some(out.stdout)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::ScannedSymbol;
+
+    fn sym(kind: &str, qpath: &str, bases: &[&str]) -> ScannedSymbol {
+        ScannedSymbol {
+            kind: kind.to_owned(),
+            name: qpath.rsplit('.').next().unwrap().to_owned(),
+            qualified_path: qpath.to_owned(),
+            byte_range: (0, 1),
+            line_range: (1, 1),
+            refs: vec![],
+            bases: bases.iter().map(|b| b.to_owned().to_owned()).collect(),
+            children: vec![],
+        }
+    }
+
+    #[test]
+    fn bases_roundtrip_through_save_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        let mut idx = Index::empty(root);
+        let fid = idx.file_id("mod.py", "python");
+        let lid = idx.lang_id("python");
+        idx.ingest_symbol(&sym("class", "mod.Base", &[]), fid, -1, lid);
+        idx.ingest_symbol(&sym("class", "mod.Sub", &["Base", "mod.Mixin"]), fid, -1, lid);
+        idx.ingest_symbol(&sym("function", "mod.helper", &[]), fid, -1, lid);
+        idx.build_by_name_id();
+
+        // In-memory accessor before persistence.
+        assert_eq!(idx.bases_for(0), Vec::<&str>::new());
+        assert_eq!(idx.bases_for(1), vec!["Base", "mod.Mixin"]);
+        assert_eq!(idx.bases_for(2), Vec::<&str>::new());
+
+        idx.save().unwrap();
+        let loaded = Index::load(root).expect("index reloads");
+        assert_eq!(loaded.bases_for(0), Vec::<&str>::new());
+        assert_eq!(loaded.bases_for(1), vec!["Base", "mod.Mixin"]);
+        assert_eq!(loaded.bases_for(2), Vec::<&str>::new());
+    }
 }

@@ -226,7 +226,8 @@ class Runner:
             for qpath, ids in idx.by_path.items():
                 rows[qpath] = sorted(
                     (idx.file_of(r), idx.kind_of(r), idx.range_of(r),
-                     idx.byte_range_of(r), tuple(sorted(idx.refs_for(r))))
+                     idx.byte_range_of(r), tuple(sorted(idx.refs_for(r))),
+                     tuple(idx.bases_for(r)))
                     for r in ids
                 )
             imports = sorted(

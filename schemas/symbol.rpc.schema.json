@@ -77,6 +77,12 @@
           "default": [],
           "items": { "$ref": "#/$defs/ScannedRef" }
         },
+        "bases": {
+          "type": "array",
+          "default": [],
+          "description": "Base-class expression strings (subscripts unwrapped, e.g. 'Generic'); keyword bases like metaclass= are excluded. Empty for non-class symbols.",
+          "items": { "type": "string" }
+        },
         "children": {
           "type": "array",
           "default": [],

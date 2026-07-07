@@ -31,6 +31,8 @@ pub struct ScannedSymbol {
     #[serde(default)]
     pub refs: Vec<ScannedRef>,
     #[serde(default)]
+    pub bases: Vec<String>,
+    #[serde(default)]
     pub children: Vec<ScannedSymbol>,
 }
 

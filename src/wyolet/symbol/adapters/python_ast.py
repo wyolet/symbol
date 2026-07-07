@@ -217,6 +217,7 @@ class PythonAstAdapter(LanguageAdapter):
                 end_line, getattr(child, "end_col_offset", 0) or 0, line_offsets
             )
             refs = _scan_refs(child)
+            bases = _scan_bases(child) if isinstance(child, ast.ClassDef) else ()
             children = self._scan_scope(
                 child, path_prefix=qpath, line_offsets=line_offsets,
                 parent_is_class=isinstance(child, ast.ClassDef),
@@ -229,6 +230,7 @@ class PythonAstAdapter(LanguageAdapter):
                     byte_range=(start_byte, end_byte),
                     line_range=(start_line, end_line),
                     refs=tuple(refs),
+                    bases=bases,
                     children=tuple(children),
                 )
             )
@@ -554,6 +556,20 @@ def _slice(source: bytes, node: ast.AST, line_offsets: list[int]) -> str:
 def _module_name(path: Path) -> str:
     """Best-effort module name from a path (no project-root awareness yet)."""
     return path.stem
+
+
+def _scan_bases(node: ast.ClassDef) -> tuple[str, ...]:
+    """Base-class expression strings for a class, keywords ignored.
+
+    Subscripts are unwrapped to their value (``Generic[T]`` → ``Generic``)
+    so the stored string is the bare base name/attribute the index and the
+    renamer resolve against. ``metaclass=``/other keyword bases are dropped.
+    """
+    out: list[str] = []
+    for expr in node.bases:
+        target = expr.value if isinstance(expr, ast.Subscript) else expr
+        out.append(ast.unparse(target))
+    return tuple(out)
 
 
 def _scan_refs(node: ast.AST) -> list[ScannedRef]:
