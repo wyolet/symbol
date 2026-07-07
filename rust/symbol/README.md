@@ -30,12 +30,12 @@ Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
 
 ## Documented divergences (tonight's cut lines)
 
-- **rename-symbol**: Python engine kinds now run the REAL v2 receiver-aware analysis (pyscan loads the shared on-disk index and executes rename_member/rename_module_binding; verified byte-identical to Python including discriminator skips). Go engine kinds remain tier-1 until go-scan's rename RPC is mirrored; results carry "engine": "v2" or "tier1".
-  over index-implicated files). Python routes python/go
-  method/function/class kinds through the v2 SymbolRenamer engine
-  (receiver-aware, adapter-resolved). Results carry `"engine": "tier1"`.
-  Wiring the engine path = exposing `rename_member`/`rename_module_binding`
-  through pyscan (go-scan already has them) — the next step.
+- **rename-symbol**: Python engine kinds run the REAL v2 receiver-aware
+  analysis — pyscan loads the shared on-disk index, builds
+  RenamerIndexQuery, and executes rename_member/rename_module_binding;
+  verified byte-identical to Python including discriminator skips. Go
+  engine kinds remain tier-1 until go-scan's rename RPC is mirrored.
+  Results carry `"engine": "v2"` or `"engine": "tier1"`.
 - **insert-symbol not ported** (its reindent logic is `ast`-bound in
   Python; belongs in the daemon as an RPC first).
 - **audit / map / analyze / MCP server not ported** — out of scope by
