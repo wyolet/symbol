@@ -868,6 +868,422 @@ def rename_field(
 
 
 # ──────────────────────────────────────────────────────────────────────
+# parameter rename (function signature surface)
+#
+# A parameter is *signature surface*: renaming it must update
+#   (a) the `ast.arg` node in the def signature,
+#   (b) every in-scope `Name` use of the param in the function body
+#       (excluding inner scopes that rebind the name), and
+#   (c) KEYWORD arguments at call sites whose callee statically resolves to
+#       this function (`func(param=...)`).
+# Positional call arguments are never touched — a parameter rename is
+# invisible to them. There is no parameter index row; the op is addressed
+# by (function qpath, param name).
+
+
+def _def_chain(resolver: "_PerFileResolver", node: ast.AST) -> list[str]:
+    """Enclosing Class/Function name chain for a def node, outermost first."""
+    chain: list[str] = []
+    cur: ast.AST | None = node
+    while cur is not None:
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            chain.append(cur.name)  # type: ignore[attr-defined]
+        cur = resolver.parent.get(id(cur))
+    chain.reverse()
+    return chain
+
+
+def _find_function(
+    resolver: "_PerFileResolver",
+    tree: ast.Module,
+    module_prefix: str,
+    func_qpath: str,
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    """Locate the def whose computed qpath equals `func_qpath` (index rule)."""
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        chain = _def_chain(resolver, node)
+        qp = ".".join([module_prefix, *chain]) if module_prefix else ".".join(chain)
+        if qp == func_qpath:
+            return node
+    return None
+
+
+def _param_arg_node(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef, param: str,
+) -> ast.arg | None:
+    a = fn.args
+    for arg in list(a.posonlyargs) + list(a.args) + list(a.kwonlyargs):
+        if arg.arg == param:
+            return arg
+    if a.vararg and a.vararg.arg == param:
+        return a.vararg
+    if a.kwarg and a.kwarg.arg == param:
+        return a.kwarg
+    return None
+
+
+def _target_name_set(target: ast.expr) -> set[str]:
+    out: set[str] = set()
+    if isinstance(target, ast.Name):
+        out.add(target.id)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            out |= _target_name_set(elt)
+    elif isinstance(target, ast.Starred):
+        out |= _target_name_set(target.value)
+    return out
+
+
+def _comp_bound_names(node: ast.expr) -> set[str]:
+    out: set[str] = set()
+    for gen in getattr(node, "generators", []):
+        out |= _target_name_set(gen.target)
+    return out
+
+
+def _param_use_names(
+    resolver: "_PerFileResolver",
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+    param: str,
+) -> list[ast.Name]:
+    """`Name(id==param)` nodes in `fn`'s body that bind to `fn`'s parameter.
+
+    Lexical scoping, honoring the two subtle Python rules:
+      - a nested def/lambda's DEFAULTS/ANNOTATIONS/DECORATORS evaluate in the
+        *enclosing* scope, so `param` there is still ours; only the nested
+        body (where a same-named param/local shadows) is excluded.
+      - the outermost comprehension iterable evaluates in the enclosing scope.
+    Assignments to `param` in `fn`'s own body are the same binding (rewritten);
+    only a nested scope that rebinds the name shadows it.
+    """
+    out: list[ast.Name] = []
+
+    def scope_binds(scope: ast.AST) -> bool:
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return param in resolver._function_locals(scope)
+        if isinstance(scope, ast.Lambda):
+            return param in resolver._lambda_locals(scope)
+        return False
+
+    def handle(node: ast.AST, shadowed: bool) -> None:
+        if isinstance(node, ast.Name):
+            if node.id == param and not shadowed:
+                out.append(node)
+            return
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for d in node.decorator_list:
+                handle(d, shadowed)
+            _handle_signature_outer(node.args, shadowed, handle)
+            if node.returns is not None:
+                handle(node.returns, shadowed)
+            inner = shadowed or scope_binds(node)
+            for s in node.body:
+                handle(s, inner)
+            return
+        if isinstance(node, ast.Lambda):
+            _handle_signature_outer(node.args, shadowed, handle)
+            inner = shadowed or scope_binds(node)
+            handle(node.body, inner)
+            return
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+            inner = shadowed or (param in _comp_bound_names(node))
+            for i, gen in enumerate(node.generators):
+                handle(gen.iter, shadowed if i == 0 else inner)
+                handle(gen.target, inner)
+                for cond in gen.ifs:
+                    handle(cond, inner)
+            if isinstance(node, ast.DictComp):
+                handle(node.key, inner)
+                handle(node.value, inner)
+            else:
+                handle(node.elt, inner)
+            return
+        if isinstance(node, ast.ClassDef):
+            for d in node.decorator_list:
+                handle(d, shadowed)
+            for b in node.bases:
+                handle(b, shadowed)
+            for k in node.keywords:
+                handle(k, shadowed)
+            classbinds = param in resolver._locals_in(node.body, include_def_names=True)
+            for s in node.body:
+                handle(s, shadowed or classbinds)
+            return
+        for child in ast.iter_child_nodes(node):
+            handle(child, shadowed)
+
+    for stmt in fn.body:
+        handle(stmt, False)
+    return out
+
+
+def _handle_signature_outer(args: ast.arguments, shadowed: bool, handle) -> None:
+    """Visit a def/lambda signature's *outer-scope* subtrees (defaults,
+    annotations) — everything evaluated in the enclosing scope, not the
+    function's own. The arg identifiers themselves are `ast.arg`, never
+    `ast.Name`, so they contribute no uses."""
+    for default in list(args.defaults) + [d for d in args.kw_defaults if d is not None]:
+        handle(default, shadowed)
+    for arg in (
+        list(args.posonlyargs) + list(args.args) + list(args.kwonlyargs)
+        + ([args.vararg] if args.vararg else [])
+        + ([args.kwarg] if args.kwarg else [])
+    ):
+        if arg.annotation is not None:
+            handle(arg.annotation, shadowed)
+
+
+def _callee_leaf(func: ast.expr) -> str | None:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _classify_kwarg_sites(
+    *,
+    source: bytes,
+    line_starts: list[int],
+    tree: ast.Module,
+    resolver: "_PerFileResolver",
+    func_qpath: str,
+    func_leaf: str,
+    param: str,
+    new_name: str,
+    owner_qpath: str,
+    owner_is_class: bool,
+    module_prefix: str,
+    index: IndexQuery,
+) -> tuple[list[ByteRewrite], list[SkippedMismatchSite], list[UnresolvedSite]]:
+    """Bucket every `call(..., param=...)` keyword whose callee leaf matches
+    `func_leaf` against `func_qpath`."""
+    rewrites: list[ByteRewrite] = []
+    skipped: list[SkippedMismatchSite] = []
+    unresolved: list[UnresolvedSite] = []
+    param_b = param.encode("utf-8")
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        kw = next((k for k in node.keywords if k.arg == param), None)
+        if kw is None:
+            continue
+        leaf = _callee_leaf(node.func)
+        if leaf != func_leaf:
+            continue
+        # Byte span of the keyword-argument identifier.
+        start = _col_to_byte(source, line_starts, kw.lineno, kw.col_offset)
+        end = start + len(param_b)
+        if source[start:end] != param_b:
+            continue
+        recv_text = _receiver_text(source, line_starts, node.func)
+
+        def add_rewrite() -> None:
+            rewrites.append(ByteRewrite(
+                byte_start=start, byte_end=end, new_text=new_name,
+                line=kw.lineno, col=kw.col_offset, receiver_source=recv_text,
+            ))
+
+        def add_skipped(qp: str) -> None:
+            skipped.append(SkippedMismatchSite(
+                byte_start=start, byte_end=end,
+                line=kw.lineno, col=kw.col_offset, receiver_source=recv_text,
+                resolved_to_qpath=qp,
+            ))
+
+        def add_unresolved(why: str) -> None:
+            unresolved.append(UnresolvedSite(
+                byte_start=start, byte_end=end,
+                line=kw.lineno, col=kw.col_offset, receiver_source=recv_text,
+                why=why,
+            ))
+
+        if owner_is_class:
+            # Method call: callee must be `receiver.leaf`. Resolve the receiver
+            # to a class qpath and test the target owner's static MRO — exactly
+            # like `_classify_attr_sites`.
+            if not isinstance(node.func, ast.Attribute):
+                add_unresolved("method callee is not an attribute access")
+                continue
+            recv = node.func.value
+            enclosing = resolver.resolve_super_receiver(recv)
+            if enclosing is not None:
+                owner_set = _ancestor_set(index, enclosing) - {enclosing}
+                if owner_qpath in owner_set:
+                    add_rewrite()
+                else:
+                    add_skipped(f"super() in {enclosing}")
+                continue
+            qp, why = resolver.resolve_receiver(recv)
+            if qp is None:
+                add_unresolved(why or "unknown receiver")
+            elif owner_qpath in _ancestor_set(index, qp):
+                add_rewrite()
+            else:
+                add_skipped(qp)
+            continue
+
+        # Module-level function call.
+        if isinstance(node.func, ast.Name):
+            qp = _resolve_function_name(resolver, node.func, module_prefix)
+            if qp == func_qpath:
+                add_rewrite()
+            elif qp is not None:
+                add_skipped(qp)
+            else:
+                add_unresolved(f"callee `{func_leaf}` not resolvable to a function")
+        elif isinstance(node.func, ast.Attribute):
+            recv_module = resolver.resolve_module_receiver(node.func.value)
+            if recv_module is None:
+                add_unresolved(
+                    f"callee `{ast.unparse(node.func)}` receiver is not a resolvable module"
+                )
+            elif f"{recv_module}.{func_leaf}" == func_qpath:
+                add_rewrite()
+            else:
+                add_skipped(f"{recv_module}.{func_leaf}")
+        else:
+            add_unresolved("callee is a computed expression — needs type checker")
+
+    return rewrites, skipped, unresolved
+
+
+def _resolve_function_name(
+    resolver: "_PerFileResolver", name: ast.Name, module_prefix: str,
+) -> str | None:
+    """Resolve a bare `Name` callee to a function qpath: an imported binding
+    (`from mod import foo`) or a same-module def. Returns None when the name
+    is not a statically known function reference."""
+    qp = resolver.name_to_qpath.get(name.id)
+    if qp:
+        return qp
+    if module_prefix:
+        return f"{module_prefix}.{name.id}"
+    return name.id
+
+
+def parameter_names(
+    source: bytes,
+    module_prefix: str,
+    func_qpath: str,
+) -> tuple[str, ...] | None:
+    """Ordered parameter names of the function at `func_qpath`, or None if the
+    function isn't found. Used by the orchestrator for collision validation."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    resolver = _PerFileResolver(tree, module_prefix, _NullIndex())
+    fn = _find_function(resolver, tree, module_prefix, func_qpath)
+    if fn is None:
+        return None
+    a = fn.args
+    names = [arg.arg for arg in list(a.posonlyargs) + list(a.args) + list(a.kwonlyargs)]
+    if a.vararg:
+        names.append(a.vararg.arg)
+    if a.kwarg:
+        names.append(a.kwarg.arg)
+    return tuple(names)
+
+
+class _NullIndex:
+    """Minimal IndexQuery for parse-only work (parameter_names) that never
+    performs receiver resolution."""
+
+    def find_declaration(self, qpath):  # noqa: D401, ANN001
+        return None
+
+    def class_bases(self, class_qpath):  # noqa: ANN001
+        return ()
+
+    def owners_of_leaf(self, leaf):  # noqa: ANN001
+        return ()
+
+
+def rename_parameter(
+    *,
+    source: bytes,
+    func_qpath: SymbolPath,
+    func_leaf: str,
+    param: str,
+    new_name: str,
+    index: IndexQuery,
+    is_declaring_file: bool,
+    decl_byte_range: tuple[int, int] | None,
+    module_prefix: str,
+) -> RenameAnalysis:
+    """Per-file parameter rename analysis.
+
+    Declaring file: the `ast.arg` node and every in-scope body use are
+    rewritten. All files (incl. declaring): keyword-argument sites whose
+    callee statically resolves to `func_qpath` are rewritten; same-leaf calls
+    to a different function are `skipped_mismatch`; unresolvable callees whose
+    keyword matches are `unresolved`.
+    """
+    line_starts = line_byte_offsets(source)
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        return RenameAnalysis(
+            unresolved=(UnresolvedSite(
+                byte_start=0, byte_end=0, line=e.lineno or 1, col=0,
+                receiver_source="", why=f"file failed to parse: {e.msg}",
+            ),),
+        )
+
+    resolver = _PerFileResolver(tree, module_prefix, index)
+    owner_qpath = func_qpath.rsplit(".", 1)[0] if "." in func_qpath else ""
+    owner_decl = index.find_declaration(owner_qpath) if owner_qpath else None
+    owner_is_class = owner_decl is not None and owner_decl[3] == "class"
+
+    rewrites: list[ByteRewrite] = []
+    skipped: list[SkippedMismatchSite] = []
+    unresolved: list[UnresolvedSite] = []
+
+    if is_declaring_file:
+        fn = _find_function(resolver, tree, module_prefix, func_qpath)
+        if fn is not None:
+            param_b = param.encode("utf-8")
+            arg_node = _param_arg_node(fn, param)
+            if arg_node is not None:
+                start = _col_to_byte(source, line_starts, arg_node.lineno, arg_node.col_offset)
+                end = start + len(param_b)
+                if source[start:end] == param_b:
+                    rewrites.append(ByteRewrite(
+                        byte_start=start, byte_end=end, new_text=new_name,
+                        line=arg_node.lineno, col=arg_node.col_offset, receiver_source="",
+                    ))
+            for name_node in _param_use_names(resolver, fn, param):
+                start = _col_to_byte(source, line_starts, name_node.lineno, name_node.col_offset)
+                end = start + len(param_b)
+                if source[start:end] != param_b:
+                    continue
+                rewrites.append(ByteRewrite(
+                    byte_start=start, byte_end=end, new_text=new_name,
+                    line=name_node.lineno, col=name_node.col_offset, receiver_source="",
+                ))
+
+    kw_rewrites, kw_skipped, kw_unresolved = _classify_kwarg_sites(
+        source=source, line_starts=line_starts, tree=tree, resolver=resolver,
+        func_qpath=func_qpath, func_leaf=func_leaf, param=param, new_name=new_name,
+        owner_qpath=owner_qpath, owner_is_class=owner_is_class,
+        module_prefix=module_prefix, index=index,
+    )
+    rewrites.extend(kw_rewrites)
+    skipped.extend(kw_skipped)
+    unresolved.extend(kw_unresolved)
+
+    return RenameAnalysis(
+        rewrites=tuple(rewrites),
+        skipped_mismatch=tuple(skipped),
+        unresolved=tuple(unresolved),
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
 # module-binding rename (function / async_function / class / constant)
 
 def rename_module_binding(

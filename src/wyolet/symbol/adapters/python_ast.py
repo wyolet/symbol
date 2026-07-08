@@ -447,6 +447,43 @@ class PythonAstAdapter(LanguageAdapter):
             module_prefix=self.module_prefix(path, project_root),
         )
 
+    def rename_parameter(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        func_qpath: SymbolPath,
+        func_leaf: str,
+        param: str,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        return _rename.rename_parameter(
+            source=source,
+            func_qpath=func_qpath,
+            func_leaf=func_leaf,
+            param=param,
+            new_name=new_name,
+            index=index,
+            is_declaring_file=is_declaring_file,
+            decl_byte_range=decl_byte_range,
+            module_prefix=self.module_prefix(path, project_root),
+        )
+
+    def function_parameters(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        func_qpath: SymbolPath,
+        decl_byte_range: tuple[int, int] | None,
+    ) -> tuple[str, ...] | None:
+        return _rename.parameter_names(
+            source, self.module_prefix(path, project_root), func_qpath,
+        )
+
     def rename_module_binding(
         self,
         path: Path,

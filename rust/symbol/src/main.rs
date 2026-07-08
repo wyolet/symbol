@@ -9,7 +9,7 @@ use symbol_core::reads;
 use symbol_core::writes::ops::{delete_symbol, insert_symbol, replace_symbol};
 use symbol_core::writes::patch::{apply_patch, preflight, validate_args};
 use symbol_core::writes::read_cache::ReadCache;
-use symbol_core::writes::rename::rename_symbol;
+use symbol_core::writes::rename::{rename_parameter, rename_symbol};
 use symbol_core::writes::tx::undo_last;
 
 /// symbol-rs — Rust port of symbol's core (index, reads, writes).
@@ -95,6 +95,14 @@ enum Cmd {
     /// Rename a symbol and its references (tier-1 textual)
     RenameSymbol {
         qualified_path: String,
+        new_name: String,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Rename a function/method parameter (signature slot, body uses, resolvable kwargs)
+    RenameParameter {
+        func_qpath: String,
+        param: String,
         new_name: String,
         #[arg(long)]
         dry_run: bool,
@@ -286,6 +294,11 @@ fn main() -> Result<()> {
         Cmd::RenameSymbol { qualified_path, new_name, dry_run } => {
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = rename_symbol(&mut idx, &qualified_path, &new_name, &root, reg, dry_run);
+            finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
+        }
+        Cmd::RenameParameter { func_qpath, param, new_name, dry_run } => {
+            let (mut idx, _) = get_or_build(&root, reg)?;
+            let result = rename_parameter(&mut idx, &func_qpath, &param, &new_name, &root, reg, dry_run);
             finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
         }
         Cmd::Undo => {

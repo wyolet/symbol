@@ -23,6 +23,7 @@ from .commands.hook import run as hook_run
 from .commands.insert_symbol import insert_symbol_cmd
 from .commands.outline import outline_cmd
 from .commands.patch import patch_cmd
+from .commands.rename_parameter import rename_parameter_cmd
 from .commands.rename_symbol import rename_symbol_cmd
 from .commands.replace_symbol import replace_symbol_cmd
 
@@ -52,6 +53,7 @@ def _maybe_default_audit() -> None:
         "insert-symbol",
         "outline",
         "patch",
+        "rename-parameter",
         "rename-symbol",
         "replace-symbol",
         "search",
@@ -346,6 +348,31 @@ def rename_symbol(
         agent = True
     rename_symbol_cmd(
         qualified_path=qualified_path,
+        new_name=new_name,
+        project_root=path,
+        dry_run=dry_run,
+        agent=agent,
+        format=format,
+    )
+
+
+@app.command("rename-parameter")
+def rename_parameter(
+    func_qpath: Annotated[str, typer.Argument(help="Fully qualified function/method path (e.g. services.user.UserService.save)")],
+    param: Annotated[str, typer.Argument(help="Current parameter name")],
+    new_name: Annotated[str, typer.Argument(help="New parameter name (no dots)")],
+    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Plan rename, don't write")] = False,
+    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
+    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
+) -> None:
+    """Rename a function/method parameter: signature slot, in-scope body uses, and resolvable keyword-argument call sites."""
+    import os as _os
+    if _os.environ.get("SYMBOL_AGENT"):
+        agent = True
+    rename_parameter_cmd(
+        func_qpath=func_qpath,
+        param=param,
         new_name=new_name,
         project_root=path,
         dry_run=dry_run,

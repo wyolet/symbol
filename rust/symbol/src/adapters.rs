@@ -320,6 +320,56 @@ impl Adapter {
         Ok(serde_json::from_value(result)?)
     }
 
+    /// v2 parameter-rename analysis for one file. Mirrors
+    /// `PythonAstAdapter.rename_parameter`: the def slot + in-scope body uses
+    /// (declaring file only) plus keyword-argument call sites (all files).
+    #[allow(clippy::too_many_arguments)]
+    pub fn rename_parameter_analysis(
+        &self,
+        path: &Path,
+        func_qpath: &str,
+        func_leaf: &str,
+        param: &str,
+        is_declaring_file: bool,
+        decl_byte_range: Option<(i64, i64)>,
+        new_name: &str,
+    ) -> Result<RenameAnalysis> {
+        let mut params = serde_json::json!({
+            "path": path.to_string_lossy(),
+            "func_qpath": func_qpath,
+            "func_leaf": func_leaf,
+            "param": param,
+            "is_declaring_file": is_declaring_file,
+            "new_name": new_name,
+        });
+        if let Some((s, e)) = decl_byte_range {
+            params["decl_byte_range"] = serde_json::json!([s, e]);
+        }
+        let result = self.daemon.call("rename_parameter", params)?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    /// Ordered parameter names of the function at `func_qpath`, or None when
+    /// the def can't be located. Drives collision validation.
+    pub fn function_parameters(
+        &self,
+        path: &Path,
+        func_qpath: &str,
+        decl_byte_range: Option<(i64, i64)>,
+    ) -> Result<Option<Vec<String>>> {
+        let mut params = serde_json::json!({
+            "path": path.to_string_lossy(),
+            "func_qpath": func_qpath,
+        });
+        if let Some((s, e)) = decl_byte_range {
+            params["decl_byte_range"] = serde_json::json!([s, e]);
+        }
+        let result = self.daemon.call("function_parameters", params)?;
+        Ok(serde_json::from_value(
+            result.get("parameters").cloned().unwrap_or(serde_json::Value::Null),
+        )?)
+    }
+
     /// Go v2 engine rename: ONE project-wide daemon call (the go-scan
     /// daemon loads the whole project via go/packages itself — no per-file
     /// calls, no index callbacks). `container_qpath` maps to

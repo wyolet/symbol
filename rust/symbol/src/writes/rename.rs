@@ -106,6 +106,244 @@ pub fn rename_symbol(
     }
 }
 
+// ---------------------------------------------------------- rename-parameter
+//
+// Parameter rename mirrors the Python orchestration (SymbolRenamer.
+// rename_parameter): validate via the index + declaring-def parameter list,
+// enumerate candidate files (declaring + callers of the function leaf +
+// import aliases), run the per-file pyscan analysis, splice, commit. The op
+// is addressed by (function qpath, param) — there is no parameter index row.
+
+const PARAM_FUNC_KINDS: [&str; 4] = ["function", "async_function", "method", "async_method"];
+
+pub fn rename_parameter(
+    index: &mut Index,
+    func_qpath: &str,
+    param: &str,
+    new_name: &str,
+    project_root: &Path,
+    reg: &Registry,
+    dry_run: bool,
+) -> serde_json::Value {
+    static IDENT_RE: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"^[A-Za-z_][A-Za-z_0-9]*$").unwrap());
+
+    if !IDENT_RE.is_match(new_name) {
+        return serde_json::json!({
+            "status": "error", "error_code": "invalid_argument",
+            "message": "new-name must be a bare identifier (letters, digits, underscores).",
+        });
+    }
+    if !IDENT_RE.is_match(param) {
+        return serde_json::json!({
+            "status": "error", "error_code": "invalid_argument",
+            "message": "parameter must be a bare identifier.",
+        });
+    }
+    let row = match resolve_symbol_row(index, func_qpath, reg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let declaring_file_rel = index.file_of(row).to_owned();
+    let kind = index.kind_of(row).to_owned();
+    if !PARAM_FUNC_KINDS.contains(&kind.as_str()) {
+        return serde_json::json!({
+            "status": "error", "error_code": "invalid_argument",
+            "message": format!("{func_qpath:?} is a {kind:?}, not a function or method"),
+        });
+    }
+    if param == new_name {
+        return serde_json::json!({
+            "status": "error", "error_code": "invalid_argument",
+            "message": "new-name is identical to the current parameter name",
+        });
+    }
+
+    let language = index
+        .language_of_file(&declaring_file_rel)
+        .unwrap_or("")
+        .to_owned();
+    if language != "python" {
+        return serde_json::json!({
+            "status": "error", "error_code": "kind_not_supported",
+            "message": "parameter rename is only supported for Python",
+        });
+    }
+
+    let func_leaf = func_qpath.rsplit('.').next().unwrap_or(func_qpath).to_owned();
+    let decl_byte_range = index.byte_range_of(row);
+
+    // The daemon resolves against the ON-DISK index; make sure it reflects
+    // any in-memory refresh resolve_single may have done.
+    let _ = index.save();
+
+    let Ok(adapter) = reg.for_language("python") else {
+        return serde_json::json!({
+            "status": "error", "error_code": "no_adapter",
+            "message": "pyscan daemon unavailable",
+        });
+    };
+
+    // Collision validation: parse the declaring def's parameter list.
+    let abs_decl = project_root.join(&declaring_file_rel);
+    let params = match adapter.function_parameters(&abs_decl, func_qpath, Some(decl_byte_range)) {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return serde_json::json!({
+                "status": "error", "error_code": "symbol_not_found",
+                "message": format!("could not locate the definition of {func_qpath:?}"),
+            })
+        }
+        Err(e) => {
+            return serde_json::json!({
+                "status": "error", "error_code": "adapter_failed",
+                "message": format!("parameter lookup failed: {e}"),
+            })
+        }
+    };
+    if !params.iter().any(|p| p == param) {
+        return serde_json::json!({
+            "status": "error", "error_code": "parameter_not_found",
+            "message": format!(
+                "{func_qpath:?} has no parameter {param:?} (params: {})",
+                if params.is_empty() { "none".to_owned() } else { params.join(", ") }
+            ),
+        });
+    }
+    if params.iter().any(|p| p == new_name) {
+        return serde_json::json!({
+            "status": "error", "error_code": "name_collision",
+            "message": format!("{func_qpath:?} already has a parameter named {new_name:?}"),
+        });
+    }
+
+    // _candidate_files: declaring + in-body refs of the leaf + import aliases.
+    let mut candidates: std::collections::BTreeSet<String> =
+        std::collections::BTreeSet::from([declaring_file_rel.clone()]);
+    for (src_row, _line, _kind) in index.callers_of(&func_leaf) {
+        candidates.insert(index.file_of(src_row).to_owned());
+    }
+    for file_id in 0..index.files.len() as i64 {
+        if index
+            .imports_for(file_id)
+            .iter()
+            .any(|(local, _, _)| *local == func_leaf)
+        {
+            candidates.insert(index.files[file_id as usize].clone());
+        }
+    }
+
+    let mut rewrites_out: Vec<serde_json::Value> = vec![];
+    let mut skipped_out: Vec<serde_json::Value> = vec![];
+    let mut unresolved_out: Vec<serde_json::Value> = vec![];
+    let mut edits: Vec<FileEdit> = vec![];
+    let mut per_file: Vec<serde_json::Value> = vec![];
+
+    for rel in &candidates {
+        if index.language_of_file(rel) != Some("python") {
+            continue;
+        }
+        let abs = project_root.join(rel);
+        let Ok(source) = std::fs::read(&abs) else { continue };
+        let is_declaring = rel == &declaring_file_rel;
+        let analysis = match adapter.rename_parameter_analysis(
+            &abs,
+            func_qpath,
+            &func_leaf,
+            param,
+            is_declaring,
+            is_declaring.then_some(decl_byte_range),
+            new_name,
+        ) {
+            Ok(a) => a,
+            Err(e) => {
+                return serde_json::json!({
+                    "status": "error", "error_code": "adapter_failed",
+                    "message": format!("rename analysis failed for {rel}: {e}"),
+                })
+            }
+        };
+
+        for r in &analysis.rewrites {
+            rewrites_out.push(serde_json::json!({
+                "file": rel, "line": r.line, "col": r.col,
+                "receiver_source": r.receiver_source,
+                "resolved_to_qpath": func_qpath,
+            }));
+        }
+        for s in &analysis.skipped_mismatch {
+            skipped_out.push(serde_json::json!({
+                "file": rel, "line": s.line, "col": s.col,
+                "receiver_source": s.receiver_source,
+                "resolved_to_qpath": s.resolved_to_qpath,
+            }));
+        }
+        for u in &analysis.unresolved {
+            unresolved_out.push(serde_json::json!({
+                "file": rel, "line": u.line, "col": u.col,
+                "receiver_source": u.receiver_source, "why": u.why,
+            }));
+        }
+
+        if !analysis.rewrites.is_empty() {
+            let mut buf = source.clone();
+            let mut sorted = analysis.rewrites.clone();
+            sorted.sort_by_key(|r| std::cmp::Reverse(r.byte_start));
+            for r in &sorted {
+                if r.byte_end <= buf.len() && r.byte_start <= r.byte_end {
+                    buf.splice(r.byte_start..r.byte_end, r.new_text.bytes());
+                }
+            }
+            per_file.push(serde_json::json!({
+                "file": rel, "refs_updated": analysis.rewrites.len(),
+            }));
+            edits.push(FileEdit {
+                file_abs: abs,
+                file_rel: rel.clone(),
+                new_content: buf,
+            });
+        }
+    }
+
+    if edits.is_empty() {
+        let review = !unresolved_out.is_empty() || !skipped_out.is_empty();
+        return serde_json::json!({
+            "status": if review { "needs_review" } else { "error" },
+            "engine": "v2",
+            "error_code": if review { serde_json::Value::Null } else { "nothing_to_rename".into() },
+            "qualified_path": func_qpath,
+            "new_qualified_path": func_qpath,
+            "declaring_file": declaring_file_rel,
+            "skipped_mismatch": skipped_out,
+            "unresolved": unresolved_out,
+        });
+    }
+
+    let subject = format!("{func_qpath}({param} → {new_name})");
+    let tx = commit_edits(&edits, project_root, "rename-parameter", &subject, dry_run);
+    if tx.status == "error" {
+        return serde_json::json!({
+            "status": "error", "error_code": tx.error_code, "message": tx.message,
+            "qualified_path": func_qpath, "new_qualified_path": func_qpath,
+        });
+    }
+    let total: i64 = per_file.iter().map(|f| f["refs_updated"].as_i64().unwrap_or(0)).sum();
+    serde_json::json!({
+        "status": if dry_run { "dry_run" } else { "applied" },
+        "engine": "v2",
+        "qualified_path": func_qpath,
+        "new_qualified_path": func_qpath,
+        "declaring_file": declaring_file_rel,
+        "files_changed": edits.len(),
+        "refs_updated": total,
+        "per_file": per_file,
+        "rewrites": rewrites_out,
+        "skipped_mismatch": skipped_out,
+        "unresolved": unresolved_out,
+        "transaction_id": tx.transaction_id,
+    })
+}
+
 // ---------------------------------------------------------- v2 engine path
 
 #[allow(clippy::too_many_arguments)]

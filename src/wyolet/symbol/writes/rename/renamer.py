@@ -92,6 +92,155 @@ class SymbolRenamer:
             )
         return method(decl, new_name, dry_run=dry_run)
 
+    # ── public entry: parameter rename ───────────────────────────
+    def rename_parameter(
+        self,
+        func_qpath: str,
+        param: str,
+        new_name: str,
+        *,
+        dry_run: bool = False,
+    ) -> RenameResult:
+        """Rename a function/method parameter — its def signature slot, its
+        in-scope body uses, and keyword args at statically-resolvable call
+        sites. Addressed by (function qpath, param); there is no parameter
+        index row.
+        """
+        if not self.index._built:
+            self.index.build()
+
+        if not _IDENT_RE.match(new_name):
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="invalid_argument",
+                message="new-name must be a bare identifier",
+            )
+        if not _IDENT_RE.match(param):
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="invalid_argument",
+                message="parameter must be a bare identifier",
+            )
+
+        rows = list(self.index.by_path.get(func_qpath, []))
+        if not rows:
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="symbol_not_found",
+                message=f"no function at {func_qpath!r}",
+            )
+        if len(rows) > 1:
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="symbol_ambiguous",
+                message=f"{len(rows)} symbols match {func_qpath!r}",
+                candidates=tuple(
+                    f"{self.index.file_of(r)}:{self.index.range_of(r)[0]}-{self.index.range_of(r)[1]}"
+                    for r in rows
+                ),
+            )
+        row = rows[0]
+        declaring_file = self.index.file_of(row)
+        if self.index.ensure_fresh(declaring_file):
+            rows = list(self.index.by_path.get(func_qpath, []))
+            if not rows:
+                return RenameResult(
+                    status="error", qualified_path=func_qpath,
+                    error_code="symbol_not_found",
+                    message=f"function {func_qpath!r} disappeared after refresh",
+                )
+            row = rows[0]
+            declaring_file = self.index.file_of(row)
+
+        kind = self.index.kind_of(row)
+        if kind not in ("function", "async_function", "method", "async_method"):
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="invalid_argument",
+                message=f"{func_qpath!r} is a {kind!r}, not a function or method",
+            )
+        if param == new_name:
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="invalid_argument",
+                message="new-name is identical to the current parameter name",
+            )
+
+        func_leaf = func_qpath.rsplit(".", 1)[-1]
+        prefix = func_qpath[: -len(func_leaf)]
+        owner_qpath = prefix.rstrip(".") if prefix else ""
+        s_byte, e_byte = self.index.byte_range_of(row)
+        decl_byte_range = (s_byte, e_byte)
+
+        # Collision validation needs the declaring def's parameter list; that
+        # is language-specific, so we ask the adapter (no ast in this layer).
+        abs_decl = self.project_root / declaring_file
+        adapter = self._adapter_for(abs_decl)
+        if adapter is None or not hasattr(adapter, "function_parameters"):
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="kind_not_supported",
+                message="parameter rename is not supported for this language",
+            )
+        try:
+            params = adapter.function_parameters(
+                path=abs_decl, project_root=self.project_root,
+                source=abs_decl.read_bytes(), func_qpath=func_qpath,
+                decl_byte_range=decl_byte_range,
+            )
+        except OSError as e:
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="file_not_found",
+                message=f"cannot read {declaring_file}: {e}",
+            )
+        if params is None:
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="symbol_not_found",
+                message=f"could not locate the definition of {func_qpath!r}",
+            )
+        if param not in params:
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="parameter_not_found",
+                message=f"{func_qpath!r} has no parameter {param!r} (params: {', '.join(params) or 'none'})",
+            )
+        if new_name in params:
+            return RenameResult(
+                status="error", qualified_path=func_qpath,
+                error_code="name_collision",
+                message=f"{func_qpath!r} already has a parameter named {new_name!r}",
+            )
+
+        decl = _DeclResolved(
+            row=row, declaring_file=declaring_file, old_leaf=func_leaf,
+            qpath=func_qpath, new_qpath=func_qpath, kind=kind,
+            owner_qpath=owner_qpath, decl_byte_range=decl_byte_range,
+        )
+
+        def invoke(adapter, abs_path, rel, source) -> RenameAnalysis:
+            if not hasattr(adapter, "rename_parameter"):
+                return RenameAnalysis()
+            return adapter.rename_parameter(
+                path=abs_path,
+                project_root=self.project_root,
+                source=source,
+                func_qpath=func_qpath,
+                func_leaf=func_leaf,
+                param=param,
+                index=self._index_query,
+                is_declaring_file=(rel == declaring_file),
+                decl_byte_range=decl_byte_range if rel == declaring_file else None,
+                new_name=new_name,
+            )
+
+        return self._run_per_file(
+            decl, new_name, dry_run=dry_run, invoke=invoke,
+            op_name="rename-parameter",
+            subject=f"{func_qpath}({param} → {new_name})",
+        )
+
     # ── dispatch ─────────────────────────────────────────────────
     def _dispatch(self) -> dict[str, Callable]:
         return {
@@ -130,7 +279,10 @@ class SymbolRenamer:
             ),
         )
 
-    def _run_per_file(self, decl, new_name, *, dry_run, invoke) -> RenameResult:
+    def _run_per_file(
+        self, decl, new_name, *, dry_run, invoke,
+        op_name: str = "rename-symbol", subject: str | None = None,
+    ) -> RenameResult:
         """Shared per-kind orchestrator: enumerate files, invoke the
         adapter analysis, aggregate buckets, commit, build result."""
         candidate_files = self._candidate_files(decl.old_leaf, decl.declaring_file)
@@ -246,8 +398,8 @@ class SymbolRenamer:
         tx = commit_edits(
             per_file_edits,
             project_root=self.project_root,
-            op_name="rename-symbol",
-            subject=f"{decl.qpath} → {new_name}",
+            op_name=op_name,
+            subject=subject if subject is not None else f"{decl.qpath} → {new_name}",
             dry_run=dry_run,
         )
         if tx.status == "error":

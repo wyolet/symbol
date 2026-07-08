@@ -11,7 +11,8 @@ Methods:
   validate_syntax  {source} -> ParseResult dict
   signature        {text} -> {signature}
   preview          {body, signature, max_lines?} -> {preview}
-  rename_member / rename_field / rename_module_binding -> RenameAnalysis dict
+  rename_member / rename_field / rename_module_binding / rename_parameter -> RenameAnalysis dict
+  function_parameters -> {parameters: [str] | null}
   shutdown         (notification) -> exits
 
 Run: python -m wyolet.symbol.adapters.pyscan
@@ -115,6 +116,34 @@ class _Daemon:
         kwargs = self._rename_common(params)
         kwargs["target_module_qpath"] = params["target_module_qpath"]
         return asdict(self.adapter.rename_module_binding(**kwargs))
+
+    def rename_parameter(self, params: dict) -> dict:
+        path = Path(params["path"])
+        decl = params.get("decl_byte_range")
+        return asdict(self.adapter.rename_parameter(
+            path=path,
+            project_root=self.project_root,
+            source=path.read_bytes(),
+            func_qpath=params["func_qpath"],
+            func_leaf=params["func_leaf"],
+            param=params["param"],
+            index=self._index_query(),
+            is_declaring_file=bool(params["is_declaring_file"]),
+            decl_byte_range=tuple(decl) if decl else None,
+            new_name=params["new_name"],
+        ))
+
+    def function_parameters(self, params: dict) -> dict:
+        path = Path(params["path"])
+        decl = params.get("decl_byte_range")
+        names = self.adapter.function_parameters(
+            path=path,
+            project_root=self.project_root,
+            source=path.read_bytes(),
+            func_qpath=params["func_qpath"],
+            decl_byte_range=tuple(decl) if decl else None,
+        )
+        return {"parameters": list(names) if names is not None else None}
 
     def normalize_blank_gaps(self, params: dict) -> dict:
         """PEP 8 blank-run normalization (writes/_blank_lines) on raw source."""
