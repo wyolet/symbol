@@ -471,6 +471,24 @@ class GoAstAdapter:
 
         return per_file.get(rel_path, RenameAnalysis())
 
+    def pop_project_wide_analyses(
+        self, project_root: Path, target_qpath: SymbolPath,
+    ) -> dict[str, RenameAnalysis]:
+        """Optional renamer-extension hook: the full per-file analysis map
+        from the most recent project-wide rename on this target.
+
+        Capability is never artificially discarded — the tier label is the
+        only cap. go/types sees cross-package references the index's
+        candidate heuristic can miss; this hook lets the neutral renamer
+        pick up daemon findings for files it never thought to ask about.
+        Non-destructive read (the per-file cache also serves later slice
+        calls); keys are repo-relative paths.
+        """
+        for (root, qpath, _leaf, _new, _method), per_file in self._rename_cache.items():
+            if root == str(project_root.resolve()) and qpath == target_qpath:
+                return dict(per_file)
+        return {}
+
     def pop_affected_interfaces(self, project_root: Path, target_qpath: SymbolPath) -> tuple[dict, ...]:
         """Optional renamer-extension hook. Returns and clears any
         project-wide "this rename impacts these interface contracts"

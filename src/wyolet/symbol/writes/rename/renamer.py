@@ -180,6 +180,49 @@ class SymbolRenamer:
                     file=rel, refs_updated=len(analysis.rewrites),
                 ))
 
+        # Optional adapter extension: project-wide analyses (Go via
+        # go/types). Capability is never artificially discarded — the tier
+        # label is the only cap. The daemon sees cross-package references
+        # the index candidate heuristic can miss; pick up its findings for
+        # files the loop above never visited. Adapters without the hook
+        # contribute nothing.
+        extra_files = self._pop_project_wide(decl)
+        for rel in sorted(set(extra_files) - candidate_files):
+            analysis = extra_files[rel]
+            if not (analysis.rewrites or analysis.skipped_mismatch or analysis.unresolved):
+                continue
+            abs_path = self.project_root / rel
+            try:
+                source = abs_path.read_bytes()
+            except OSError:
+                continue
+            for r in analysis.rewrites:
+                all_rewrites.append(Rewrite(
+                    file=rel, line=r.line, col=r.col,
+                    receiver_source=r.receiver_source,
+                    resolved_to_qpath=decl.qpath,
+                ))
+            for s in analysis.skipped_mismatch:
+                all_skipped.append(SkippedMismatch(
+                    file=rel, line=s.line, col=s.col,
+                    receiver_source=s.receiver_source,
+                    resolved_to_qpath=s.resolved_to_qpath,
+                ))
+            for u in analysis.unresolved:
+                all_unresolved.append(Unresolved(
+                    file=rel, line=u.line, col=u.col,
+                    receiver_source=u.receiver_source,
+                    why=u.why,
+                ))
+            if analysis.rewrites:
+                per_file_edits.append(FileEdit(
+                    file_abs=abs_path, file_rel=rel,
+                    new_content=_apply_rewrites(source, analysis.rewrites),
+                ))
+                per_file_counts.append(FileRewriteCount(
+                    file=rel, refs_updated=len(analysis.rewrites),
+                ))
+
         # Optional adapter extension: project-wide interface-contract
         # impacts (Go via go/types). The declaring file's adapter owns
         # this data; we ask it once after the per-file loop. Adapters
@@ -367,6 +410,17 @@ class SymbolRenamer:
                     files.add(self.index.files[file_id])
                     break
         return files
+
+    def _pop_project_wide(self, decl) -> dict[str, RenameAnalysis]:
+        """Full per-file analyses from a project-wide adapter (go/types),
+        via the optional `pop_project_wide_analyses` hook. Empty dict for
+        per-file adapters (Python), which have nothing the candidate loop
+        didn't already see."""
+        abs_path = self.project_root / decl.declaring_file
+        adapter = self._adapter_for(abs_path)
+        if adapter is None or not hasattr(adapter, "pop_project_wide_analyses"):
+            return {}
+        return adapter.pop_project_wide_analyses(self.project_root, decl.qpath) or {}
 
     def _collect_affected_interfaces(self, decl) -> tuple[AffectedInterface, ...]:
         """Pull project-wide interface impacts from the declaring file's

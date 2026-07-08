@@ -305,26 +305,11 @@ fn rename_via_go_engine(
         }
     };
 
-    // The daemon analyzes the whole project, but the neutral engine only
-    // applies rewrites for files in the index-derived candidate set —
-    // declaring file + in-body refs + module-level import aliases — exactly
-    // as the python path (renamer._candidate_files) does. Daemon findings
-    // for files outside this set are dropped, keeping both engines in step.
-    let mut candidates: std::collections::BTreeSet<String> =
-        std::collections::BTreeSet::from([declaring_file_rel.to_owned()]);
-    for (src_row, _line, _kind) in index.callers_of(old_leaf) {
-        candidates.insert(index.file_of(src_row).to_owned());
-    }
-    for file_id in 0..index.files.len() as i64 {
-        if index
-            .imports_for(file_id)
-            .iter()
-            .any(|(local, _, _)| *local == old_leaf)
-        {
-            candidates.insert(index.files[file_id as usize].clone());
-        }
-    }
-
+    // Capability is never artificially discarded — the tier label is the
+    // only cap. The daemon's go/types analysis is project-wide and strictly
+    // more complete than any index-derived candidate heuristic, so EVERY
+    // file it reports is applied. (The Python oracle mirrors this via the
+    // adapter's pop_project_wide_analyses hook in renamer._run_per_file.)
     let mut rewrites_out: Vec<serde_json::Value> = vec![];
     let mut skipped_out: Vec<serde_json::Value> = vec![];
     let mut unresolved_out: Vec<serde_json::Value> = vec![];
@@ -332,7 +317,7 @@ fn rename_via_go_engine(
     let mut per_file: Vec<serde_json::Value> = vec![];
 
     // Deterministic iteration for stable output ordering.
-    let mut rels: Vec<&String> = files.keys().filter(|r| candidates.contains(*r)).collect();
+    let mut rels: Vec<&String> = files.keys().collect();
     rels.sort();
 
     for rel in rels {
