@@ -225,9 +225,15 @@ class LanguageAdapter(Protocol):
         is_declaring_file: bool,
         decl_byte_range: tuple[int, int] | None,
         new_name: str,
+        kwargs_only: bool = False,
     ) -> RenameAnalysis:
         """Classify every reference to parameter `param` of function
         `func_qpath` in this file.
+
+        `kwargs_only=True` skips the declaring def + in-scope body rewrite
+        and classifies ONLY keyword-argument call sites. replace-symbol uses
+        this to propagate a parameter rename (already applied to the def by
+        the agent's replacement text) to `f(param=...)` call sites.
 
         A parameter is *signature surface*. In the declaring file the
         `ast.arg` node in the def signature and every in-scope `Name` use in

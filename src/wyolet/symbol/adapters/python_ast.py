@@ -459,6 +459,7 @@ class PythonAstAdapter(LanguageAdapter):
         is_declaring_file: bool,
         decl_byte_range: tuple[int, int] | None,
         new_name: str,
+        kwargs_only: bool = False,
     ) -> RenameAnalysis:
         return _rename.rename_parameter(
             source=source,
@@ -470,6 +471,7 @@ class PythonAstAdapter(LanguageAdapter):
             is_declaring_file=is_declaring_file,
             decl_byte_range=decl_byte_range,
             module_prefix=self.module_prefix(path, project_root),
+            kwargs_only=kwargs_only,
         )
 
     def function_parameters(

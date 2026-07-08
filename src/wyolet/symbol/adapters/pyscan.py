@@ -120,10 +120,15 @@ class _Daemon:
     def rename_parameter(self, params: dict) -> dict:
         path = Path(params["path"])
         decl = params.get("decl_byte_range")
+        # `source` override: replace-symbol runs kwarg analysis against
+        # POST-splice content that isn't on disk yet. When absent, read the
+        # file (the standalone per-file analysis path).
+        override = params.get("source")
+        source = override.encode("utf-8") if override is not None else path.read_bytes()
         return asdict(self.adapter.rename_parameter(
             path=path,
             project_root=self.project_root,
-            source=path.read_bytes(),
+            source=source,
             func_qpath=params["func_qpath"],
             func_leaf=params["func_leaf"],
             param=params["param"],
@@ -131,15 +136,20 @@ class _Daemon:
             is_declaring_file=bool(params["is_declaring_file"]),
             decl_byte_range=tuple(decl) if decl else None,
             new_name=params["new_name"],
+            kwargs_only=bool(params.get("kwargs_only", False)),
         ))
 
     def function_parameters(self, params: dict) -> dict:
         path = Path(params["path"])
         decl = params.get("decl_byte_range")
+        # `source` override: replace-symbol extracts params from a sliced def
+        # and from new content that isn't on disk. When absent, read the file.
+        override = params.get("source")
+        source = override.encode("utf-8") if override is not None else path.read_bytes()
         names = self.adapter.function_parameters(
             path=path,
             project_root=self.project_root,
-            source=path.read_bytes(),
+            source=source,
             func_qpath=params["func_qpath"],
             decl_byte_range=tuple(decl) if decl else None,
         )

@@ -24,7 +24,7 @@ One JSON object per line:
 {"id": "w003", "op": "delete-symbol", "args": {"qualified_path": "app.models.UserService.load"}, "expect_error": true}
 {"id": "w004", "op": "delete-symbol", "args": {"qualified_path": "app.orphan.unused_helper", "force": true}}
 {"id": "w005", "op": "patch", "args": {"file": "app/models.py", "range": "1-1", "content": "\"\"\"Data models.\"\"\""}}
-{"id": "w006", "op": "rename-parameter", "args": {"func_qpath": "app.models.UserService.save", "param": "record", "new_name": "row"}}
+{"id": "w006", "op": "replace-symbol", "args": {"qualified_path": "app.models.UserService.save", "content": "def save(self, row):\n    return self.db.write(row)\n"}}
 {"id": "w007", "op": "insert-symbol", "args": {"anchor_path": "app.models.UserService.save", "position": "after", "content": "def touch(self):\n    pass\n"}}
 {"id": "w008", "op": "insert-symbol", "args": {"anchor_path": "app.models.UserService", "position": "end", "content": "MARKER = 1\n", "no_reindent": false}}
 ```
@@ -41,31 +41,46 @@ strings), optional `expect_error: true`.
 | `outline` | `query`: repo-relative file path OR symbol path | |
 | `search` | `patterns` (list, ANDed), optional `kind`, `file`, `regex`, `fixed`, `ignore_case`, `limit` | |
 | `rename-symbol` | `qualified_path`, `new_name` (bare identifier) | writes |
-| `rename-parameter` | `func_qpath`, `param`, `new_name` | writes; renames a parameter across the signature surface — def line + local scope uses + keyword-argument call sites |
-| `replace-symbol` | `qualified_path`, `content` (full new definition) | writes |
+| `replace-symbol` | `qualified_path`, `content` (full new definition) | writes; a signature edit that renames a parameter propagates to keyword-argument call sites (see below) |
 | `delete-symbol` | `qualified_path`, optional `force` | refuses when referenced, unless force |
 | `insert-symbol` | `anchor_path`, `position` ∈ {`before`,`after`,`start`,`end`}, `content`, optional `no_reindent` | writes; inserts `content` relative to an anchor symbol |
 | `patch` | `file` (repo-relative), `range` "A-B" (1-indexed inclusive), `content` | applied with --force |
 
-### `rename-parameter` (args: `func_qpath`, `param`, `new_name`)
+### Parameter renames via `replace-symbol`
 
-Renames a single parameter of a function or method. `func_qpath` is the
-qualified path of the enclosing function/method (NOT the parameter);
-`param` is the current parameter name; `new_name` is the fresh identifier.
-The engine rewrites three surfaces and must agree byte-for-byte across
-implementations: (1) the parameter in the `def`/signature, (2) every use of
-that name inside the function body's local scope, (3) keyword-argument call
-sites that target this function (`f(param=...)` → `f(new_name=...)`).
+There is no `rename-parameter` verb. A parameter rename is a CONSEQUENCE of a
+signature edit: when a `replace-symbol` on a function-family target
+(function/async_function/method/async_method) changes a parameter NAME, the
+engine detects it and propagates the rename to every keyword-argument call
+site (`f(param=...)` → `f(new=...)`) in the SAME transaction. The def slot and
+in-scope body uses come from your replacement `content`; only the cross-call
+keyword sites are engine-driven. Positional call arguments are never touched.
 
-- Address the ENCLOSING function, not the parameter. `flask.logging.create_logger`
-  with `param="app"`, not `flask.logging.create_logger.app`.
-- Refuses (use `expect_error: true`) when the param does not exist, when
-  `new_name` collides with another parameter/local binding, or when
-  `func_qpath` is not a function/method.
+Detection is conservative (tier-2 honest). Propagation happens ONLY when:
+
+- the old and new parameter lists have EQUAL arity, AND
+- positional pairing yields renames where each new name did NOT exist anywhere
+  in the old list AND each old name is gone from the new list (this rules out
+  swaps `(a,b)->(b,a)` and reorders).
+
+Multiple simultaneous renames are allowed if each is unambiguous under that
+rule. When arity changes, or the pairing is ambiguous, NO propagation happens
+and the result carries `signature_changed: true` (with the old/new param
+lists) so a caller knows kwarg sites were left untouched. Both implementations
+must agree byte-for-byte on the resulting tree.
+
+- To exercise this, author `content` that keeps the function name and arity but
+  renames one (or several) parameters, and ensure the corpus has real
+  `func(param=...)` keyword call sites — same file and cross-file via import —
+  so propagation actually fires.
+- Method targets: `content` is a bare top-level `def name(self, ...)` (the only
+  way to write a single-symbol body); the engine treats it as compatible with
+  the `method` target and discriminates receivers via the same MRO analysis as
+  member renames, so decoy same-named methods on unrelated classes stay
+  untouched.
 - Transaction-backed → undoable (the runner's undo-restores-pristine check
-  applies). Python-only surface: skip on Go corpora (Go has no keyword
-  arguments; the op refuses on Go targets — usable only in `expect_error`
-  form there).
+  applies). Kwarg propagation is Python-only; on Go corpora a `replace-symbol`
+  simply has no keyword sites to update (Go has no keyword arguments).
 
 ### `insert-symbol` (args: `anchor_path`, `position`, `content`, `no_reindent?`)
 
@@ -100,8 +115,10 @@ Inserts `content` relative to the `anchor_path` symbol:
   runner classifies it `known_divergence` instead of `MISMATCH`. A tagged
   op that lands as `known_divergence` today is a regression signal worth
   reporting, not an expected outcome. Renames of non-engine kinds (Python
-  `field`, and `rename-parameter`/`insert-symbol`/`patch` of any kind) must
-  NOT carry the tag — they are held to hard byte-equality.
+  `field`, and `insert-symbol`/`patch` of any kind) must NOT carry the tag —
+  they are held to hard byte-equality. A `replace-symbol` that renames a
+  parameter is still just a `replace-symbol`: tag it `engine-kind` per its
+  target kind as usual (the kwarg propagation is held to hard byte-equality).
 
 - `expect_error: true` — for ops both sides must REFUSE (delete a symbol
   with live references without force, rename to a colliding name, code on a
@@ -110,16 +127,15 @@ Inserts `content` relative to the `anchor_path` symbol:
 
 ## Undo semantics (what the runner asserts per op)
 
-Only **transaction-backed** writes are undoable — `rename-symbol`,
-`replace-symbol`, and `rename-parameter`. `insert-symbol`, `delete-symbol`,
-and `patch` share a direct byte-write path with no transaction (by design,
-identically on both implementations), so `symbol undo` is a no-op
-(`nothing_to_undo`) for them.
+Only **transaction-backed** writes are undoable — `rename-symbol` and
+`replace-symbol`. `insert-symbol`, `delete-symbol`, and `patch` share a direct
+byte-write path with no transaction (by design, identically on both
+implementations), so `symbol undo` is a no-op (`nothing_to_undo`) for them.
 
 The runner matches this: after a successful write it runs `symbol undo` and
-asserts the tree returns to pristine for the transaction-backed trio ONLY;
+asserts the tree returns to pristine for the transaction-backed pair ONLY;
 insert/delete/patch skip the undo assertion (their primary-write tree
-comparison still applies in full). All six write ops can therefore appear
+comparison still applies in full). All five write ops can therefore appear
 freely in datasets, in both successful and `expect_error` forms.
 
 ## What good coverage looks like
@@ -152,9 +168,12 @@ including deliberately nasty cases:
   from a real class hierarchy (use the index's class `bases`), so the engine
   must resolve MRO membership and rewrite overrides + `super().method()`
   sites. Tag `engine-kind`.
-- **rename-parameter with real kwarg sites**: grep the corpus for
-  `func(param=...)` keyword call sites so the op exercises cross-call kwarg
-  rewriting, not just the def line. Address the enclosing function.
+- **parameter rename via replace-symbol with real kwarg sites**: grep the
+  corpus for `func(param=...)` keyword call sites, then author a
+  `replace-symbol` whose `content` renames that parameter (same name, same
+  arity) so the op exercises cross-call kwarg rewriting, not just the def line.
+  Add nasty variants: an arity change (expect `signature_changed`, no
+  propagation) and a swap `(a,b)->(b,a)` (ambiguous, no propagation).
 - **insert-symbol, all four positions**: `before`/`after`/`start`/`end`,
   including a DECORATED anchor (verify `after` clears the whole decorated
   block).
@@ -170,8 +189,9 @@ including deliberately nasty cases:
   other receivers untouched), **interface-implicating method renames** (rename
   a method that satisfies an interface — the `go/types` engine should fan the
   rename across every implementer/`affected_interfaces`), const/var blocks,
-  type renames, generics, vendored-adjacent paths. Skip `rename-parameter`
-  (no Go kwargs — usable only in `expect_error` form on Go targets).
+  type renames, generics, vendored-adjacent paths. Parameter-rename
+  propagation does not apply to Go (no keyword arguments), so a Go
+  `replace-symbol` is just a body/signature swap.
   `insert-symbol` works on Go anchors (brace-delimited bodies make reindent
   a no-op); include a few successful Go insert/delete/patch ops alongside
   the rename/replace coverage.

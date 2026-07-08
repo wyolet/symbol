@@ -15,8 +15,6 @@ Ops dataset: JSONL, one op per line.
                                                 "ignore_case": false, "limit": 100}}
   {"id": "w1", "op": "rename-symbol",  "args": {"qualified_path": "...", "new_name": "..."},
                "tags": ["engine-kind"]}
-  {"id": "w1p","op": "rename-parameter","args": {"func_qpath": "...", "param": "...",
-                                                "new_name": "..."}}
   {"id": "w2", "op": "replace-symbol", "args": {"qualified_path": "...", "content": "..."}}
   {"id": "w3", "op": "delete-symbol",  "args": {"qualified_path": "...", "force": true}}
   {"id": "w4", "op": "insert-symbol",  "args": {"anchor_path": "...", "position": "after",
@@ -49,7 +47,7 @@ REPO = Path(__file__).resolve().parent.parent
 RUST_BIN = REPO / "rust/target/release/symbol-rs"
 
 READ_OPS = {"code", "callers", "outline", "search"}
-WRITE_OPS = {"rename-symbol", "rename-parameter", "replace-symbol", "delete-symbol", "insert-symbol", "patch"}
+WRITE_OPS = {"rename-symbol", "replace-symbol", "delete-symbol", "insert-symbol", "patch"}
 
 
 # ---------------------------------------------------------- process plumbing
@@ -128,8 +126,6 @@ def py_write(op: str, args: dict, cwd: Path):
     cmd = ["uv", "run", "--project", str(REPO), "symbol"]
     if op == "rename-symbol":
         cmd += ["rename-symbol", args["qualified_path"], args["new_name"]]
-    elif op == "rename-parameter":
-        cmd += ["rename-parameter", args["func_qpath"], args["param"], args["new_name"]]
     elif op == "replace-symbol":
         # Python CLI takes content as an OPTION (same class as the patch fix)
         cmd += ["replace-symbol", args["qualified_path"], "--content", args["content"]]
@@ -151,8 +147,6 @@ def rust_write(op: str, args: dict, root: Path):
     a = ["--root", str(root), "--json"]
     if op == "rename-symbol":
         a += ["rename-symbol", args["qualified_path"], args["new_name"]]
-    elif op == "rename-parameter":
-        a += ["rename-parameter", args["func_qpath"], args["param"], args["new_name"]]
     elif op == "replace-symbol":
         a += ["replace-symbol", args["qualified_path"], args["content"]]
     elif op == "delete-symbol":
@@ -365,7 +359,7 @@ class Runner:
         # with no transaction (by design, identically on both sides), so
         # `symbol undo` is a no-op for them and asserting pristine would
         # manufacture false MISMATCHes.
-        tx_backed = op in {"rename-symbol", "replace-symbol", "rename-parameter"}
+        tx_backed = op in {"rename-symbol", "replace-symbol"}
         if tx_backed and py_changed:
             sh(["uv", "run", "--project", str(REPO), "symbol", "undo"], cwd=py_copy)
             self.verdict("match" if tree_hash(py_copy) == pristine else "MISMATCH",

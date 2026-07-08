@@ -312,10 +312,35 @@ fn kinds_compatible(old_kind: &str, new_kind: &str) -> bool {
     if old_kind == new_kind {
         return true;
     }
-    let families: [&[&str]; 2] = [&["function", "async_function"], &["method", "async_method"]];
-    families
-        .iter()
-        .any(|fam| fam.contains(&old_kind) && fam.contains(&new_kind))
+    // All callable kinds form ONE family: a method replacement is authored as
+    // a bare top-level `def` (so it scans as `function` even when the target
+    // is a `method`). Non-callable kinds must match exactly.
+    const CALLABLE: [&str; 4] = ["function", "async_function", "method", "async_method"];
+    CALLABLE.contains(&old_kind) && CALLABLE.contains(&new_kind)
+}
+
+const CALLABLE_KINDS: [&str; 4] = ["function", "async_function", "method", "async_method"];
+
+/// Conservative positional pairing of old→new parameter lists. Returns the
+/// list of `(old, new)` renames, or None if the edit is NOT a clean rename set
+/// (arity changed, or a swap/reorder). An empty vec means identical lists.
+fn detect_param_renames(old: &[String], new: &[String]) -> Option<Vec<(String, String)>> {
+    if old.len() != new.len() {
+        return None;
+    }
+    let old_set: std::collections::HashSet<&String> = old.iter().collect();
+    let new_set: std::collections::HashSet<&String> = new.iter().collect();
+    let mut renames = vec![];
+    for (o, n) in old.iter().zip(new.iter()) {
+        if o == n {
+            continue;
+        }
+        if old_set.contains(n) || new_set.contains(o) {
+            return None; // swap / reorder / ambiguous
+        }
+        renames.push((o.clone(), n.clone()));
+    }
+    Some(renames)
 }
 
 /// Python's textwrap.dedent (used before parsing the new content): remove
@@ -518,6 +543,137 @@ pub fn replace_symbol(
         }
     }
 
+    // Parameter renames are a CONSEQUENCE of a signature edit, not a verb.
+    // For function-family python targets, compare the OLD def's parameter list
+    // (sliced) against the NEW content's; unambiguous positional renames are
+    // propagated to keyword-argument call sites, folded into the SAME tx.
+    let mut parameter_renames_json: Vec<serde_json::Value> = vec![];
+    let mut signature_changed = false;
+    let mut old_params_json: Vec<String> = vec![];
+    let mut new_params_json: Vec<String> = vec![];
+
+    if language == "python" && CALLABLE_KINDS.contains(&old_kind.as_str()) {
+        let old_slice = dedent(&String::from_utf8_lossy(&declaring_source[start..end]));
+        let old_params = adapter
+            .function_parameters(&declaring_file_abs, &old_leaf, None, Some(&old_slice))
+            .ok()
+            .flatten();
+        let new_params = adapter
+            .function_parameters(&declaring_file_abs, &new_leaf, None, Some(&parse_text))
+            .ok()
+            .flatten();
+        if let (Some(op), Some(np)) = (old_params, new_params) {
+            match detect_param_renames(&op, &np) {
+                None => {
+                    if op != np {
+                        signature_changed = true;
+                        old_params_json = op;
+                        new_params_json = np;
+                    }
+                }
+                Some(renames) if !renames.is_empty() => {
+                    // The daemon resolves against the ON-DISK index; sync it.
+                    let _ = index.save();
+
+                    let mut candidates: std::collections::BTreeSet<String> =
+                        std::collections::BTreeSet::from([declaring_file_rel.clone()]);
+                    for (src_row, _l, _k) in index.callers_of(&old_leaf) {
+                        candidates.insert(index.file_of(src_row).to_owned());
+                    }
+                    for file_id in 0..index.files.len() as i64 {
+                        if index
+                            .imports_for(file_id)
+                            .iter()
+                            .any(|(local, _, _)| *local == old_leaf)
+                        {
+                            candidates.insert(index.files[file_id as usize].clone());
+                        }
+                    }
+
+                    // Pending content seeded from staged edits (declaring
+                    // splice + any cross-file function-name renames).
+                    let mut pending: std::collections::BTreeMap<String, Vec<u8>> = edits
+                        .iter()
+                        .map(|e| (e.file_rel.clone(), e.new_content.clone()))
+                        .collect();
+                    let mut order: Vec<String> =
+                        edits.iter().map(|e| e.file_rel.clone()).collect();
+                    let mut agg: Vec<(String, String, i64, i64, i64)> = renames
+                        .iter()
+                        .map(|(o, n)| (o.clone(), n.clone(), 0, 0, 0))
+                        .collect();
+
+                    for rel in &candidates {
+                        if index.language_of_file(rel) != Some("python") {
+                            continue;
+                        }
+                        let abs = project_root.join(rel);
+                        let mut current = match pending.get(rel) {
+                            Some(c) => c.clone(),
+                            None => match std::fs::read(&abs) {
+                                Ok(s) => s,
+                                Err(_) => continue,
+                            },
+                        };
+                        let is_declaring = rel == &declaring_file_rel;
+                        let mut changed = false;
+                        for (i, (o, n)) in renames.iter().enumerate() {
+                            let src_str = String::from_utf8_lossy(&current).into_owned();
+                            let analysis = match adapter.rename_parameter_analysis(
+                                &abs, &new_qpath, &new_leaf, o, is_declaring, None, n, true,
+                                Some(&src_str),
+                            ) {
+                                Ok(a) => a,
+                                Err(e) => {
+                                    return err(
+                                        "adapter_failed",
+                                        format!("parameter propagation failed for {rel}: {e}"),
+                                    )
+                                }
+                            };
+                            agg[i].2 += analysis.rewrites.len() as i64;
+                            agg[i].3 += analysis.skipped_mismatch.len() as i64;
+                            agg[i].4 += analysis.unresolved.len() as i64;
+                            if !analysis.rewrites.is_empty() {
+                                let mut sorted = analysis.rewrites.clone();
+                                sorted.sort_by_key(|r| std::cmp::Reverse(r.byte_start));
+                                for r in &sorted {
+                                    if r.byte_end <= current.len() && r.byte_start <= r.byte_end {
+                                        current.splice(r.byte_start..r.byte_end, r.new_text.bytes());
+                                    }
+                                }
+                                changed = true;
+                            }
+                        }
+                        if changed {
+                            if !pending.contains_key(rel) {
+                                order.push(rel.clone());
+                            }
+                            pending.insert(rel.clone(), current);
+                        }
+                    }
+
+                    edits = order
+                        .iter()
+                        .map(|rel| FileEdit {
+                            file_abs: project_root.join(rel),
+                            file_rel: rel.clone(),
+                            new_content: pending.get(rel).cloned().unwrap_or_default(),
+                        })
+                        .collect();
+
+                    for (o, n, refs, skip, unres) in &agg {
+                        parameter_renames_json.push(serde_json::json!({
+                            "old": o, "new": n, "refs_updated": refs,
+                            "skipped_mismatch": skip, "unresolved": unres,
+                        }));
+                    }
+                }
+                Some(_) => {} // empty rename set: a pure body edit
+            }
+        }
+    }
+
     let subject = if name_changed {
         format!("{qualified_path} → {new_leaf} (rewrite + rename)")
     } else {
@@ -554,6 +710,10 @@ pub fn replace_symbol(
         "files_changed": edits.len(),
         "refs_updated": total_refs,
         "per_file": per_file,
+        "parameter_renames": parameter_renames_json,
+        "signature_changed": signature_changed,
+        "old_parameters": old_params_json,
+        "new_parameters": new_params_json,
         "transaction_id": tx.transaction_id,
     })
 }

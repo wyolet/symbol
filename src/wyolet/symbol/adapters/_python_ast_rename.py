@@ -1179,6 +1179,13 @@ def parameter_names(
     resolver = _PerFileResolver(tree, module_prefix, _NullIndex())
     fn = _find_function(resolver, tree, module_prefix, func_qpath)
     if fn is None:
+        # Fallback for single-definition sources (a sliced def or replace-symbol
+        # new content): the caller's qpath may not match because module_prefix
+        # differs. When the source holds exactly one top-level function, use it.
+        top = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        if len(top) == 1:
+            fn = top[0]
+    if fn is None:
         return None
     a = fn.args
     names = [arg.arg for arg in list(a.posonlyargs) + list(a.args) + list(a.kwonlyargs)]
@@ -1214,6 +1221,7 @@ def rename_parameter(
     is_declaring_file: bool,
     decl_byte_range: tuple[int, int] | None,
     module_prefix: str,
+    kwargs_only: bool = False,
 ) -> RenameAnalysis:
     """Per-file parameter rename analysis.
 
@@ -1222,6 +1230,12 @@ def rename_parameter(
     callee statically resolves to `func_qpath` are rewritten; same-leaf calls
     to a different function are `skipped_mismatch`; unresolvable callees whose
     keyword matches are `unresolved`.
+
+    `kwargs_only=True` skips the declaring def + body rewrite phase entirely,
+    classifying/rewriting ONLY keyword-argument call sites. This is the mode
+    replace-symbol drives against POST-splice content: the def signature and
+    its in-scope body uses are already carried by the agent's replacement
+    text, so only the cross-call keyword sites remain to be updated.
     """
     line_starts = line_byte_offsets(source)
     try:
@@ -1243,7 +1257,7 @@ def rename_parameter(
     skipped: list[SkippedMismatchSite] = []
     unresolved: list[UnresolvedSite] = []
 
-    if is_declaring_file:
+    if is_declaring_file and not kwargs_only:
         fn = _find_function(resolver, tree, module_prefix, func_qpath)
         if fn is not None:
             param_b = param.encode("utf-8")

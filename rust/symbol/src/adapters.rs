@@ -411,6 +411,9 @@ impl Adapter {
     /// v2 parameter-rename analysis for one file. Mirrors
     /// `PythonAstAdapter.rename_parameter`: the def slot + in-scope body uses
     /// (declaring file only) plus keyword-argument call sites (all files).
+    /// `kwargs_only=true` skips the def+body rewrite (only keyword-argument
+    /// call sites). `source` overrides the on-disk file — replace-symbol runs
+    /// this against POST-splice content that isn't on disk yet.
     #[allow(clippy::too_many_arguments)]
     pub fn rename_parameter_analysis(
         &self,
@@ -421,6 +424,8 @@ impl Adapter {
         is_declaring_file: bool,
         decl_byte_range: Option<(i64, i64)>,
         new_name: &str,
+        kwargs_only: bool,
+        source: Option<&str>,
     ) -> Result<RenameAnalysis> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -429,21 +434,27 @@ impl Adapter {
             "param": param,
             "is_declaring_file": is_declaring_file,
             "new_name": new_name,
+            "kwargs_only": kwargs_only,
         });
         if let Some((s, e)) = decl_byte_range {
             params["decl_byte_range"] = serde_json::json!([s, e]);
+        }
+        if let Some(src) = source {
+            params["source"] = src.into();
         }
         let result = self.daemon.call("rename_parameter", params)?;
         Ok(serde_json::from_value(result)?)
     }
 
     /// Ordered parameter names of the function at `func_qpath`, or None when
-    /// the def can't be located. Drives collision validation.
+    /// the def can't be located. `source` overrides the on-disk file so params
+    /// can be read from a sliced def / replace-symbol new content.
     pub fn function_parameters(
         &self,
         path: &Path,
         func_qpath: &str,
         decl_byte_range: Option<(i64, i64)>,
+        source: Option<&str>,
     ) -> Result<Option<Vec<String>>> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -451,6 +462,9 @@ impl Adapter {
         });
         if let Some((s, e)) = decl_byte_range {
             params["decl_byte_range"] = serde_json::json!([s, e]);
+        }
+        if let Some(src) = source {
+            params["source"] = src.into();
         }
         let result = self.daemon.call("function_parameters", params)?;
         Ok(serde_json::from_value(
