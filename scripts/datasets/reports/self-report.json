@@ -1,0 +1,59 @@
+{
+  "target": "/private/tmp/self-corpus",
+  "verdicts": {
+    "match": 495
+  },
+  "failures": [],
+  "timing_median_s": {
+    "code": {
+      "py": 0.0003,
+      "rs": 0.0607,
+      "n": 160
+    },
+    "callers": {
+      "py": 0.0,
+      "rs": 0.0055,
+      "n": 44
+    },
+    "outline": {
+      "py": 0.001,
+      "rs": 0.0628,
+      "n": 55
+    },
+    "search": {
+      "py": 0.0007,
+      "rs": 0.0617,
+      "n": 60
+    },
+    "rename-symbol": {
+      "py": 1.3876,
+      "rs": 0.5909,
+      "n": 46
+    },
+    "rename-parameter": {
+      "py": 1.3864,
+      "rs": 0.594,
+      "n": 11
+    },
+    "insert-symbol": {
+      "py": 1.3667,
+      "rs": 0.5413,
+      "n": 3
+    },
+    "patch": {
+      "py": 0.3283,
+      "rs": 0.0151,
+      "n": 2
+    },
+    "delete-symbol": {
+      "py": 1.3549,
+      "rs": 0.5155,
+      "n": 3
+    },
+    "replace-symbol": {
+      "py": 1.3409,
+      "rs": 0.4947,
+      "n": 1
+    }
+  }
+}

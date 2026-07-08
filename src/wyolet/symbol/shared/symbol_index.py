@@ -546,12 +546,20 @@ class SymbolIndex:
 
         from wyolet.symbol.adapters import default_registry
         from wyolet.symbol.shared.linguist.blob import Blob
+        from wyolet.symbol.shared.linguist.config.load import load_vendor_regex
         from wyolet.symbol.shared.linguist.linguist import Linguist
 
         linguist = Linguist()
         registry = default_registry()
+        vendor_re = load_vendor_regex()
         out: set[str] = set()
         for rel in rels:
+            # Vendored paths are pruned in full builds (classify_project's
+            # walk); without the same filter here, incremental refresh
+            # smuggles testdata/ and friends back in and index content
+            # depends on which path built it.
+            if vendor_re.search(rel):
+                continue
             abs_path = self.project_root / rel
             try:
                 blob = Blob(str(abs_path))

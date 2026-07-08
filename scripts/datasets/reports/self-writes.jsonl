@@ -1,0 +1,66 @@
+{"id": "rn001", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.python_ast._python_signature", "new_name": "_python_signature_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn002", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.analyzer._count_internal_refs", "new_name": "_count_internal_refs_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn003", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.commands.init._generate_toml", "new_name": "_generate_toml_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn004", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.python_ast._slice", "new_name": "_slice_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn005", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.import_graph._is_type_checking_block", "new_name": "_is_type_checking_block_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn006", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.commands.undo._to_dict", "new_name": "_to_dict_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn007", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes._blank_lines._blank_run_above", "new_name": "_blank_run_above_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn008", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.mcp.server._dc", "new_name": "_dc_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn009", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.graph._init_has_code", "new_name": "_init_has_code_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn010", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.side_effects._get_dotted_name", "new_name": "_get_dotted_name_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn011", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.spec._load_package_spec", "new_name": "_load_package_spec_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn012", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.mcp.server._mem_limit_mb", "new_name": "_mem_limit_mb_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn013", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.unused_deps._collect_all_imports", "new_name": "_collect_all_imports_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn014", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.go_ast._rawsymbol_from_scanned", "new_name": "_rawsymbol_from_scanned_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn015", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._lang", "new_name": "_lang_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn016", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._in_scope", "new_name": "_in_scope_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn017", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._file_id", "new_name": "_file_id_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn018", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename.renamer.SymbolRenamer._rename_class", "new_name": "_rename_class_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn019", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.linguist.Linguist.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn020", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters._python_ast_rename._PerFileResolver.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn021", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._walk_file", "new_name": "_walk_file_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn022", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.go_ast.GoAstAdapter._find_go_module", "new_name": "_find_go_module_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn023", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._kind", "new_name": "_kind_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn024", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.language.Language.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn025", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters._python_ast_rename._PerFileResolver._class_chain", "new_name": "_class_chain_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn026", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.protocols.types.ScannedSymbol", "new_name": "ScannedSymbol_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn027", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.spec.PackageOrphanSpec", "new_name": "PackageOrphanSpec_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn028", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.transaction.FileEdit", "new_name": "FileEdit_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn029", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.workspace.Workspace", "new_name": "Workspace_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn030", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.language_stats.FileInfo", "new_name": "FileInfo_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn031", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.protocols.types.SkippedMismatchSite", "new_name": "SkippedMismatchSite_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn032", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol.S_KIND", "new_name": "S_KIND_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn033", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.mcp.descriptions.SYMBOL_OUTLINE", "new_name": "SYMBOL_OUTLINE_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn034", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol.S_ELINE", "new_name": "S_ELINE_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn035", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol.REF_NAME", "new_name": "REF_NAME_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn036", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.entrypoints.EntryPoint.in_main_guard", "new_name": "in_main_guard_wp7"}}
+{"id": "rn037", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.side_effects.SideEffect.filepath", "new_name": "filepath_wp7"}}
+{"id": "rn038", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename.result.RenameResult.status", "new_name": "status_wp7"}}
+{"id": "rn039", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename_symbol._AffectedInterfacePub.interface_qpath", "new_name": "interface_qpath_wp7"}}
+{"id": "rn040", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.language.Language.fs_name", "new_name": "fs_name_wp7"}}
+{"id": "rn041", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.import_graph.OrphanFile.filepath", "new_name": "filepath_wp7"}}
+{"id": "rn042", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.graph.Cycle.reason", "new_name": "reason_wp7"}}
+{"id": "rn043", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.context.ResolvedConfig.side_effect_package_roles", "new_name": "side_effect_package_roles_wp7"}}
+{"id": "rn044", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._dead_rows", "new_name": "_dead_rows_wp7"}}
+{"id": "rn045", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename.result.SkippedMismatch.receiver_source", "new_name": "receiver_source_wp7"}}
+{"id": "rp001", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.adapters.python_ast._python_signature", "param": "node", "new_name": "node_wp7"}}
+{"id": "rp002", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.cli.main", "param": "verbose", "new_name": "verbose_wp7"}}
+{"id": "rp003", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.checkers.orphans.rich_view", "param": "items", "new_name": "items_wp7"}}
+{"id": "rp004", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.shared.analyzer._count_internal_refs", "param": "tree", "new_name": "tree_wp7"}}
+{"id": "rp005", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.cli.patch", "param": "file", "new_name": "file_wp7"}}
+{"id": "rp006", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.cli.mcp", "param": "root", "new_name": "root_wp7"}}
+{"id": "rp007", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.adapters.pyscan._Daemon.rename_module_binding", "param": "params", "new_name": "params_wp7"}}
+{"id": "rp008", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.shared.symbol_index.SymbolIndex._lang", "param": "l", "new_name": "l_wp7"}}
+{"id": "rp009", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.commands.init._generate_toml", "param": "ignore_side_effects", "new_name": "ignore_side_effects_wp7"}}
+{"id": "rp010", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.shared.symbol_index.SymbolIndex.build_tree", "param": "row_ids", "new_name": "row_ids_wp7"}}
+{"id": "is001", "op": "insert-symbol", "args": {"anchor_path": "wyolet.symbol.adapters.python_ast._python_signature", "position": "after", "content": "# wp7 marker\n"}}
+{"id": "is002", "op": "insert-symbol", "args": {"anchor_path": "wyolet.symbol.protocols.types.ScannedSymbol", "position": "end", "content": "WP7_MARKER = 1\n"}}
+{"id": "pt001", "op": "patch", "args": {"file": "scripts/check_pkg_thresholds.py", "range": "1-1", "content": "# wp7 hdr"}}
+{"id": "pt002", "op": "patch", "args": {"file": "scripts/diff_runner.py", "range": "1-1", "content": "# wp7 hdr"}}
+{"id": "ds001", "op": "delete-symbol", "args": {"qualified_path": "wyolet.symbol.caches.instrument._line_start_byte", "force": true}}
+{"id": "ds002", "op": "delete-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.python_ast._python_signature"}, "expect_error": true}
+{"id": "rn046", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.no.such.symbol", "new_name": "x"}, "expect_error": true}
+{"id": "ds003", "op": "delete-symbol", "args": {"qualified_path": "wyolet.symbol.no.such", "force": true}, "expect_error": true}
+{"id": "rs001", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.no.such", "content": "def x():\n    pass\n"}, "expect_error": true}
+{"id": "rp011", "op": "rename-parameter", "args": {"func_qpath": "wyolet.symbol.adapters.python_ast._python_signature", "param": "nope", "new_name": "y"}, "expect_error": true}
+{"id": "is003", "op": "insert-symbol", "args": {"anchor_path": "wyolet.symbol.no.anchor", "position": "after", "content": "x"}, "expect_error": true}

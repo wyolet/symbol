@@ -234,6 +234,43 @@ fn parse_go_module_name(gomod: &Path) -> Option<String> {
     None
 }
 
+
+/// GoAstAdapter._PACKAGE_STUB — prepended to bare Go snippets so go/parser
+/// accepts them; offsets are shifted back to the caller's coordinates.
+const GO_PACKAGE_STUB: &str = "package _stub\n";
+
+/// GoAstAdapter._wrap_for_parsing: (text, prelude_lines).
+fn go_wrap_for_parsing(source: &str) -> (String, i64) {
+    for raw in source.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with("//") || line.starts_with("/*") {
+            continue;
+        }
+        if line.starts_with("package ") || line == "package" {
+            return (source.to_owned(), 0);
+        }
+        break;
+    }
+    (format!("{GO_PACKAGE_STUB}{source}"), 1)
+}
+
+fn shift_symbol(sym: &mut ScannedSymbol, byte_shift: i64, line_shift: i64) {
+    sym.byte_range = (
+        (sym.byte_range.0 - byte_shift).max(0),
+        (sym.byte_range.1 - byte_shift).max(0),
+    );
+    sym.line_range = (
+        (sym.line_range.0 - line_shift).max(1),
+        (sym.line_range.1 - line_shift).max(1),
+    );
+    for r in &mut sym.refs {
+        r.line = (r.line - line_shift).max(1);
+    }
+    for child in &mut sym.children {
+        shift_symbol(child, byte_shift, line_shift);
+    }
+}
+
 impl Adapter {
     pub fn scan_file(&self, path: &Path, module_prefix: Option<&str>) -> Result<FileScan> {
         let mut params = serde_json::json!({ "path": path.to_string_lossy() });
@@ -254,6 +291,27 @@ impl Adapter {
     }
 
     pub fn scan_content(&self, source: &str) -> Result<FileScan> {
+        // pyscan has a dedicated scan_content; go-scan only speaks scan_file
+        // but takes source inline, so a synthetic path serves the same job
+        // (mirrors Python replace-symbol calling adapter.symbols on content).
+        // Go refuses files without a package decl — bare snippets get the
+        // same `package _stub` prelude as GoAstAdapter._wrap_for_parsing,
+        // with byte/line ranges shifted back to caller coordinates.
+        if self.language == "go" {
+            let (text, prelude_lines) = go_wrap_for_parsing(source);
+            let result = self.daemon.call(
+                "scan_file",
+                serde_json::json!({ "path": "<content>.go", "source": text, "module_prefix": "" }),
+            )?;
+            let mut scan: FileScan = serde_json::from_value(result)?;
+            if prelude_lines > 0 {
+                let byte_shift = GO_PACKAGE_STUB.len() as i64;
+                for sym in &mut scan.symbols {
+                    shift_symbol(sym, byte_shift, prelude_lines);
+                }
+            }
+            return Ok(scan);
+        }
         let result = self
             .daemon
             .call("scan_content", serde_json::json!({ "source": source }))?;
@@ -261,17 +319,47 @@ impl Adapter {
     }
 
     pub fn validate_syntax(&self, source: &str) -> Result<ParseResult> {
+        // Go bare snippets need the package prelude (see scan_content);
+        // reported error lines shift back to caller coordinates.
+        let (text, prelude_lines) = if self.language == "go" {
+            go_wrap_for_parsing(source)
+        } else {
+            (source.to_owned(), 0)
+        };
         let result = self
             .daemon
-            .call("validate_syntax", serde_json::json!({ "source": source }))?;
-        Ok(serde_json::from_value(result)?)
+            .call("validate_syntax", serde_json::json!({ "source": text }))?;
+        let mut parsed: ParseResult = serde_json::from_value(result)?;
+        if prelude_lines > 0 {
+            if let Some(l) = parsed.error_line {
+                parsed.error_line = Some((l - prelude_lines).max(1));
+            }
+        }
+        Ok(parsed)
     }
 
     pub fn signature(&self, text: &str) -> Result<String> {
+        // pyscan reads params["text"]; go-scan's SignatureParams unmarshals
+        // `source` (a missing field decodes to "" → empty signature — WP7
+        // sweep root cause #1). Send both keys so each daemon finds its own.
         let result = self
             .daemon
-            .call("signature", serde_json::json!({ "text": text }))?;
-        Ok(result["signature"].as_str().unwrap_or_default().to_owned())
+            .call("signature", serde_json::json!({ "text": text, "source": text }))?;
+        let sig = result["signature"].as_str().unwrap_or_default();
+        if !sig.is_empty() || self.language != "go" {
+            // Python's adapters return "" for kinds without a parseable
+            // declaration (field/constant rows) — preserve that exactly.
+            return Ok(sig.to_owned());
+        }
+        // GO ONLY — client fallback (go_ast/__init__.py signature): when the
+        // daemon can't parse the slice (e.g. a bare `H map[string]any` from
+        // inside a type block), surface the first non-blank line, stripped.
+        Ok(text
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty())
+            .unwrap_or_default()
+            .to_owned())
     }
 
     pub fn preview(&self, body: &str, signature: &str, max_lines: usize) -> Result<String> {

@@ -1,0 +1,383 @@
+{"id": "cd001", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEJSON"}}
+{"id": "cd002", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEJSON"}}
+{"id": "cd003", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEBSON"}}
+{"id": "cd004", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEBSON"}}
+{"id": "cd005", "op": "code", "args": {"target": "github.com/gin-gonic/gin.localhostIP"}}
+{"id": "cd006", "op": "code", "args": {"target": "github.com/gin-gonic/gin.reset"}}
+{"id": "cd007", "op": "code", "args": {"target": "github.com/gin-gonic/gin.MIMEPlain"}}
+{"id": "cd008", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEXML"}}
+{"id": "cd009", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEXML"}}
+{"id": "cd010", "op": "code", "args": {"target": "github.com/gin-gonic/gin.ErrorTypeBind"}}
+{"id": "cd011", "op": "code", "args": {"target": "github.com/gin-gonic/gin.disableColor"}}
+{"id": "cd012", "op": "code", "args": {"target": "github.com/gin-gonic/gin.ErrorTypePublic"}}
+{"id": "cd013", "op": "code", "args": {"target": "github.com/gin-gonic/gin/internal/bytesconv.letterIdxBits"}}
+{"id": "cd014", "op": "code", "args": {"target": "github.com/gin-gonic/gin.yellow"}}
+{"id": "cd015", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestRouteParamsByNameWithExtraSlash"}}
+{"id": "cd016", "op": "code", "args": {"target": "github.com/gin-gonic/gin/render.TestRenderJSONError"}}
+{"id": "cd017", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestRouteNotAllowedEnabled"}}
+{"id": "cd018", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestRouterNotFound"}}
+{"id": "cd019", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestRouterStaticFSFileNotFound"}}
+{"id": "cd020", "op": "code", "args": {"target": "github.com/gin-gonic/gin.CreateTestContextOnly"}}
+{"id": "cd021", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestBadListener"}}
+{"id": "cd022", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.TestMappingCustomArrayUri"}}
+{"id": "cd023", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestContextRenderPDF"}}
+{"id": "cd024", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestLiteralColonWithRun"}}
+{"id": "cd025", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestSecureRequestDump"}}
+{"id": "cd026", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.init"}}
+{"id": "cd027", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.TestBindingXML"}}
+{"id": "cd028", "op": "code", "args": {"target": "github.com/gin-gonic/gin.TestFunctionName"}}
+{"id": "cd029", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.timeCodec"}}
+{"id": "cd030", "op": "code", "args": {"target": "github.com/gin-gonic/gin.H"}}
+{"id": "cd031", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.customPath"}}
+{"id": "cd032", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.FooStruct"}}
+{"id": "cd033", "op": "code", "args": {"target": "github.com/gin-gonic/gin.testStruct"}}
+{"id": "cd034", "op": "code", "args": {"target": "github.com/gin-gonic/gin.interceptedWriter"}}
+{"id": "cd035", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.bsonBinding"}}
+{"id": "cd036", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.customPathUnmarshalText"}}
+{"id": "cd037", "op": "code", "args": {"target": "github.com/gin-gonic/gin.LogFormatter"}}
+{"id": "cd038", "op": "code", "args": {"target": "github.com/gin-gonic/gin/render.HTMLDebug"}}
+{"id": "cd039", "op": "code", "args": {"target": "github.com/gin-gonic/gin.authPairs"}}
+{"id": "cd040", "op": "code", "args": {"target": "github.com/gin-gonic/gin/render.JSON"}}
+{"id": "cd041", "op": "code", "args": {"target": "github.com/gin-gonic/gin/codec/json.jsoniterApi"}}
+{"id": "cd042", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.jsonBinding"}}
+{"id": "cd043", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.protobufBinding.BindBody"}}
+{"id": "cd044", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.queryBinding.Name"}}
+{"id": "cd045", "op": "code", "args": {"target": "github.com/gin-gonic/gin/render.SecureJSON.WriteContentType"}}
+{"id": "cd046", "op": "code", "args": {"target": "github.com/gin-gonic/gin.Context.PostFormArray"}}
+{"id": "cd047", "op": "code", "args": {"target": "github.com/gin-gonic/gin.Context.GetInt8Slice"}}
+{"id": "cd048", "op": "code", "args": {"target": "github.com/gin-gonic/gin.mockWriter.Header"}}
+{"id": "cd049", "op": "code", "args": {"target": "github.com/gin-gonic/gin/codec/json.sonicApi.MarshalIndent"}}
+{"id": "cd050", "op": "code", "args": {"target": "github.com/gin-gonic/gin.Context.ShouldBindHeader"}}
+{"id": "cd051", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.customUnmarshalParamType.UnmarshalParam"}}
+{"id": "cd052", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.customJsonApi.MarshalIndent"}}
+{"id": "cd053", "op": "code", "args": {"target": "github.com/gin-gonic/gin.Context.GetIntSlice"}}
+{"id": "cd054", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.TimeEx.CreateDecoder"}}
+{"id": "cd055", "op": "code", "args": {"target": "github.com/gin-gonic/gin/codec/json.gojsonApi.MarshalIndent"}}
+{"id": "cd056", "op": "code", "args": {"target": "github.com/gin-gonic/gin/render.XML.WriteContentType"}}
+{"id": "cd057", "op": "code", "args": {"target": "github.com/gin-gonic/gin/internal/bytesconv.src"}}
+{"id": "cd058", "op": "code", "args": {"target": "github.com/gin-gonic/gin/codec/json.json"}}
+{"id": "cd059", "op": "code", "args": {"target": "github.com/gin-gonic/gin/codec/json.json"}}
+{"id": "cd060", "op": "code", "args": {"target": "github.com/gin-gonic/gin/render.jsonASCIIContentType"}}
+{"id": "cd061", "op": "code", "args": {"target": "github.com/gin-gonic/gin/ginS.engine"}}
+{"id": "cd062", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.Header"}}
+{"id": "cd063", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.Header"}}
+{"id": "cd064", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.zeroTime"}}
+{"id": "cd065", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.FormPost"}}
+{"id": "cd066", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.FormPost"}}
+{"id": "cd067", "op": "code", "args": {"target": "github.com/gin-gonic/gin.fakeHandlerValue"}}
+{"id": "cd068", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.YAML"}}
+{"id": "cd069", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.YAML"}}
+{"id": "cd070", "op": "code", "args": {"target": "github.com/gin-gonic/gin.MaxHandlers"}}
+{"id": "cd071", "op": "code", "args": {"target": "binding/binding.go:13-13"}}
+{"id": "cd072", "op": "code", "args": {"target": "binding/binding_nomsgpack.go:24-24"}}
+{"id": "cd073", "op": "code", "args": {"target": "context.go:36-36"}}
+{"id": "cd074", "op": "code", "args": {"target": "errors.go:20-20"}}
+{"id": "cd075", "op": "code", "args": {"target": "internal/bytesconv/bytesconv_test.go:55-55"}}
+{"id": "cd076", "op": "code", "args": {"target": "render/render_test.go:43-49"}}
+{"id": "cd077", "op": "code", "args": {"target": "routes_test.go:649-657"}}
+{"id": "cd078", "op": "code", "args": {"target": "binding/form_mapping_test.go:692-702"}}
+{"id": "cd079", "op": "code", "args": {"target": "recovery_test.go:303-363"}}
+{"id": "cd080", "op": "code", "args": {"target": "utils_test.go:90-92"}}
+{"id": "cd081", "op": "code", "args": {"target": "binding/form_mapping_test.go:603-603"}}
+{"id": "cd082", "op": "code", "args": {"target": "context_test.go:3516-3519"}}
+{"id": "cd083", "op": "code", "args": {"target": "logger.go:65-65"}}
+{"id": "cd084", "op": "code", "args": {"target": "render/json.go:19-21"}}
+{"id": "cd085", "op": "code", "args": {"target": "binding/protobuf.go:29-41"}}
+{"id": "cd086", "op": "code", "args": {"target": "context.go:643-646"}}
+{"id": "cd087", "op": "code", "args": {"target": "codec/json/sonic.go:34-36"}}
+{"id": "cd088", "op": "code", "args": {"target": "binding/json_test.go:93-95"}}
+{"id": "cd089", "op": "code", "args": {"target": "codec/json/go_json.go:32-34"}}
+{"id": "cd090", "op": "code", "args": {"target": "codec/json/jsoniter.go:22-22"}}
+{"id": "cd091", "op": "code", "args": {"target": "ginS/gins.go:15-17"}}
+{"id": "cd092", "op": "code", "args": {"target": "binding/json_test.go:108-108"}}
+{"id": "cd093", "op": "code", "args": {"target": "tree_test.go:16-16"}}
+{"id": "cd094", "op": "code", "args": {"target": "routergroup_test.go:14-14"}}
+{"id": "cd095", "op": "code", "args": {"target": "MIMEJSON"}}
+{"id": "cd096", "op": "code", "args": {"target": "com/gin-gonic/gin/binding.MIMEJSON"}}
+{"id": "cd097", "op": "code", "args": {"target": "reset"}}
+{"id": "cd098", "op": "code", "args": {"target": "com/gin-gonic/gin.reset"}}
+{"id": "cd099", "op": "code", "args": {"target": "disableColor"}}
+{"id": "cd100", "op": "code", "args": {"target": "com/gin-gonic/gin.disableColor"}}
+{"id": "cd101", "op": "code", "args": {"target": "TestRenderJSONError"}}
+{"id": "cd102", "op": "code", "args": {"target": "com/gin-gonic/gin/render.TestRenderJSONError"}}
+{"id": "cd103", "op": "code", "args": {"target": "TestBadListener"}}
+{"id": "cd104", "op": "code", "args": {"target": "com/gin-gonic/gin.TestBadListener"}}
+{"id": "cd105", "op": "code", "args": {"target": "init"}}
+{"id": "cd106", "op": "code", "args": {"target": "com/gin-gonic/gin/binding.init"}}
+{"id": "cd107", "op": "code", "args": {"target": "customPath"}}
+{"id": "cd108", "op": "code", "args": {"target": "com/gin-gonic/gin/binding.customPath"}}
+{"id": "cd109", "op": "code", "args": {"target": "customPathUnmarshalText"}}
+{"id": "cd110", "op": "code", "args": {"target": "com/gin-gonic/gin/binding.customPathUnmarshalText"}}
+{"id": "cd111", "op": "code", "args": {"target": "jsoniterApi"}}
+{"id": "cd112", "op": "code", "args": {"target": "com/gin-gonic/gin/codec/json.jsoniterApi"}}
+{"id": "cd113", "op": "code", "args": {"target": "PostFormArray"}}
+{"id": "cd114", "op": "code", "args": {"target": "Context.PostFormArray"}}
+{"id": "cd115", "op": "code", "args": {"target": "UnmarshalParam"}}
+{"id": "cd116", "op": "code", "args": {"target": "customUnmarshalParamType.UnmarshalParam"}}
+{"id": "cd117", "op": "code", "args": {"target": "WriteContentType"}}
+{"id": "cd118", "op": "code", "args": {"target": "XML.WriteContentType"}}
+{"id": "cd119", "op": "code", "args": {"target": "engine"}}
+{"id": "cd120", "op": "code", "args": {"target": "com/gin-gonic/gin/ginS.engine"}}
+{"id": "cd121", "op": "code", "args": {"target": "FormPost"}}
+{"id": "cd122", "op": "code", "args": {"target": "com/gin-gonic/gin/binding.FormPost"}}
+{"id": "cd123", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEJSON"}}
+{"id": "cd124", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEBSON"}}
+{"id": "cd125", "op": "code", "args": {"target": "github.com/gin-gonic/gin/codec/json.json"}}
+{"id": "cd126", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.Header"}}
+{"id": "cd127", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEXML"}}
+{"id": "cd128", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.Default"}}
+{"id": "cd129", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.FormPost"}}
+{"id": "cd130", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.YAML"}}
+{"id": "cd131", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEPlain"}}
+{"id": "cd132", "op": "code", "args": {"target": "github.com/gin-gonic/gin.init"}}
+{"id": "cd133", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.Binding"}}
+{"id": "cd134", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.MIMEYAML"}}
+{"id": "cd135", "op": "code", "args": {"target": "github.com/gin-gonic/gin/codec/json.init"}}
+{"id": "cd136", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.XML"}}
+{"id": "cd137", "op": "code", "args": {"target": "github.com/gin-gonic/gin/binding.BSON"}}
+{"id": "kl001", "op": "callers", "args": {"name": "String"}}
+{"id": "kl002", "op": "callers", "args": {"name": "Context"}}
+{"id": "kl003", "op": "callers", "args": {"name": "Header"}}
+{"id": "kl004", "op": "callers", "args": {"name": "New"}}
+{"id": "kl005", "op": "callers", "args": {"name": "Get"}}
+{"id": "kl006", "op": "callers", "args": {"name": "Error"}}
+{"id": "kl007", "op": "callers", "args": {"name": "CreateTestContext"}}
+{"id": "kl008", "op": "callers", "args": {"name": "GET"}}
+{"id": "kl009", "op": "callers", "args": {"name": "Params"}}
+{"id": "kl010", "op": "callers", "args": {"name": "Value"}}
+{"id": "kl011", "op": "callers", "args": {"name": "Param"}}
+{"id": "kl012", "op": "callers", "args": {"name": "PerformRequest"}}
+{"id": "kl013", "op": "callers", "args": {"name": "stackBufSize"}}
+{"id": "kl014", "op": "callers", "args": {"name": "mapURI"}}
+{"id": "kl015", "op": "callers", "args": {"name": "WriteMsgPack"}}
+{"id": "kl016", "op": "callers", "args": {"name": "ShouldBindHeader"}}
+{"id": "kl017", "op": "callers", "args": {"name": "newMockWriter"}}
+{"id": "kl018", "op": "callers", "args": {"name": "BindXML"}}
+{"id": "kl019", "op": "callers", "args": {"name": "TestErr"}}
+{"id": "kl020", "op": "callers", "args": {"name": "debugPrintLoadTemplate"}}
+{"id": "kl021", "op": "callers", "args": {"name": "testFormBindingForTime"}}
+{"id": "kl022", "op": "callers", "args": {"name": "defaultTimePointerCodec"}}
+{"id": "kl023", "op": "callers", "args": {"name": "anyMethods"}}
+{"id": "kl024", "op": "callers", "args": {"name": "FooStructForStructPointerType"}}
+{"id": "kl025", "op": "callers", "args": {"name": "TestMappingCustomArrayOfArrayUnmarshalTextDefault"}}
+{"id": "kl026", "op": "callers", "args": {"name": "TestMappingPtrField"}}
+{"id": "kl027", "op": "callers", "args": {"name": "TestLoadHTMLFilesFuncMap"}}
+{"id": "kl028", "op": "callers", "args": {"name": "TestMappingCustomSliceUri"}}
+{"id": "kl029", "op": "callers", "args": {"name": "TestContextRenderHTMLString"}}
+{"id": "kl030", "op": "callers", "args": {"name": "TestRenderYAML"}}
+{"id": "kl031", "op": "callers", "args": {"name": "TestBindingDefault"}}
+{"id": "kl032", "op": "callers", "args": {"name": "TestCustomJsonCodec"}}
+{"id": "kl033", "op": "callers", "args": {"name": "TestMappingCustomPointerStructTypeUnmarshalTextUri"}}
+{"id": "kl034", "op": "callers", "args": {"name": "TestMappingCustomArrayOfArrayUnmarshalTextUri"}}
+{"id": "kl035", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/binding.MIMEJSON"}}
+{"id": "kl036", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/binding.MIMEXML"}}
+{"id": "kl037", "op": "callers", "args": {"name": "github.com/gin-gonic/gin.TestRouteParamsByNameWithExtraSlash"}}
+{"id": "kl038", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/binding.TestMappingCustomArrayUri"}}
+{"id": "kl039", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/binding.timeCodec"}}
+{"id": "kl040", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/binding.customPathUnmarshalText"}}
+{"id": "kl041", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/binding.protobufBinding.BindBody"}}
+{"id": "kl042", "op": "callers", "args": {"name": "github.com/gin-gonic/gin.Context.ShouldBindHeader"}}
+{"id": "kl043", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/internal/bytesconv.src"}}
+{"id": "kl044", "op": "callers", "args": {"name": "github.com/gin-gonic/gin/binding.zeroTime"}}
+{"id": "ol001", "op": "outline", "args": {"query": "auth.go"}}
+{"id": "ol002", "op": "outline", "args": {"query": "auth_test.go"}}
+{"id": "ol003", "op": "outline", "args": {"query": "benchmarks_test.go"}}
+{"id": "ol004", "op": "outline", "args": {"query": "binding/binding.go"}}
+{"id": "ol005", "op": "outline", "args": {"query": "binding/binding_msgpack_test.go"}}
+{"id": "ol006", "op": "outline", "args": {"query": "binding/binding_nomsgpack.go"}}
+{"id": "ol007", "op": "outline", "args": {"query": "binding/binding_test.go"}}
+{"id": "ol008", "op": "outline", "args": {"query": "binding/bson.go"}}
+{"id": "ol009", "op": "outline", "args": {"query": "binding/default_validator.go"}}
+{"id": "ol010", "op": "outline", "args": {"query": "binding/default_validator_benchmark_test.go"}}
+{"id": "ol011", "op": "outline", "args": {"query": "binding/default_validator_test.go"}}
+{"id": "ol012", "op": "outline", "args": {"query": "binding/form.go"}}
+{"id": "ol013", "op": "outline", "args": {"query": "binding/form_mapping.go"}}
+{"id": "ol014", "op": "outline", "args": {"query": "binding/form_mapping_benchmark_test.go"}}
+{"id": "ol015", "op": "outline", "args": {"query": "binding/form_mapping_test.go"}}
+{"id": "ol016", "op": "outline", "args": {"query": "binding/header.go"}}
+{"id": "ol017", "op": "outline", "args": {"query": "binding/json.go"}}
+{"id": "ol018", "op": "outline", "args": {"query": "binding/json_test.go"}}
+{"id": "ol019", "op": "outline", "args": {"query": "binding/msgpack.go"}}
+{"id": "ol020", "op": "outline", "args": {"query": "binding/msgpack_test.go"}}
+{"id": "ol021", "op": "outline", "args": {"query": "binding/multipart_form_mapping.go"}}
+{"id": "ol022", "op": "outline", "args": {"query": "binding/multipart_form_mapping_test.go"}}
+{"id": "ol023", "op": "outline", "args": {"query": "binding/plain.go"}}
+{"id": "ol024", "op": "outline", "args": {"query": "binding/protobuf.go"}}
+{"id": "ol025", "op": "outline", "args": {"query": "binding/query.go"}}
+{"id": "ol026", "op": "outline", "args": {"query": "binding/toml.go"}}
+{"id": "ol027", "op": "outline", "args": {"query": "binding/toml_test.go"}}
+{"id": "ol028", "op": "outline", "args": {"query": "binding/uri.go"}}
+{"id": "ol029", "op": "outline", "args": {"query": "binding/validate_test.go"}}
+{"id": "ol030", "op": "outline", "args": {"query": "binding/xml.go"}}
+{"id": "ol031", "op": "outline", "args": {"query": "binding/xml_test.go"}}
+{"id": "ol032", "op": "outline", "args": {"query": "binding/yaml.go"}}
+{"id": "ol033", "op": "outline", "args": {"query": "binding/yaml_test.go"}}
+{"id": "ol034", "op": "outline", "args": {"query": "codec/json/api.go"}}
+{"id": "ol035", "op": "outline", "args": {"query": "codec/json/go_json.go"}}
+{"id": "ol036", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.timeCodec"}}
+{"id": "ol037", "op": "outline", "args": {"query": "github.com/gin-gonic/gin.H"}}
+{"id": "ol038", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.customPath"}}
+{"id": "ol039", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.FooStruct"}}
+{"id": "ol040", "op": "outline", "args": {"query": "github.com/gin-gonic/gin.testStruct"}}
+{"id": "ol041", "op": "outline", "args": {"query": "github.com/gin-gonic/gin.interceptedWriter"}}
+{"id": "ol042", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.bsonBinding"}}
+{"id": "ol043", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.customPathUnmarshalText"}}
+{"id": "ol044", "op": "outline", "args": {"query": "github.com/gin-gonic/gin.LogFormatter"}}
+{"id": "ol045", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/render.HTMLDebug"}}
+{"id": "ol046", "op": "outline", "args": {"query": "github.com/gin-gonic/gin.authPairs"}}
+{"id": "ol047", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/render.JSON"}}
+{"id": "ol048", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/codec/json.jsoniterApi"}}
+{"id": "ol049", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.jsonBinding"}}
+{"id": "ol050", "op": "outline", "args": {"query": "github.com/gin-gonic/gin.testRequests"}}
+{"id": "ol051", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.formMultipartBinding"}}
+{"id": "ol052", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.structCustomValidation"}}
+{"id": "ol053", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.QueryTest"}}
+{"id": "ol054", "op": "outline", "args": {"query": "github.com/gin-gonic/gin.mockWriter"}}
+{"id": "ol055", "op": "outline", "args": {"query": "github.com/gin-gonic/gin/binding.FooStructForSliceType"}}
+{"id": "sr001", "op": "search", "args": {"patterns": ["MIMEJSON"]}}
+{"id": "sr002", "op": "search", "args": {"patterns": ["localhostIP"]}}
+{"id": "sr003", "op": "search", "args": {"patterns": ["MIMEXML"]}}
+{"id": "sr004", "op": "search", "args": {"patterns": ["letterIdxBits"]}}
+{"id": "sr005", "op": "search", "args": {"patterns": ["TestRouteNotAllowedEnabled"]}}
+{"id": "sr006", "op": "search", "args": {"patterns": ["TestBadListener"]}}
+{"id": "sr007", "op": "search", "args": {"patterns": ["TestSecureRequestDump"]}}
+{"id": "sr008", "op": "search", "args": {"patterns": ["timeCodec"]}}
+{"id": "sr009", "op": "search", "args": {"patterns": ["testStruct"]}}
+{"id": "sr010", "op": "search", "args": {"patterns": ["LogFormatter"]}}
+{"id": "sr011", "op": "search", "args": {"patterns": ["jsoniterApi"]}}
+{"id": "sr012", "op": "search", "args": {"patterns": ["WriteContentType"]}}
+{"id": "sr013", "op": "search", "args": {"patterns": ["MarshalIndent"]}}
+{"id": "sr014", "op": "search", "args": {"patterns": ["GetIntSlice"]}}
+{"id": "sr015", "op": "search", "args": {"patterns": ["src"]}}
+{"id": "sr016", "op": "search", "args": {"patterns": ["engine"]}}
+{"id": "sr017", "op": "search", "args": {"patterns": ["FormPost"]}}
+{"id": "sr018", "op": "search", "args": {"patterns": ["YAML"]}}
+{"id": "sr019", "op": "search", "args": {"patterns": ["MIMEJSON"], "ignore_case": true}}
+{"id": "sr020", "op": "search", "args": {"patterns": ["localhostIP"], "ignore_case": true}}
+{"id": "sr021", "op": "search", "args": {"patterns": ["MIMEXML"], "ignore_case": true}}
+{"id": "sr022", "op": "search", "args": {"patterns": ["letterIdxBits"], "ignore_case": true}}
+{"id": "sr023", "op": "search", "args": {"patterns": ["TestRouteNotAllowedEnabled"], "ignore_case": true}}
+{"id": "sr024", "op": "search", "args": {"patterns": ["TestBadListener"], "ignore_case": true}}
+{"id": "sr025", "op": "search", "args": {"patterns": ["TestSecureRequestDump"], "ignore_case": true}}
+{"id": "sr026", "op": "search", "args": {"patterns": ["timeCodec"], "ignore_case": true}}
+{"id": "sr027", "op": "search", "args": {"patterns": ["MIMEJSON"], "fixed": true}}
+{"id": "sr028", "op": "search", "args": {"patterns": ["localhostIP"], "fixed": true}}
+{"id": "sr029", "op": "search", "args": {"patterns": ["MIMEXML"], "fixed": true}}
+{"id": "sr030", "op": "search", "args": {"patterns": ["letterIdxBits"], "fixed": true}}
+{"id": "sr031", "op": "search", "args": {"patterns": ["TestRouteNotAllowedEnabled"], "fixed": true}}
+{"id": "sr032", "op": "search", "args": {"patterns": ["TestBadListener"], "fixed": true}}
+{"id": "sr033", "op": "search", "args": {"patterns": ["MIMEJSON"], "kind": "const", "limit": 50}}
+{"id": "sr034", "op": "search", "args": {"patterns": ["MIMEJSON"], "kind": "function", "limit": 50}}
+{"id": "sr035", "op": "search", "args": {"patterns": ["MIMEJSON"], "kind": "type", "limit": 50}}
+{"id": "sr036", "op": "search", "args": {"patterns": ["MIMEJSON"], "kind": "method", "limit": 50}}
+{"id": "sr037", "op": "search", "args": {"patterns": ["MIMEJSON"], "kind": "var", "limit": 50}}
+{"id": "sr038", "op": "search", "args": {"patterns": ["MIMEJSON"], "file": "auth.go"}}
+{"id": "sr039", "op": "search", "args": {"patterns": ["MIMEJSON"], "file": "auth_test.go"}}
+{"id": "sr040", "op": "search", "args": {"patterns": ["MIMEJSON"], "file": "benchmarks_test.go"}}
+{"id": "sr041", "op": "search", "args": {"patterns": ["MIMEJSON"], "file": "binding/binding.go"}}
+{"id": "sr042", "op": "search", "args": {"patterns": ["MIMEJSON"], "file": "binding/binding_msgpack_test.go"}}
+{"id": "sr043", "op": "search", "args": {"patterns": ["MIMEJSON"], "file": "binding/binding_nomsgpack.go"}}
+{"id": "sr044", "op": "search", "args": {"patterns": ["MIMEJSON", "localhostIP"]}}
+{"id": "sr045", "op": "search", "args": {"patterns": ["MIMEXML", "letterIdxBits"]}}
+{"id": "sr046", "op": "search", "args": {"patterns": ["TestRouteNotAllowedEnabled", "TestBadListener"]}}
+{"id": "sr047", "op": "search", "args": {"patterns": ["TestSecureRequestDump", "timeCodec"]}}
+{"id": "sr048", "op": "search", "args": {"patterns": ["testStruct", "LogFormatter"]}}
+{"id": "sr049", "op": "search", "args": {"patterns": ["jsoniterApi", "WriteContentType"]}}
+{"id": "sr050", "op": "search", "args": {"patterns": ["MarshalIndent", "GetIntSlice"]}}
+{"id": "sr051", "op": "search", "args": {"patterns": ["src", "engine"]}}
+{"id": "sr052", "op": "search", "args": {"patterns": ["FormPost", "YAML"]}}
+{"id": "sr053", "op": "search", "args": {"patterns": ["get.*"], "regex": true, "limit": 30}}
+{"id": "sr054", "op": "search", "args": {"patterns": ["^__"], "regex": true, "limit": 30}}
+{"id": "rn001", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Context", "new_name": "Context_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn002", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.RouterGroup", "new_name": "RouterGroup_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn003", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Engine", "new_name": "Engine_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn004", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.HandlerFunc", "new_name": "HandlerFunc_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn005", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.Binding", "new_name": "Binding_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn006", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.Delims", "new_name": "Delims_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn007", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/internal/bytesconv.src", "new_name": "src_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn008", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/codec/json.json", "new_name": "json_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn009", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/codec/json.json", "new_name": "json_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn010", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.jsonASCIIContentType", "new_name": "jsonASCIIContentType_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn011", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/ginS.engine", "new_name": "engine_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn012", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.Header", "new_name": "Header_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn013", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.Header", "new_name": "Header_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn014", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.zeroTime", "new_name": "zeroTime_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn015", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.MIMEJSON", "new_name": "MIMEJSON_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn016", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.MIMEJSON", "new_name": "MIMEJSON_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn017", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.MIMEBSON", "new_name": "MIMEBSON_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn018", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.MIMEBSON", "new_name": "MIMEBSON_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn019", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.localhostIP", "new_name": "localhostIP_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn020", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.reset", "new_name": "reset_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn021", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.MIMEPlain", "new_name": "MIMEPlain_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn022", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.MIMEXML", "new_name": "MIMEXML_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn023", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.MIMEXML", "new_name": "MIMEXML_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn024", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.ErrorTypeBind", "new_name": "ErrorTypeBind_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn025", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.queryBinding.Name", "new_name": "Name_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn026", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.headerBinding.Bind", "new_name": "Bind_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn027", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.JSON.Render", "new_name": "Render_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn028", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.XML.WriteContentType", "new_name": "WriteContentType_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn029", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.jsonBinding.BindBody", "new_name": "BindBody_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn030", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.responseWriter.Write", "new_name": "Write_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn031", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.failWriter.Write", "new_name": "Write_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn032", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.CreateTestContextOnly", "new_name": "CreateTestContextOnly_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn033", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.exampleFromPath", "new_name": "exampleFromPath_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn034", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.EnableJsonDecoderDisallowUnknownFields", "new_name": "EnableJsonDecoderDisallowUnknownFields_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn035", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.BenchmarkManyRoutesFirst", "new_name": "BenchmarkManyRoutesFirst_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn036", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.createMultipartRequest", "new_name": "createMultipartRequest_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn037", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.readWriteKeys", "new_name": "readWriteKeys_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn038", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.countSections", "new_name": "countSections_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn039", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.parseAccept", "new_name": "parseAccept_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn040", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.ErrorLoggerT", "new_name": "ErrorLoggerT_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn041", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.CreateTestResponseRecorder", "new_name": "CreateTestResponseRecorder_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn042", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Recovery", "new_name": "Recovery_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn043", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.somefunction", "new_name": "somefunction_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn044", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.testFormBindingForType", "new_name": "testFormBindingForType_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn045", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.decodeMsgPack", "new_name": "decodeMsgPack_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn046", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.mapURI", "new_name": "mapURI_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn047", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/ginS.SetHTMLTemplate", "new_name": "SetHTMLTemplate_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn048", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/ginS.NoRoute", "new_name": "NoRoute_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn049", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.Default", "new_name": "Default_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn050", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.createDefaultFormPostRequest", "new_name": "createDefaultFormPostRequest_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn051", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.convertTo", "new_name": "convertTo_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn052", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.trySetUsingParser", "new_name": "trySetUsingParser_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn053", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.testBodyBindingUseNumber2", "new_name": "testBodyBindingUseNumber2_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn054", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.protobufBinding.BindBody", "new_name": "BindBody_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn055", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.SecureJSON.WriteContentType", "new_name": "WriteContentType_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn056", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Context.PostFormArray", "new_name": "PostFormArray_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn057", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Context.GetInt8Slice", "new_name": "GetInt8Slice_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn058", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.mockWriter.Header", "new_name": "Header_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn059", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/codec/json.sonicApi.MarshalIndent", "new_name": "MarshalIndent_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn060", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Context.ShouldBindHeader", "new_name": "ShouldBindHeader_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn061", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.customUnmarshalParamType.UnmarshalParam", "new_name": "UnmarshalParam_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn062", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.customJsonApi.MarshalIndent", "new_name": "MarshalIndent_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn063", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Context.GetIntSlice", "new_name": "GetIntSlice_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn064", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.TimeEx.CreateDecoder", "new_name": "CreateDecoder_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn065", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/codec/json.gojsonApi.MarshalIndent", "new_name": "MarshalIndent_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn066", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.timeCodec", "new_name": "timeCodec_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn067", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.H", "new_name": "H_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn068", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.customPath", "new_name": "customPath_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn069", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.FooStruct", "new_name": "FooStruct_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn070", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.testStruct", "new_name": "testStruct_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn071", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.interceptedWriter", "new_name": "interceptedWriter_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn072", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.bsonBinding", "new_name": "bsonBinding_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn073", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/binding.customPathUnmarshalText", "new_name": "customPathUnmarshalText_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn074", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.LogFormatter", "new_name": "LogFormatter_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn075", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.HTMLDebug", "new_name": "HTMLDebug_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn076", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.authPairs", "new_name": "authPairs_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn077", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin/render.JSON", "new_name": "JSON_wp7"}, "tags": ["engine-kind"]}
+{"id": "rs001", "op": "replace-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.TestRouteParamsByNameWithExtraSlash", "content": "func TestRouteParamsByNameWithExtraSlash(t *testing.T) {\n}\n"}, "tags": ["engine-kind"]}
+{"id": "rs002", "op": "replace-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.TestRouteNotAllowedEnabled", "content": "func TestRouteNotAllowedEnabled(t *testing.T) {\n}\n"}, "tags": ["engine-kind"]}
+{"id": "rs003", "op": "replace-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.TestRouterNotFound", "content": "func TestRouterNotFound(t *testing.T) {\n}\n"}, "tags": ["engine-kind"]}
+{"id": "is001", "op": "insert-symbol", "args": {"anchor_path": "github.com/gin-gonic/gin.Version", "position": "after", "content": "// wp7 marker\n"}}
+{"id": "is002", "op": "insert-symbol", "args": {"anchor_path": "github.com/gin-gonic/gin.CreateTestContextOnly", "position": "before", "content": "// wp7 before\n"}}
+{"id": "pt001", "op": "patch", "args": {"file": "version.go", "range": "1-1", "content": "// wp7 hdr"}}
+{"id": "pt002", "op": "patch", "args": {"file": "utils.go", "range": "1-1", "content": "// wp7 hdr"}}
+{"id": "ds001", "op": "delete-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.dunno", "force": true}}
+{"id": "ds002", "op": "delete-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.localhostIP", "force": true}}
+{"id": "rn078", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Context", "new_name": "Engine"}, "expect_error": true}
+{"id": "rn079", "op": "rename-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.NoSuchType", "new_name": "X"}, "expect_error": true}
+{"id": "ds003", "op": "delete-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.Context"}, "expect_error": true}
+{"id": "ds004", "op": "delete-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.NoSuch", "force": true}, "expect_error": true}
+{"id": "rs004", "op": "replace-symbol", "args": {"qualified_path": "github.com/gin-gonic/gin.NoSuch", "content": "func X(){}\n"}, "expect_error": true}
+{"id": "pt003", "op": "patch", "args": {"file": "gin.go", "range": "999999-999999", "content": "x"}, "expect_error": true}
+{"id": "is003", "op": "insert-symbol", "args": {"anchor_path": "github.com/gin-gonic/gin.NoSuch", "position": "after", "content": "x"}, "expect_error": true}

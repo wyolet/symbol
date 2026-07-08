@@ -663,7 +663,14 @@ impl Index {
             }
         }
         let mut out = std::collections::HashSet::new();
+        let vendor = linguist().vendor.as_ref();
         for rel in rels {
+            // Vendored paths are pruned in full builds (walk); without the
+            // same filter here, incremental refresh smuggles testdata/ and
+            // friends back in and index content depends on the build path.
+            if vendor.is_some_and(|v| v.is_match(&rel)) {
+                continue;
+            }
             let abs = self.project_root.join(&rel);
             if let Some(key) = classify(&abs) {
                 if reg.has_adapter(&key) {
@@ -1036,7 +1043,11 @@ fn mtime_f64_checked(path: &Path) -> Option<f64> {
     let meta = std::fs::metadata(path).ok()?;
     let mt = meta.modified().ok()?;
     let d = mt.duration_since(std::time::UNIX_EPOCH).ok()?;
-    Some(d.as_nanos() as f64 / 1e9)
+    // CPython's st_mtime is computed as `sec + nsec*1e-9` in C double;
+    // `(sec*1e9 + nsec) / 1e9` differs in the last ulp, making
+    // quick_is_clean reject every Python-written snapshot (spurious
+    // refreshes). Reproduce CPython's exact arithmetic.
+    Some(d.as_secs() as f64 + d.subsec_nanos() as f64 * 1e-9)
 }
 
 fn git(cwd: &Path, args: &[&str]) -> Option<String> {

@@ -1,0 +1,44 @@
+{
+  "target": "/private/tmp/claude-501/-Users-abror/b63e7176-916f-4fc0-8c06-591746cb8815/scratchpad/fixture-proj",
+  "verdicts": {
+    "match": 11
+  },
+  "failures": [],
+  "timing_median_s": {
+    "code": {
+      "py": 0.0182,
+      "rs": 0.1368,
+      "n": 2
+    },
+    "callers": {
+      "py": 0.0,
+      "rs": 0.0037,
+      "n": 1
+    },
+    "outline": {
+      "py": 0.0004,
+      "rs": 0.0595,
+      "n": 1
+    },
+    "search": {
+      "py": 0.0007,
+      "rs": 0.0599,
+      "n": 2
+    },
+    "rename-symbol": {
+      "py": 0.3787,
+      "rs": 0.1526,
+      "n": 1
+    },
+    "patch": {
+      "py": 0.3289,
+      "rs": 0.01,
+      "n": 1
+    },
+    "delete-symbol": {
+      "py": 0.3791,
+      "rs": 0.1079,
+      "n": 1
+    }
+  }
+}

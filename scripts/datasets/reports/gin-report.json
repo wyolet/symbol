@@ -1,0 +1,54 @@
+{
+  "target": "/private/tmp/claude-501/-Users-abror/b63e7176-916f-4fc0-8c06-591746cb8815/scratchpad/gin",
+  "verdicts": {
+    "match": 469
+  },
+  "failures": [],
+  "timing_median_s": {
+    "code": {
+      "py": 0.0003,
+      "rs": 0.0083,
+      "n": 137
+    },
+    "callers": {
+      "py": 0.0,
+      "rs": 0.0054,
+      "n": 44
+    },
+    "outline": {
+      "py": 0.0003,
+      "rs": 0.0081,
+      "n": 55
+    },
+    "search": {
+      "py": 0.0006,
+      "rs": 0.0091,
+      "n": 54
+    },
+    "rename-symbol": {
+      "py": 0.7252,
+      "rs": 0.3384,
+      "n": 79
+    },
+    "replace-symbol": {
+      "py": 0.5085,
+      "rs": 0.1537,
+      "n": 4
+    },
+    "insert-symbol": {
+      "py": 0.503,
+      "rs": 0.1465,
+      "n": 3
+    },
+    "patch": {
+      "py": 0.3312,
+      "rs": 0.0106,
+      "n": 3
+    },
+    "delete-symbol": {
+      "py": 0.5061,
+      "rs": 0.1472,
+      "n": 4
+    }
+  }
+}

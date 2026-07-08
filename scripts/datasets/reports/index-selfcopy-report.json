@@ -1,0 +1,14 @@
+{
+  "target": "/private/tmp/claude-501/-Users-abror/b63e7176-916f-4fc0-8c06-591746cb8815/scratchpad/selfcopy",
+  "verdicts": {
+    "match": 2284
+  },
+  "failures": [],
+  "timing_median_s": {
+    "index": {
+      "py": 1.3616,
+      "rs": 0.4982,
+      "n": 1
+    }
+  }
+}

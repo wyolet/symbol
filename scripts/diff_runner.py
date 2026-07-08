@@ -131,7 +131,8 @@ def py_write(op: str, args: dict, cwd: Path):
     elif op == "rename-parameter":
         cmd += ["rename-parameter", args["func_qpath"], args["param"], args["new_name"]]
     elif op == "replace-symbol":
-        cmd += ["replace-symbol", args["qualified_path"], args["content"]]
+        # Python CLI takes content as an OPTION (same class as the patch fix)
+        cmd += ["replace-symbol", args["qualified_path"], "--content", args["content"]]
     elif op == "delete-symbol":
         cmd += ["delete-symbol", args["qualified_path"]] + (["--force"] if args.get("force") else [])
     elif op == "insert-symbol":
@@ -139,7 +140,9 @@ def py_write(op: str, args: dict, cwd: Path):
                 "--position", args["position"], "--content", args.get("content", "")]
         cmd += ["--no-reindent"] if args.get("no_reindent") else []
     elif op == "patch":
-        cmd += ["patch", args["file"], args["range"], args.get("content", ""), "--force"]
+        # Python CLI takes range/content as OPTIONS (verified: symbol patch --help)
+        cmd += ["patch", args["file"], "--range", args["range"],
+                "--content", args.get("content", ""), "--force"]
     cmd += ["--format", "json"]
     return sh(cmd, cwd=cwd)
 
@@ -357,12 +360,17 @@ class Runner:
                                 if after_py.get(k) != after_rs.get(k))
             self.verdict("MISMATCH", op_id, op, f"trees differ: {diff_files[:6]}")
 
-        # undo both sides; each must restore pristine (only if it changed things)
-        if py_changed:
+        # undo both sides; each must restore pristine — TRANSACTION-BACKED
+        # ops only. insert-symbol/delete-symbol/patch are direct byte-writes
+        # with no transaction (by design, identically on both sides), so
+        # `symbol undo` is a no-op for them and asserting pristine would
+        # manufacture false MISMATCHes.
+        tx_backed = op in {"rename-symbol", "replace-symbol", "rename-parameter"}
+        if tx_backed and py_changed:
             sh(["uv", "run", "--project", str(REPO), "symbol", "undo"], cwd=py_copy)
             self.verdict("match" if tree_hash(py_copy) == pristine else "MISMATCH",
                          f"{op_id}/undo-py", op, "python undo not pristine")
-        if rs_changed:
+        if tx_backed and rs_changed:
             run_rust(["undo"], rs_copy)
             self.verdict("match" if tree_hash(rs_copy) == pristine else "MISMATCH",
                          f"{op_id}/undo-rs", op, "rust undo not pristine")

@@ -227,10 +227,13 @@ pub fn search(
 
     let mut row_ids: Vec<i64> = vec![];
     let mut seen = std::collections::HashSet::new();
-    // Deterministic iteration: Python dict order is insertion order; a
-    // HashMap isn't. Sort candidate paths for stable output.
+    // Iteration order must match Python's: by_path is a dict whose insertion
+    // order is first-seen symbol order during ingest. Row ids are identical
+    // across implementations, so ordering by each path's first row id
+    // reproduces it exactly (alphabetical sort diverges once `limit`
+    // truncates — WP7 sweep finding sr058).
     let mut paths: Vec<&String> = index.by_path.keys().collect();
-    paths.sort();
+    paths.sort_by_key(|p| index.by_path[*p].first().copied().unwrap_or(i64::MAX));
     for path in paths {
         if !matchers.iter().all(|m| m(path)) {
             continue;

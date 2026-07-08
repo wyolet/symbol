@@ -1,0 +1,426 @@
+{"id": "cd001", "op": "code", "args": {"target": "tests.test_cli.test_run_cert_import"}}
+{"id": "cd002", "op": "code", "args": {"target": "tests.test_basic.test_endpoint_decorator"}}
+{"id": "cd003", "op": "code", "args": {"target": "tests.type_check.typing_route.tuple_headers"}}
+{"id": "cd004", "op": "code", "args": {"target": "flask.sansio.app.App.template_test.decorator"}}
+{"id": "cd005", "op": "code", "args": {"target": "flask.logging.create_logger"}}
+{"id": "cd006", "op": "code", "args": {"target": "flask.sessions.SecureCookieSession.__init__.on_update"}}
+{"id": "cd007", "op": "code", "args": {"target": "tests.test_basic.test_provide_automatic_options_method_disable"}}
+{"id": "cd008", "op": "code", "args": {"target": "tests.test_blueprints.test_nested_callback_order.b"}}
+{"id": "cd009", "op": "code", "args": {"target": "tests.test_templating.test_iterable_loader"}}
+{"id": "cd010", "op": "code", "args": {"target": "tests.test_json.test_jsonify_dicts.return_kwargs"}}
+{"id": "cd011", "op": "code", "args": {"target": "tests.test_basic.test_error_handling_processing.after_request"}}
+{"id": "cd012", "op": "code", "args": {"target": "tests.test_blueprints.test_request_processing"}}
+{"id": "cd013", "op": "code", "args": {"target": "tests.test_json.test_json_custom_mimetypes.return_json"}}
+{"id": "cd014", "op": "code", "args": {"target": "flask.sansio.scaffold._endpoint_from_view_func"}}
+{"id": "cd015", "op": "code", "args": {"target": "flask.config.Config.__init__"}}
+{"id": "cd016", "op": "code", "args": {"target": "flask.sessions.SessionInterface.save_session"}}
+{"id": "cd017", "op": "code", "args": {"target": "flask.json.tag.JSONTag.to_python"}}
+{"id": "cd018", "op": "code", "args": {"target": "tests.test_views.test_init_once.CountInit.dispatch_request"}}
+{"id": "cd019", "op": "code", "args": {"target": "tests.test_views.test_method_based_view.Index.get"}}
+{"id": "cd020", "op": "code", "args": {"target": "flask.config.Config.__repr__"}}
+{"id": "cd021", "op": "code", "args": {"target": "tests.test_cli.TestRoutes.expect_order"}}
+{"id": "cd022", "op": "code", "args": {"target": "tests.test_templating.test_custom_template_loader.MyFlask.create_global_jinja_loader"}}
+{"id": "cd023", "op": "code", "args": {"target": "tests.test_basic.test_multi_route_class_views.View.__init__"}}
+{"id": "cd024", "op": "code", "args": {"target": "flask.sessions.SessionInterface.get_cookie_httponly"}}
+{"id": "cd025", "op": "code", "args": {"target": "flask.sessions.SessionInterface.make_null_session"}}
+{"id": "cd026", "op": "code", "args": {"target": "flask.sessions.SecureCookieSessionInterface.get_signing_serializer"}}
+{"id": "cd027", "op": "code", "args": {"target": "flask.sansio.blueprints.Blueprint.register_blueprint"}}
+{"id": "cd028", "op": "code", "args": {"target": "flask.app.Flask.handle_http_exception"}}
+{"id": "cd029", "op": "code", "args": {"target": "tests.test_cli.test_find_best_app.Module.myapp1"}}
+{"id": "cd030", "op": "code", "args": {"target": "tests.test_basic.test_session_using_application_root.PrefixPathMiddleware.prefix"}}
+{"id": "cd031", "op": "code", "args": {"target": "flask.cli.FlaskGroup.create_app"}}
+{"id": "cd032", "op": "code", "args": {"target": "flask.sansio.blueprints.Blueprint.url_prefix"}}
+{"id": "cd033", "op": "code", "args": {"target": "examples.tutorial.tests.conftest.AuthActions._client"}}
+{"id": "cd034", "op": "code", "args": {"target": "flask.cli.CertParamType.path_type"}}
+{"id": "cd035", "op": "code", "args": {"target": "flask.sansio.scaffold.Scaffold._static_url_path"}}
+{"id": "cd036", "op": "code", "args": {"target": "flask.sessions.NullSession.popitem"}}
+{"id": "cd037", "op": "code", "args": {"target": "tests.test_helpers.test_abort_with_app.My900Error.code"}}
+{"id": "cd038", "op": "code", "args": {"target": "flask.json.provider.DefaultJSONProvider.default"}}
+{"id": "cd039", "op": "code", "args": {"target": "tests.test_cli.test_find_best_app.Module.myapp2"}}
+{"id": "cd040", "op": "code", "args": {"target": "tests.test_regression.test_aborting.Foo.whatever"}}
+{"id": "cd041", "op": "code", "args": {"target": "flask.sansio.app.App.jinja_environment"}}
+{"id": "cd042", "op": "code", "args": {"target": "flask.sansio.scaffold.Scaffold.static_folder"}}
+{"id": "cd043", "op": "code", "args": {"target": "tests.test_user_error_handler.test_error_handler_http_subclass.ForbiddenSubclassRegistered"}}
+{"id": "cd044", "op": "code", "args": {"target": "tests.test_subclassing.test_suppressed_exception_logging.SuppressedFlask"}}
+{"id": "cd045", "op": "code", "args": {"target": "flask.json.tag.TagUUID"}}
+{"id": "cd046", "op": "code", "args": {"target": "flask.wrappers.Request"}}
+{"id": "cd047", "op": "code", "args": {"target": "flask.sessions.SecureCookieSession"}}
+{"id": "cd048", "op": "code", "args": {"target": "tests.test_helpers.TestSendfile.test_static_file.StaticFileApp"}}
+{"id": "cd049", "op": "code", "args": {"target": "flask.cli.SeparatedPathType"}}
+{"id": "cd050", "op": "code", "args": {"target": "tests.test_views.test_provide_automatic_options_method_disable.Index"}}
+{"id": "cd051", "op": "code", "args": {"target": "tests.test_views.test_explicit_head.Index"}}
+{"id": "cd052", "op": "code", "args": {"target": "tests.test_views.test_endpoint_override.Index"}}
+{"id": "cd053", "op": "code", "args": {"target": "tests.test_user_error_handler.test_error_handler_no_match.CustomException"}}
+{"id": "cd054", "op": "code", "args": {"target": "tests.test_user_error_handler.TestGenericHandlers"}}
+{"id": "cd055", "op": "code", "args": {"target": "tests.test_views.test_multiple_inheritance.GetView"}}
+{"id": "cd056", "op": "code", "args": {"target": "tests.test_basic.test_errorhandler_precedence.E2"}}
+{"id": "cd057", "op": "code", "args": {"target": "tests.test_async.test_async_before_after_request.after"}}
+{"id": "cd058", "op": "code", "args": {"target": "tests.test_async._async_app.bp_index"}}
+{"id": "cd059", "op": "code", "args": {"target": "tests.type_check.typing_app_decorators.before_async"}}
+{"id": "cd060", "op": "code", "args": {"target": "tests.test_async.test_async_before_after_request.before"}}
+{"id": "cd061", "op": "code", "args": {"target": "tests.test_async.test_async_before_after_request.bp_before"}}
+{"id": "cd062", "op": "code", "args": {"target": "tests.test_async._async_app.index"}}
+{"id": "cd063", "op": "code", "args": {"target": "tests.test_async._async_app.bp_handle"}}
+{"id": "cd064", "op": "code", "args": {"target": "tests.test_async.test_async_before_after_request.bp_after"}}
+{"id": "cd065", "op": "code", "args": {"target": "tests.test_helpers.TestStreaming.test_async_view.index"}}
+{"id": "cd066", "op": "code", "args": {"target": "tests.type_check.typing_app_decorators.after_async"}}
+{"id": "cd067", "op": "code", "args": {"target": "tests.type_check.typing_route.async_route"}}
+{"id": "cd068", "op": "code", "args": {"target": "tests.test_async._async_app.error"}}
+{"id": "cd069", "op": "code", "args": {"target": "tests.type_check.typing_app_decorators.teardown_async"}}
+{"id": "cd070", "op": "code", "args": {"target": "tests.test_async._async_app.handle"}}
+{"id": "cd071", "op": "code", "args": {"target": "flask.config.T"}}
+{"id": "cd072", "op": "code", "args": {"target": "flask.ctx.F"}}
+{"id": "cd073", "op": "code", "args": {"target": "tests.test_config.SECRET_KEY"}}
+{"id": "cd074", "op": "code", "args": {"target": "tests.test_config.TEST_KEY"}}
+{"id": "cd075", "op": "code", "args": {"target": "flask.sansio.scaffold.F"}}
+{"id": "cd076", "op": "code", "args": {"target": "flask.app.F"}}
+{"id": "cd077", "op": "code", "args": {"target": "flask.cli.F"}}
+{"id": "cd078", "op": "code", "args": {"target": "flask.views.F"}}
+{"id": "cd079", "op": "code", "args": {"target": "tests.test_async.AsyncMethodView.post"}}
+{"id": "cd080", "op": "code", "args": {"target": "tests.test_async.AsyncMethodView.get"}}
+{"id": "cd081", "op": "code", "args": {"target": "tests.test_async.AsyncView.dispatch_request"}}
+{"id": "cd082", "op": "code", "args": {"target": "tests/test_cli.py:620-639"}}
+{"id": "cd083", "op": "code", "args": {"target": "src/flask/sansio/app.py:749-751"}}
+{"id": "cd084", "op": "code", "args": {"target": "tests/test_basic.py:116-126"}}
+{"id": "cd085", "op": "code", "args": {"target": "tests/test_json.py:91-93"}}
+{"id": "cd086", "op": "code", "args": {"target": "tests/test_json.py:40-42"}}
+{"id": "cd087", "op": "code", "args": {"target": "src/flask/sessions.py:263-270"}}
+{"id": "cd088", "op": "code", "args": {"target": "tests/test_views.py:31-32"}}
+{"id": "cd089", "op": "code", "args": {"target": "tests/test_templating.py:407-410"}}
+{"id": "cd090", "op": "code", "args": {"target": "src/flask/sessions.py:150-160"}}
+{"id": "cd091", "op": "code", "args": {"target": "src/flask/app.py:830-863"}}
+{"id": "cd092", "op": "code", "args": {"target": "src/flask/cli.py:589-589"}}
+{"id": "cd093", "op": "code", "args": {"target": "src/flask/cli.py:789-789"}}
+{"id": "cd094", "op": "code", "args": {"target": "tests/test_helpers.py:201-201"}}
+{"id": "cd095", "op": "code", "args": {"target": "tests/test_regression.py:6-6"}}
+{"id": "cd096", "op": "code", "args": {"target": "tests/test_user_error_handler.py:101-102"}}
+{"id": "cd097", "op": "code", "args": {"target": "src/flask/wrappers.py:18-219"}}
+{"id": "cd098", "op": "code", "args": {"target": "src/flask/cli.py:867-879"}}
+{"id": "cd099", "op": "code", "args": {"target": "tests/test_views.py:186-190"}}
+{"id": "cd100", "op": "code", "args": {"target": "tests/test_views.py:220-222"}}
+{"id": "cd101", "op": "code", "args": {"target": "tests/test_async.py:60-63"}}
+{"id": "cd102", "op": "code", "args": {"target": "tests/test_async.py:126-129"}}
+{"id": "cd103", "op": "code", "args": {"target": "tests/test_async.py:131-135"}}
+{"id": "cd104", "op": "code", "args": {"target": "tests/type_check/typing_route.py:96-98"}}
+{"id": "cd105", "op": "code", "args": {"target": "tests/test_async.py:50-52"}}
+{"id": "cd106", "op": "code", "args": {"target": "tests/test_config.py:10-10"}}
+{"id": "cd107", "op": "code", "args": {"target": "src/flask/app.py:80-80"}}
+{"id": "cd108", "op": "code", "args": {"target": "tests/test_async.py:35-37"}}
+{"id": "cd109", "op": "code", "args": {"target": "test_run_cert_import"}}
+{"id": "cd110", "op": "code", "args": {"target": "test_cli.test_run_cert_import"}}
+{"id": "cd111", "op": "code", "args": {"target": "on_update"}}
+{"id": "cd112", "op": "code", "args": {"target": "__init__.on_update"}}
+{"id": "cd113", "op": "code", "args": {"target": "after_request"}}
+{"id": "cd114", "op": "code", "args": {"target": "test_error_handling_processing.after_request"}}
+{"id": "cd115", "op": "code", "args": {"target": "save_session"}}
+{"id": "cd116", "op": "code", "args": {"target": "SessionInterface.save_session"}}
+{"id": "cd117", "op": "code", "args": {"target": "expect_order"}}
+{"id": "cd118", "op": "code", "args": {"target": "TestRoutes.expect_order"}}
+{"id": "cd119", "op": "code", "args": {"target": "get_signing_serializer"}}
+{"id": "cd120", "op": "code", "args": {"target": "SecureCookieSessionInterface.get_signing_serializer"}}
+{"id": "cd121", "op": "code", "args": {"target": "create_app"}}
+{"id": "cd122", "op": "code", "args": {"target": "FlaskGroup.create_app"}}
+{"id": "cd123", "op": "code", "args": {"target": "popitem"}}
+{"id": "cd124", "op": "code", "args": {"target": "NullSession.popitem"}}
+{"id": "cd125", "op": "code", "args": {"target": "jinja_environment"}}
+{"id": "cd126", "op": "code", "args": {"target": "App.jinja_environment"}}
+{"id": "cd127", "op": "code", "args": {"target": "Request"}}
+{"id": "cd128", "op": "code", "args": {"target": "wrappers.Request"}}
+{"id": "cd129", "op": "code", "args": {"target": "Index"}}
+{"id": "cd130", "op": "code", "args": {"target": "test_explicit_head.Index"}}
+{"id": "cd131", "op": "code", "args": {"target": "E2"}}
+{"id": "cd132", "op": "code", "args": {"target": "test_errorhandler_precedence.E2"}}
+{"id": "cd133", "op": "code", "args": {"target": "bp_before"}}
+{"id": "cd134", "op": "code", "args": {"target": "test_async_before_after_request.bp_before"}}
+{"id": "cd135", "op": "code", "args": {"target": "after_async"}}
+{"id": "cd136", "op": "code", "args": {"target": "typing_app_decorators.after_async"}}
+{"id": "cd137", "op": "code", "args": {"target": "T"}}
+{"id": "cd138", "op": "code", "args": {"target": "config.T"}}
+{"id": "cd139", "op": "code", "args": {"target": "F"}}
+{"id": "cd140", "op": "code", "args": {"target": "app.F"}}
+{"id": "cd141", "op": "code", "args": {"target": "dispatch_request"}}
+{"id": "cd142", "op": "code", "args": {"target": "AsyncView.dispatch_request"}}
+{"id": "cd143", "op": "code", "args": {"target": "flask.sansio.scaffold.Scaffold.static_folder"}}
+{"id": "cd144", "op": "code", "args": {"target": "flask.sansio.app.App.debug"}}
+{"id": "cd145", "op": "code", "args": {"target": "flask.sessions.SessionMixin.permanent"}}
+{"id": "cd146", "op": "code", "args": {"target": "flask.wrappers.Request.max_form_memory_size"}}
+{"id": "cd147", "op": "code", "args": {"target": "tests.test_cli.test_find_best_app.Module.myapp"}}
+{"id": "cd148", "op": "code", "args": {"target": "flask.sansio.app.App.template_test"}}
+{"id": "cd149", "op": "code", "args": {"target": "flask.helpers.stream_with_context"}}
+{"id": "cd150", "op": "code", "args": {"target": "tests.test_cli.test_find_best_app.Module"}}
+{"id": "cd151", "op": "code", "args": {"target": "flask.sansio.blueprints.Blueprint.app_template_test"}}
+{"id": "cd152", "op": "code", "args": {"target": "flask.sansio.blueprints.Blueprint.app_template_global"}}
+{"id": "cd153", "op": "code", "args": {"target": "flask.wrappers.Request.max_content_length"}}
+{"id": "cd154", "op": "code", "args": {"target": "flask.wrappers.Request.max_form_parts"}}
+{"id": "cd155", "op": "code", "args": {"target": "flask.cli.locate_app"}}
+{"id": "cd156", "op": "code", "args": {"target": "flask.sansio.app.App.template_filter"}}
+{"id": "cd157", "op": "code", "args": {"target": "flask.config.ConfigAttribute.__get__"}}
+{"id": "kl001", "op": "callers", "args": {"name": "app"}}
+{"id": "kl002", "op": "callers", "args": {"name": "get"}}
+{"id": "kl003", "op": "callers", "args": {"name": "route"}}
+{"id": "kl004", "op": "callers", "args": {"name": "data"}}
+{"id": "kl005", "op": "callers", "args": {"name": "config"}}
+{"id": "kl006", "op": "callers", "args": {"name": "Flask"}}
+{"id": "kl007", "op": "callers", "args": {"name": "jinja_env"}}
+{"id": "kl008", "op": "callers", "args": {"name": "request"}}
+{"id": "kl009", "op": "callers", "args": {"name": "g"}}
+{"id": "kl010", "op": "callers", "args": {"name": "Blueprint"}}
+{"id": "kl011", "op": "callers", "args": {"name": "register_blueprint"}}
+{"id": "kl012", "op": "callers", "args": {"name": "session"}}
+{"id": "kl013", "op": "callers", "args": {"name": "create_global_jinja_loader"}}
+{"id": "kl014", "op": "callers", "args": {"name": "_max_form_parts"}}
+{"id": "kl015", "op": "callers", "args": {"name": "TagDict"}}
+{"id": "kl016", "op": "callers", "args": {"name": "_param_cb"}}
+{"id": "kl017", "op": "callers", "args": {"name": "view_args"}}
+{"id": "kl018", "op": "callers", "args": {"name": "_loaded_app"}}
+{"id": "kl019", "op": "callers", "args": {"name": "stream_template"}}
+{"id": "kl020", "op": "callers", "args": {"name": "_get_source_explained"}}
+{"id": "kl021", "op": "callers", "args": {"name": "make_shell_context"}}
+{"id": "kl022", "op": "callers", "args": {"name": "finalize_request"}}
+{"id": "kl023", "op": "callers", "args": {"name": "ForbiddenSubclassUnregistered"}}
+{"id": "kl024", "op": "callers", "args": {"name": "count"}}
+{"id": "kl025", "op": "callers", "args": {"name": "test_template_loader_debugging"}}
+{"id": "kl026", "op": "callers", "args": {"name": "parent_no"}}
+{"id": "kl027", "op": "callers", "args": {"name": "generator"}}
+{"id": "kl028", "op": "callers", "args": {"name": "__call__"}}
+{"id": "kl029", "op": "callers", "args": {"name": "after_async"}}
+{"id": "kl030", "op": "callers", "args": {"name": "app_teardown"}}
+{"id": "kl031", "op": "callers", "args": {"name": "new"}}
+{"id": "kl032", "op": "callers", "args": {"name": "from_response_headers"}}
+{"id": "kl033", "op": "callers", "args": {"name": "normal_index"}}
+{"id": "kl034", "op": "callers", "args": {"name": "setup"}}
+{"id": "kl035", "op": "callers", "args": {"name": "tests.test_cli.test_run_cert_import"}}
+{"id": "kl036", "op": "callers", "args": {"name": "tests.test_blueprints.test_nested_callback_order.b"}}
+{"id": "kl037", "op": "callers", "args": {"name": "flask.config.Config.__init__"}}
+{"id": "kl038", "op": "callers", "args": {"name": "tests.test_templating.test_custom_template_loader.MyFlask.create_global_jinja_loader"}}
+{"id": "kl039", "op": "callers", "args": {"name": "tests.test_cli.test_find_best_app.Module.myapp1"}}
+{"id": "kl040", "op": "callers", "args": {"name": "flask.sessions.NullSession.popitem"}}
+{"id": "kl041", "op": "callers", "args": {"name": "tests.test_user_error_handler.test_error_handler_http_subclass.ForbiddenSubclassRegistered"}}
+{"id": "kl042", "op": "callers", "args": {"name": "tests.test_views.test_provide_automatic_options_method_disable.Index"}}
+{"id": "kl043", "op": "callers", "args": {"name": "tests.test_async.test_async_before_after_request.after"}}
+{"id": "kl044", "op": "callers", "args": {"name": "tests.test_async.test_async_before_after_request.bp_after"}}
+{"id": "ol001", "op": "outline", "args": {"query": "docs/conf.py"}}
+{"id": "ol002", "op": "outline", "args": {"query": "examples/celery/src/task_app/__init__.py"}}
+{"id": "ol003", "op": "outline", "args": {"query": "examples/celery/src/task_app/tasks.py"}}
+{"id": "ol004", "op": "outline", "args": {"query": "examples/celery/src/task_app/views.py"}}
+{"id": "ol005", "op": "outline", "args": {"query": "examples/javascript/js_example/views.py"}}
+{"id": "ol006", "op": "outline", "args": {"query": "examples/javascript/tests/conftest.py"}}
+{"id": "ol007", "op": "outline", "args": {"query": "examples/javascript/tests/test_js_example.py"}}
+{"id": "ol008", "op": "outline", "args": {"query": "examples/tutorial/flaskr/__init__.py"}}
+{"id": "ol009", "op": "outline", "args": {"query": "examples/tutorial/flaskr/auth.py"}}
+{"id": "ol010", "op": "outline", "args": {"query": "examples/tutorial/flaskr/blog.py"}}
+{"id": "ol011", "op": "outline", "args": {"query": "examples/tutorial/flaskr/db.py"}}
+{"id": "ol012", "op": "outline", "args": {"query": "examples/tutorial/tests/conftest.py"}}
+{"id": "ol013", "op": "outline", "args": {"query": "examples/tutorial/tests/test_auth.py"}}
+{"id": "ol014", "op": "outline", "args": {"query": "examples/tutorial/tests/test_blog.py"}}
+{"id": "ol015", "op": "outline", "args": {"query": "examples/tutorial/tests/test_db.py"}}
+{"id": "ol016", "op": "outline", "args": {"query": "examples/tutorial/tests/test_factory.py"}}
+{"id": "ol017", "op": "outline", "args": {"query": "src/flask/app.py"}}
+{"id": "ol018", "op": "outline", "args": {"query": "src/flask/blueprints.py"}}
+{"id": "ol019", "op": "outline", "args": {"query": "src/flask/cli.py"}}
+{"id": "ol020", "op": "outline", "args": {"query": "src/flask/config.py"}}
+{"id": "ol021", "op": "outline", "args": {"query": "src/flask/ctx.py"}}
+{"id": "ol022", "op": "outline", "args": {"query": "src/flask/debughelpers.py"}}
+{"id": "ol023", "op": "outline", "args": {"query": "src/flask/globals.py"}}
+{"id": "ol024", "op": "outline", "args": {"query": "src/flask/helpers.py"}}
+{"id": "ol025", "op": "outline", "args": {"query": "src/flask/json/__init__.py"}}
+{"id": "ol026", "op": "outline", "args": {"query": "src/flask/json/provider.py"}}
+{"id": "ol027", "op": "outline", "args": {"query": "src/flask/json/tag.py"}}
+{"id": "ol028", "op": "outline", "args": {"query": "src/flask/logging.py"}}
+{"id": "ol029", "op": "outline", "args": {"query": "src/flask/sansio/app.py"}}
+{"id": "ol030", "op": "outline", "args": {"query": "src/flask/sansio/blueprints.py"}}
+{"id": "ol031", "op": "outline", "args": {"query": "src/flask/sansio/scaffold.py"}}
+{"id": "ol032", "op": "outline", "args": {"query": "src/flask/sessions.py"}}
+{"id": "ol033", "op": "outline", "args": {"query": "src/flask/templating.py"}}
+{"id": "ol034", "op": "outline", "args": {"query": "src/flask/testing.py"}}
+{"id": "ol035", "op": "outline", "args": {"query": "src/flask/views.py"}}
+{"id": "ol036", "op": "outline", "args": {"query": "tests.test_user_error_handler.test_error_handler_http_subclass.ForbiddenSubclassRegistered"}}
+{"id": "ol037", "op": "outline", "args": {"query": "tests.test_subclassing.test_suppressed_exception_logging.SuppressedFlask"}}
+{"id": "ol038", "op": "outline", "args": {"query": "flask.json.tag.TagUUID"}}
+{"id": "ol039", "op": "outline", "args": {"query": "flask.wrappers.Request"}}
+{"id": "ol040", "op": "outline", "args": {"query": "flask.sessions.SecureCookieSession"}}
+{"id": "ol041", "op": "outline", "args": {"query": "tests.test_helpers.TestSendfile.test_static_file.StaticFileApp"}}
+{"id": "ol042", "op": "outline", "args": {"query": "flask.cli.SeparatedPathType"}}
+{"id": "ol043", "op": "outline", "args": {"query": "tests.test_views.test_provide_automatic_options_method_disable.Index"}}
+{"id": "ol044", "op": "outline", "args": {"query": "tests.test_views.test_explicit_head.Index"}}
+{"id": "ol045", "op": "outline", "args": {"query": "tests.test_views.test_endpoint_override.Index"}}
+{"id": "ol046", "op": "outline", "args": {"query": "tests.test_user_error_handler.test_error_handler_no_match.CustomException"}}
+{"id": "ol047", "op": "outline", "args": {"query": "tests.test_user_error_handler.TestGenericHandlers"}}
+{"id": "ol048", "op": "outline", "args": {"query": "tests.test_views.test_multiple_inheritance.GetView"}}
+{"id": "ol049", "op": "outline", "args": {"query": "tests.test_basic.test_errorhandler_precedence.E2"}}
+{"id": "ol050", "op": "outline", "args": {"query": "tests.test_appctx.test_custom_app_ctx_globals_class.CustomRequestGlobals"}}
+{"id": "ol051", "op": "outline", "args": {"query": "examples.tutorial.tests.test_db.test_init_db_command.Recorder"}}
+{"id": "ol052", "op": "outline", "args": {"query": "tests.type_check.typing_route.StatusJSON"}}
+{"id": "ol053", "op": "outline", "args": {"query": "tests.test_json.FixedOffset"}}
+{"id": "ol054", "op": "outline", "args": {"query": "flask.templating.DispatchingJinjaLoader"}}
+{"id": "ol055", "op": "outline", "args": {"query": "tests.test_helpers.test_app_aborter_class.MyFlask"}}
+{"id": "sr001", "op": "search", "args": {"patterns": ["test_run_cert_import"]}}
+{"id": "sr002", "op": "search", "args": {"patterns": ["create_logger"]}}
+{"id": "sr003", "op": "search", "args": {"patterns": ["test_iterable_loader"]}}
+{"id": "sr004", "op": "search", "args": {"patterns": ["return_json"]}}
+{"id": "sr005", "op": "search", "args": {"patterns": ["to_python"]}}
+{"id": "sr006", "op": "search", "args": {"patterns": ["expect_order"]}}
+{"id": "sr007", "op": "search", "args": {"patterns": ["make_null_session"]}}
+{"id": "sr008", "op": "search", "args": {"patterns": ["myapp1"]}}
+{"id": "sr009", "op": "search", "args": {"patterns": ["_client"]}}
+{"id": "sr010", "op": "search", "args": {"patterns": ["code"]}}
+{"id": "sr011", "op": "search", "args": {"patterns": ["jinja_environment"]}}
+{"id": "sr012", "op": "search", "args": {"patterns": ["TagUUID"]}}
+{"id": "sr013", "op": "search", "args": {"patterns": ["SeparatedPathType"]}}
+{"id": "sr014", "op": "search", "args": {"patterns": ["CustomException"]}}
+{"id": "sr015", "op": "search", "args": {"patterns": ["after"]}}
+{"id": "sr016", "op": "search", "args": {"patterns": ["bp_before"]}}
+{"id": "sr017", "op": "search", "args": {"patterns": ["index"]}}
+{"id": "sr018", "op": "search", "args": {"patterns": ["teardown_async"]}}
+{"id": "sr019", "op": "search", "args": {"patterns": ["SECRET_KEY"]}}
+{"id": "sr020", "op": "search", "args": {"patterns": ["F"]}}
+{"id": "sr021", "op": "search", "args": {"patterns": ["test_run_cert_import"], "ignore_case": true}}
+{"id": "sr022", "op": "search", "args": {"patterns": ["create_logger"], "ignore_case": true}}
+{"id": "sr023", "op": "search", "args": {"patterns": ["test_iterable_loader"], "ignore_case": true}}
+{"id": "sr024", "op": "search", "args": {"patterns": ["return_json"], "ignore_case": true}}
+{"id": "sr025", "op": "search", "args": {"patterns": ["to_python"], "ignore_case": true}}
+{"id": "sr026", "op": "search", "args": {"patterns": ["expect_order"], "ignore_case": true}}
+{"id": "sr027", "op": "search", "args": {"patterns": ["make_null_session"], "ignore_case": true}}
+{"id": "sr028", "op": "search", "args": {"patterns": ["myapp1"], "ignore_case": true}}
+{"id": "sr029", "op": "search", "args": {"patterns": ["test_run_cert_import"], "fixed": true}}
+{"id": "sr030", "op": "search", "args": {"patterns": ["create_logger"], "fixed": true}}
+{"id": "sr031", "op": "search", "args": {"patterns": ["test_iterable_loader"], "fixed": true}}
+{"id": "sr032", "op": "search", "args": {"patterns": ["return_json"], "fixed": true}}
+{"id": "sr033", "op": "search", "args": {"patterns": ["to_python"], "fixed": true}}
+{"id": "sr034", "op": "search", "args": {"patterns": ["expect_order"], "fixed": true}}
+{"id": "sr035", "op": "search", "args": {"patterns": ["test_run_cert_import"], "kind": "function", "limit": 50}}
+{"id": "sr036", "op": "search", "args": {"patterns": ["test_run_cert_import"], "kind": "method", "limit": 50}}
+{"id": "sr037", "op": "search", "args": {"patterns": ["test_run_cert_import"], "kind": "field", "limit": 50}}
+{"id": "sr038", "op": "search", "args": {"patterns": ["test_run_cert_import"], "kind": "class", "limit": 50}}
+{"id": "sr039", "op": "search", "args": {"patterns": ["test_run_cert_import"], "kind": "async_function", "limit": 50}}
+{"id": "sr040", "op": "search", "args": {"patterns": ["test_run_cert_import"], "kind": "constant", "limit": 50}}
+{"id": "sr041", "op": "search", "args": {"patterns": ["test_run_cert_import"], "kind": "async_method", "limit": 50}}
+{"id": "sr042", "op": "search", "args": {"patterns": ["test_run_cert_import"], "file": "docs/conf.py"}}
+{"id": "sr043", "op": "search", "args": {"patterns": ["test_run_cert_import"], "file": "examples/celery/src/task_app/__init__.py"}}
+{"id": "sr044", "op": "search", "args": {"patterns": ["test_run_cert_import"], "file": "examples/celery/src/task_app/tasks.py"}}
+{"id": "sr045", "op": "search", "args": {"patterns": ["test_run_cert_import"], "file": "examples/celery/src/task_app/views.py"}}
+{"id": "sr046", "op": "search", "args": {"patterns": ["test_run_cert_import"], "file": "examples/javascript/js_example/views.py"}}
+{"id": "sr047", "op": "search", "args": {"patterns": ["test_run_cert_import"], "file": "examples/javascript/tests/conftest.py"}}
+{"id": "sr048", "op": "search", "args": {"patterns": ["test_run_cert_import", "create_logger"]}}
+{"id": "sr049", "op": "search", "args": {"patterns": ["test_iterable_loader", "return_json"]}}
+{"id": "sr050", "op": "search", "args": {"patterns": ["to_python", "expect_order"]}}
+{"id": "sr051", "op": "search", "args": {"patterns": ["make_null_session", "myapp1"]}}
+{"id": "sr052", "op": "search", "args": {"patterns": ["_client", "code"]}}
+{"id": "sr053", "op": "search", "args": {"patterns": ["jinja_environment", "TagUUID"]}}
+{"id": "sr054", "op": "search", "args": {"patterns": ["SeparatedPathType", "CustomException"]}}
+{"id": "sr055", "op": "search", "args": {"patterns": ["after", "bp_before"]}}
+{"id": "sr056", "op": "search", "args": {"patterns": ["index", "teardown_async"]}}
+{"id": "sr057", "op": "search", "args": {"patterns": ["SECRET_KEY", "F"]}}
+{"id": "sr058", "op": "search", "args": {"patterns": ["get.*"], "regex": true, "limit": 30}}
+{"id": "sr059", "op": "search", "args": {"patterns": ["^__"], "regex": true, "limit": 30}}
+{"id": "rn001", "op": "rename-symbol", "args": {"qualified_path": "flask.json.tag.JSONTag.key", "new_name": "key_wp7"}}
+{"id": "rn002", "op": "rename-symbol", "args": {"qualified_path": "flask.views.View.methods", "new_name": "methods_wp7"}}
+{"id": "rn003", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.blueprints.Blueprint.name", "new_name": "name_wp7"}}
+{"id": "rn004", "op": "rename-symbol", "args": {"qualified_path": "flask.cli.ScriptInfo.data", "new_name": "data_wp7"}}
+{"id": "rn005", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.scaffold.Scaffold.cli", "new_name": "cli_wp7"}}
+{"id": "rn006", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.blueprints.Blueprint.url_prefix", "new_name": "url_prefix_wp7"}}
+{"id": "rn007", "op": "rename-symbol", "args": {"qualified_path": "flask.app.Flask.session_interface", "new_name": "session_interface_wp7"}}
+{"id": "rn008", "op": "rename-symbol", "args": {"qualified_path": "flask.config.T", "new_name": "T_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn009", "op": "rename-symbol", "args": {"qualified_path": "flask.ctx.F", "new_name": "F_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn010", "op": "rename-symbol", "args": {"qualified_path": "flask.app.F", "new_name": "F_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn011", "op": "rename-symbol", "args": {"qualified_path": "flask.views.F", "new_name": "F_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn012", "op": "rename-symbol", "args": {"qualified_path": "flask.views.View.dispatch_request", "new_name": "dispatch_request_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn013", "op": "rename-symbol", "args": {"qualified_path": "flask.views.View.as_view", "new_name": "as_view_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn014", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.scaffold.Scaffold.add_url_rule", "new_name": "add_url_rule_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn015", "op": "rename-symbol", "args": {"qualified_path": "flask.json.tag.JSONTag.to_json", "new_name": "to_json_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn016", "op": "rename-symbol", "args": {"qualified_path": "flask.json.tag.JSONTag.to_python", "new_name": "to_python_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn017", "op": "rename-symbol", "args": {"qualified_path": "flask.json.provider.JSONProvider.loads", "new_name": "loads_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn018", "op": "rename-symbol", "args": {"qualified_path": "flask.app.Flask.get_send_file_max_age", "new_name": "get_send_file_max_age_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn019", "op": "rename-symbol", "args": {"qualified_path": "flask.logging.create_logger", "new_name": "create_logger_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn020", "op": "rename-symbol", "args": {"qualified_path": "flask.helpers.get_root_path", "new_name": "get_root_path_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn021", "op": "rename-symbol", "args": {"qualified_path": "flask.logging.has_level_handler", "new_name": "has_level_handler_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn022", "op": "rename-symbol", "args": {"qualified_path": "flask.json.provider._default", "new_name": "_default_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn023", "op": "rename-symbol", "args": {"qualified_path": "flask.json.tag.TagUUID", "new_name": "TagUUID_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn024", "op": "rename-symbol", "args": {"qualified_path": "flask.templating.DispatchingJinjaLoader", "new_name": "DispatchingJinjaLoader_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn025", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.NullSession", "new_name": "NullSession_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn026", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.app.App.template_test.decorator", "new_name": "decorator_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn027", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.SecureCookieSession.__init__.on_update", "new_name": "on_update_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn028", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.scaffold._endpoint_from_view_func", "new_name": "_endpoint_from_view_func_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn029", "op": "rename-symbol", "args": {"qualified_path": "flask.templating._default_template_ctx_processor", "new_name": "_default_template_ctx_processor_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn030", "op": "rename-symbol", "args": {"qualified_path": "flask.json.dumps", "new_name": "dumps_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn031", "op": "rename-symbol", "args": {"qualified_path": "flask.app.add_ctx", "new_name": "add_ctx_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn032", "op": "rename-symbol", "args": {"qualified_path": "flask.cli.routes_command", "new_name": "routes_command_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn033", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.scaffold.Scaffold.errorhandler.decorator", "new_name": "decorator_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn034", "op": "rename-symbol", "args": {"qualified_path": "flask.app.add_ctx.wrapper", "new_name": "wrapper_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn035", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.blueprints.Blueprint.record_once.wrapper", "new_name": "wrapper_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn036", "op": "rename-symbol", "args": {"qualified_path": "flask.templating.stream_template_string", "new_name": "stream_template_string_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn037", "op": "rename-symbol", "args": {"qualified_path": "flask.ctx.copy_current_request_context", "new_name": "copy_current_request_context_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn038", "op": "rename-symbol", "args": {"qualified_path": "flask.logging.wsgi_errors_stream", "new_name": "wsgi_errors_stream_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn039", "op": "rename-symbol", "args": {"qualified_path": "flask.helpers.get_load_dotenv", "new_name": "get_load_dotenv_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn040", "op": "rename-symbol", "args": {"qualified_path": "flask.cli._called_with_wrong_args", "new_name": "_called_with_wrong_args_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn041", "op": "rename-symbol", "args": {"qualified_path": "flask.config.Config.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn042", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.SessionInterface.save_session", "new_name": "save_session_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn043", "op": "rename-symbol", "args": {"qualified_path": "flask.config.Config.__repr__", "new_name": "__repr___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn044", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.SessionInterface.get_cookie_httponly", "new_name": "get_cookie_httponly_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn045", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.SessionInterface.make_null_session", "new_name": "make_null_session_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn046", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.SecureCookieSessionInterface.get_signing_serializer", "new_name": "get_signing_serializer_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn047", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.blueprints.Blueprint.register_blueprint", "new_name": "register_blueprint_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn048", "op": "rename-symbol", "args": {"qualified_path": "flask.app.Flask.handle_http_exception", "new_name": "handle_http_exception_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn049", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.app.App.add_template_global", "new_name": "add_template_global_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn050", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.blueprints.BlueprintSetupState.add_url_rule", "new_name": "add_url_rule_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn051", "op": "rename-symbol", "args": {"qualified_path": "flask.app.Flask.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn052", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.blueprints.Blueprint.add_app_template_global", "new_name": "add_app_template_global_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn053", "op": "rename-symbol", "args": {"qualified_path": "flask.app.Flask.do_teardown_request", "new_name": "do_teardown_request_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn054", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.scaffold.Scaffold.post", "new_name": "post_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn055", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.app.App.redirect", "new_name": "redirect_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn056", "op": "rename-symbol", "args": {"qualified_path": "flask.cli.FlaskGroup.create_app", "new_name": "create_app_wp7"}}
+{"id": "rn057", "op": "rename-symbol", "args": {"qualified_path": "flask.cli.CertParamType.path_type", "new_name": "path_type_wp7"}}
+{"id": "rn058", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.scaffold.Scaffold._static_url_path", "new_name": "_static_url_path_wp7"}}
+{"id": "rn059", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.NullSession.popitem", "new_name": "popitem_wp7"}}
+{"id": "rn060", "op": "rename-symbol", "args": {"qualified_path": "flask.json.provider.DefaultJSONProvider.default", "new_name": "default_wp7"}}
+{"id": "rn061", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.app.App.jinja_environment", "new_name": "jinja_environment_wp7"}}
+{"id": "rn062", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.scaffold.Scaffold.static_folder", "new_name": "static_folder_wp7"}}
+{"id": "rn063", "op": "rename-symbol", "args": {"qualified_path": "flask.sessions.NullSession.update", "new_name": "update_wp7"}}
+{"id": "rn064", "op": "rename-symbol", "args": {"qualified_path": "flask.json.tag.JSONTag.serializer", "new_name": "serializer_wp7"}}
+{"id": "rn065", "op": "rename-symbol", "args": {"qualified_path": "flask.ctx.AppContext._flashes", "new_name": "_flashes_wp7"}}
+{"id": "rn066", "op": "rename-symbol", "args": {"qualified_path": "flask.sansio.blueprints.Blueprint._got_registered_once", "new_name": "_got_registered_once_wp7"}}
+{"id": "rn067", "op": "rename-symbol", "args": {"qualified_path": "flask.cli.ScriptInfo.set_debug_flag", "new_name": "set_debug_flag_wp7"}}
+{"id": "rn068", "op": "rename-symbol", "args": {"qualified_path": "flask.app.Flask.default_config", "new_name": "default_config_wp7"}}
+{"id": "rn069", "op": "rename-symbol", "args": {"qualified_path": "flask.json.tag.TagMarkup.key", "new_name": "key_wp7"}}
+{"id": "rn070", "op": "rename-symbol", "args": {"qualified_path": "flask.testing.FlaskClient.application", "new_name": "application_wp7"}}
+{"id": "rs001", "op": "replace-symbol", "args": {"qualified_path": "flask.helpers.get_load_dotenv", "content": "def get_load_dotenv(default: bool = True) -> bool:\n    return bool(default)\n"}, "tags": ["engine-kind"]}
+{"id": "rs002", "op": "replace-symbol", "args": {"qualified_path": "flask.logging.has_level_handler", "content": "def has_level_handler(logger: logging.Logger) -> bool:\n    return True\n"}, "tags": ["engine-kind"]}
+{"id": "rp001", "op": "rename-parameter", "args": {"func_qpath": "flask.logging.create_logger", "param": "app", "new_name": "app_wp7"}}
+{"id": "rp002", "op": "rename-parameter", "args": {"func_qpath": "flask.ctx.AppContext.pop", "param": "exc", "new_name": "exc_wp7"}}
+{"id": "rp003", "op": "rename-parameter", "args": {"func_qpath": "flask.app.Flask.create_url_adapter", "param": "request", "new_name": "request_wp7"}}
+{"id": "rp004", "op": "rename-parameter", "args": {"func_qpath": "flask.helpers.get_load_dotenv", "param": "default", "new_name": "default_wp7"}}
+{"id": "rp005", "op": "rename-parameter", "args": {"func_qpath": "flask.json.provider._default", "param": "o", "new_name": "o_wp7"}}
+{"id": "rp006", "op": "rename-parameter", "args": {"func_qpath": "flask.logging.has_level_handler", "param": "logger", "new_name": "logger_wp7"}}
+{"id": "rp007", "op": "rename-parameter", "args": {"func_qpath": "flask.sessions.SecureCookieSessionInterface.get_signing_serializer", "param": "app", "new_name": "app_wp7"}}
+{"id": "rp008", "op": "rename-parameter", "args": {"func_qpath": "flask.helpers.get_root_path", "param": "import_name", "new_name": "import_name_wp7"}}
+{"id": "rp009", "op": "rename-parameter", "args": {"func_qpath": "flask.templating.DispatchingJinjaLoader._iter_loaders", "param": "template", "new_name": "template_wp7"}}
+{"id": "rp010", "op": "rename-parameter", "args": {"func_qpath": "flask.sansio.app.App.trap_http_exception", "param": "e", "new_name": "e_wp7"}}
+{"id": "is001", "op": "insert-symbol", "args": {"anchor_path": "flask.logging.create_logger", "position": "after", "content": "# wp7 inserted marker\n"}}
+{"id": "is002", "op": "insert-symbol", "args": {"anchor_path": "flask.logging.create_logger", "position": "before", "content": "# wp7 inserted marker\n"}}
+{"id": "is003", "op": "insert-symbol", "args": {"anchor_path": "flask.json.provider.DefaultJSONProvider", "position": "start", "content": "# wp7 inserted marker\n"}}
+{"id": "is004", "op": "insert-symbol", "args": {"anchor_path": "flask.json.provider.DefaultJSONProvider", "position": "end", "content": "# wp7 inserted marker\n"}}
+{"id": "is005", "op": "insert-symbol", "args": {"anchor_path": "flask.views.View.dispatch_request", "position": "after", "content": "# wp7 inserted marker\n"}}
+{"id": "is006", "op": "insert-symbol", "args": {"anchor_path": "flask.cli.routes_command", "position": "before", "content": "# wp7 inserted marker\n"}}
+{"id": "is007", "op": "insert-symbol", "args": {"anchor_path": "flask.helpers.get_root_path", "position": "after", "content": "# wp7 inserted marker\n"}}
+{"id": "is008", "op": "insert-symbol", "args": {"anchor_path": "flask.helpers.get_root_path", "position": "after", "content": "def _wp7_helper():\n    return 1\n", "no_reindent": true}}
+{"id": "pt001", "op": "patch", "args": {"file": "src/flask/logging.py", "range": "1-1", "content": "# wp7 header"}}
+{"id": "pt002", "op": "patch", "args": {"file": "src/flask/logging.py", "range": "2-2", "content": "# second"}}
+{"id": "pt003", "op": "patch", "args": {"file": "src/flask/globals.py", "range": "1-2", "content": "# top"}}
+{"id": "pt004", "op": "patch", "args": {"file": "src/flask/__init__.py", "range": "1-1", "content": "# init"}}
+{"id": "pt005", "op": "patch", "args": {"file": "src/flask/json/tag.py", "range": "3-3", "content": "# tag"}}
+{"id": "ds001", "op": "delete-symbol", "args": {"qualified_path": "flask.config.T", "force": true}}
+{"id": "ds002", "op": "delete-symbol", "args": {"qualified_path": "flask.ctx.F", "force": true}}
+{"id": "ds003", "op": "delete-symbol", "args": {"qualified_path": "flask.app.F", "force": true}}
+{"id": "ds004", "op": "delete-symbol", "args": {"qualified_path": "flask.sansio.scaffold.F", "force": true}}
+{"id": "rn071", "op": "rename-symbol", "args": {"qualified_path": "flask.views.View.dispatch_request", "new_name": "as_view"}, "expect_error": true}
+{"id": "rn072", "op": "rename-symbol", "args": {"qualified_path": "flask.does.not.exist", "new_name": "x"}, "expect_error": true}
+{"id": "ds005", "op": "delete-symbol", "args": {"qualified_path": "flask.logging.create_logger"}, "expect_error": true}
+{"id": "ds006", "op": "delete-symbol", "args": {"qualified_path": "flask.no.such.symbol", "force": true}, "expect_error": true}
+{"id": "rs003", "op": "replace-symbol", "args": {"qualified_path": "flask.no.such.func", "content": "def x():\n    pass\n"}, "expect_error": true}
+{"id": "rp011", "op": "rename-parameter", "args": {"func_qpath": "flask.logging.create_logger", "param": "nope", "new_name": "y"}, "expect_error": true}
+{"id": "rp012", "op": "rename-parameter", "args": {"func_qpath": "flask.cli.routes_command", "param": "sort", "new_name": "all_methods"}, "expect_error": true}
+{"id": "is009", "op": "insert-symbol", "args": {"anchor_path": "flask.nope.anchor", "position": "after", "content": "x"}, "expect_error": true}
+{"id": "is010", "op": "insert-symbol", "args": {"anchor_path": "flask.logging.create_logger", "position": "sideways", "content": "x"}, "expect_error": true}
+{"id": "pt006", "op": "patch", "args": {"file": "src/flask/logging.py", "range": "999999-999999", "content": "x"}, "expect_error": true}
+{"id": "pt007", "op": "patch", "args": {"file": "src/flask/nonexistent_file.py", "range": "1-1", "content": "x"}, "expect_error": true}
+{"id": "cd158", "op": "code", "args": {"target": "flask.totally.made.up.path"}}
