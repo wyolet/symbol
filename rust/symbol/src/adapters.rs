@@ -357,6 +357,17 @@ impl Adapter {
         Ok(serde_json::from_value(files)?)
     }
 
+    /// insert-symbol: topmost decorator line of the def/class at `def_line`,
+    /// or `def_line` itself when there are no decorators / no match / parse
+    /// failure. Port of insert_symbol.py `_first_decorator_line`.
+    pub fn first_decorator_line(&self, path: &Path, def_line: i64) -> Result<i64> {
+        let result = self.daemon.call(
+            "first_decorator_line",
+            serde_json::json!({ "path": path.to_string_lossy(), "def_line": def_line }),
+        )?;
+        Ok(result["line"].as_i64().unwrap_or(def_line))
+    }
+
     pub fn normalize_blank_gaps(&self, source: &str) -> Result<String> {
         let result = self
             .daemon

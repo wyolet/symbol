@@ -9,7 +9,7 @@ use anyhow::Result;
 use crate::adapters::Registry;
 use crate::index::{Index, S_EBYTE, S_SBYTE};
 use crate::writes::content::{indent_at_byte, normalize_content};
-use crate::writes::patch::{apply_patch, PatchRequest};
+use crate::writes::patch::{apply_patch, line_end_byte, line_start_byte, PatchRequest};
 use crate::writes::read_cache::ReadCache;
 use crate::writes::tx::{commit_edits, FileEdit};
 
@@ -157,6 +157,152 @@ pub fn delete_symbol(
         "callers": callers,
         "diff": result.diff,
         "lines_removed": result.lines_removed,
+    })
+}
+
+// ---------------------------------------------------------- insert-symbol
+
+/// Kinds that have a body (start/end are valid) and can carry decorators —
+/// mirrors insert_symbol.py's has_body set.
+const HAS_BODY: &[&str] = &[
+    "class",
+    "function",
+    "async_function",
+    "method",
+    "async_method",
+];
+
+/// Port of writes/insert_symbol.py — add content at a position anchored to an
+/// existing symbol via a zero-width byte splice through the patch engine.
+#[allow(clippy::too_many_arguments)]
+pub fn insert_symbol(
+    index: &mut Index,
+    anchor_path: &str,
+    position: &str,
+    content: &str,
+    reindent: bool,
+    project_root: &Path,
+    reg: &Registry,
+    dry_run: bool,
+) -> serde_json::Value {
+    let row = match resolve_single(index, anchor_path, reg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let file_rel = index.file_of(row).to_owned();
+    let file_abs = project_root.join(&file_rel);
+    let (start_line, end_line) = index.range_of(row);
+    let kind = index.kind_of(row).to_owned();
+    let language = index.language_of(row).to_owned();
+
+    // Shared error shape for the resolution/argument phase (before we have a
+    // patch result). Mirrors InsertSymbolResult's error fields.
+    let arg_err = |code: &str, msg: String| {
+        serde_json::json!({
+            "status": "error", "error_code": code, "message": msg,
+            "anchor_path": anchor_path, "anchor_kind": kind,
+            "position": position, "file_rel": file_rel,
+        })
+    };
+
+    let has_body = HAS_BODY.contains(&kind.as_str());
+    if (position == "start" || position == "end") && !has_body {
+        return arg_err(
+            "invalid_argument",
+            format!("position {position:?} requires a symbol with a body; {anchor_path} is {kind:?}"),
+        );
+    }
+
+    let source = match std::fs::read(&file_abs) {
+        Ok(s) => s,
+        Err(e) => {
+            return arg_err("file_not_found", format!("cannot read {file_rel}: {e}"));
+        }
+    };
+
+    let anchor_indent = indent_at_byte(&source, line_start_byte(&source, start_line));
+    let body_indent = format!("{anchor_indent}    "); // one step deeper
+
+    let (insert_line, insert_byte, target_indent) = match position {
+        "before" => {
+            // If the anchor carries decorators, land above the first decorator
+            // — not between decorator(s) and `def`, which would break the
+            // binding. Only Python defs/classes carry decorators; for other
+            // languages/kinds the daemon call is skipped (matches the Python
+            // ast walk falling through to def_line).
+            let anchor_top = if language == "python" && has_body {
+                reg.for_language(&language)
+                    .ok()
+                    .and_then(|a| a.first_decorator_line(&file_abs, start_line).ok())
+                    .unwrap_or(start_line)
+            } else {
+                start_line
+            };
+            (
+                anchor_top,
+                line_start_byte(&source, anchor_top),
+                anchor_indent.clone(),
+            )
+        }
+        "after" => (
+            end_line + 1,
+            line_end_byte(&source, end_line),
+            anchor_indent.clone(),
+        ),
+        "start" => (
+            start_line + 1,
+            line_end_byte(&source, start_line),
+            body_indent.clone(),
+        ),
+        "end" => (
+            end_line + 1,
+            line_end_byte(&source, end_line),
+            body_indent.clone(),
+        ),
+        other => {
+            return arg_err(
+                "invalid_argument",
+                format!("position must be one of before/after/start/end, got {other:?}"),
+            );
+        }
+    };
+
+    let payload = if reindent {
+        normalize_content(content, &target_indent)
+    } else {
+        content.as_bytes().to_vec()
+    };
+
+    let cache = ReadCache::for_session(project_root);
+    let patch_req = PatchRequest {
+        file_abs: file_abs.clone(),
+        file_rel: file_rel.clone(),
+        line_range: (insert_line, insert_line),
+        byte_range: (insert_byte, insert_byte),
+        content: payload,
+        force: true,
+    };
+    let result = apply_patch(&patch_req, &cache, dry_run, 5);
+    if result.status == "applied" {
+        normalize_blank_gaps_via_adapter(&file_abs, &language, reg);
+        cache.invalidate(&file_rel);
+    }
+    if result.status == "error" {
+        return serde_json::json!({
+            "status": "error", "error_code": result.error_code, "message": result.message,
+            "anchor_path": anchor_path, "anchor_kind": kind,
+            "position": position, "file_rel": file_rel, "insert_line": insert_line,
+        });
+    }
+    serde_json::json!({
+        "status": result.status,
+        "anchor_path": anchor_path,
+        "anchor_kind": kind,
+        "position": position,
+        "file_rel": file_rel,
+        "insert_line": insert_line,
+        "diff": result.diff,
+        "lines_added": result.lines_added,
     })
 }
 

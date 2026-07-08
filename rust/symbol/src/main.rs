@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use symbol_core::adapters::default_registry;
 use symbol_core::index::{full_build, get_or_build, Index};
 use symbol_core::reads;
-use symbol_core::writes::ops::{delete_symbol, replace_symbol};
+use symbol_core::writes::ops::{delete_symbol, insert_symbol, replace_symbol};
 use symbol_core::writes::patch::{apply_patch, preflight, validate_args};
 use symbol_core::writes::read_cache::ReadCache;
 use symbol_core::writes::rename::rename_symbol;
@@ -79,6 +79,16 @@ enum Cmd {
     ReplaceSymbol {
         qualified_path: String,
         content: String,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Insert content at a position anchored to a symbol (before/after/start/end)
+    InsertSymbol {
+        anchor_path: String,
+        position: String,
+        content: String,
+        #[arg(long)]
+        no_reindent: bool,
         #[arg(long)]
         dry_run: bool,
     },
@@ -264,6 +274,13 @@ fn main() -> Result<()> {
         Cmd::ReplaceSymbol { qualified_path, content, dry_run } => {
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = replace_symbol(&mut idx, &qualified_path, &content, &root, reg, dry_run);
+            finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
+        }
+        Cmd::InsertSymbol { anchor_path, position, content, no_reindent, dry_run } => {
+            let (mut idx, _) = get_or_build(&root, reg)?;
+            let result = insert_symbol(
+                &mut idx, &anchor_path, &position, &content, !no_reindent, &root, reg, dry_run,
+            );
             finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
         }
         Cmd::RenameSymbol { qualified_path, new_name, dry_run } => {

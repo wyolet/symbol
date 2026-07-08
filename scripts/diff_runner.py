@@ -17,7 +17,9 @@ Ops dataset: JSONL, one op per line.
                "tags": ["engine-kind"]}
   {"id": "w2", "op": "replace-symbol", "args": {"qualified_path": "...", "content": "..."}}
   {"id": "w3", "op": "delete-symbol",  "args": {"qualified_path": "...", "force": true}}
-  {"id": "w4", "op": "patch",          "args": {"file": "rel/path.py", "range": "A-B",
+  {"id": "w4", "op": "insert-symbol",  "args": {"anchor_path": "...", "position": "after",
+                                                "content": "...", "no_reindent": false}}
+  {"id": "w5", "op": "patch",          "args": {"file": "rel/path.py", "range": "A-B",
                                                 "content": "..."}}
 
 Optional per-op keys:
@@ -45,7 +47,7 @@ REPO = Path(__file__).resolve().parent.parent
 RUST_BIN = REPO / "rust/target/release/symbol-rs"
 
 READ_OPS = {"code", "callers", "outline", "search"}
-WRITE_OPS = {"rename-symbol", "replace-symbol", "delete-symbol", "patch"}
+WRITE_OPS = {"rename-symbol", "replace-symbol", "delete-symbol", "insert-symbol", "patch"}
 
 
 # ---------------------------------------------------------- process plumbing
@@ -128,6 +130,10 @@ def py_write(op: str, args: dict, cwd: Path):
         cmd += ["replace-symbol", args["qualified_path"], args["content"]]
     elif op == "delete-symbol":
         cmd += ["delete-symbol", args["qualified_path"]] + (["--force"] if args.get("force") else [])
+    elif op == "insert-symbol":
+        cmd += ["insert-symbol", args["anchor_path"],
+                "--position", args["position"], "--content", args.get("content", "")]
+        cmd += ["--no-reindent"] if args.get("no_reindent") else []
     elif op == "patch":
         cmd += ["patch", args["file"], args["range"], args.get("content", ""), "--force"]
     cmd += ["--format", "json"]
@@ -142,6 +148,9 @@ def rust_write(op: str, args: dict, root: Path):
         a += ["replace-symbol", args["qualified_path"], args["content"]]
     elif op == "delete-symbol":
         a += ["delete-symbol", args["qualified_path"]] + (["--force"] if args.get("force") else [])
+    elif op == "insert-symbol":
+        a += ["insert-symbol", args["anchor_path"], args["position"], args.get("content", "")]
+        a += ["--no-reindent"] if args.get("no_reindent") else []
     elif op == "patch":
         a += ["patch", str(root / args["file"]), args["range"], args.get("content", ""), "--force"]
     return sh([str(RUST_BIN), *a])
