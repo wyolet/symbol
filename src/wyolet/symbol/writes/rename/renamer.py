@@ -309,8 +309,28 @@ class SymbolRenamer:
         # walker already catches.
         return self._rename_module_binding(decl, new_name, dry_run=dry_run)
 
-    def _rename_field(self, decl, new_name, *, dry_run):
-        return self._not_impl(decl, "field")
+    def _rename_field(self, decl, new_name, *, dry_run) -> RenameResult:
+        # `field` is a Python-only engine kind, but a same-named attribute in
+        # another language's candidate file could still be enumerated; those
+        # adapters (e.g. Go) don't implement rename_field — skip them cleanly
+        # rather than crash (mirrors _adapter_for's silent skip).
+        def invoke(adapter, abs_path, rel, source) -> RenameAnalysis:
+            if not hasattr(adapter, "rename_field"):
+                return RenameAnalysis()
+            return adapter.rename_field(
+                path=abs_path,
+                project_root=self.project_root,
+                source=source,
+                leaf=decl.old_leaf,
+                target_qpath=decl.qpath,
+                target_owner_qpath=decl.owner_qpath,
+                index=self._index_query,
+                is_declaring_file=(rel == decl.declaring_file),
+                decl_byte_range=decl.decl_byte_range if rel == decl.declaring_file else None,
+                new_name=new_name,
+            )
+
+        return self._run_per_file(decl, new_name, dry_run=dry_run, invoke=invoke)
 
     def _rename_local(self, decl, new_name, *, dry_run):
         return self._not_impl(decl, "local")

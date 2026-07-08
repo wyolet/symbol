@@ -26,7 +26,7 @@ from wyolet.symbol.shared.symbol import (
 )
 
 _INDEX_PATH = Path(".symbol") / "symbol_index.msgpack.zst"
-_INDEX_VERSION = 7
+_INDEX_VERSION = 8
 # No real source file is this big; anything larger is a data blob mislabeled as
 # code. Skip rather than read it into memory (defense in depth behind Blob's cap).
 _MAX_INDEX_FILE_BYTES = 20 * 1024 * 1024

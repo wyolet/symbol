@@ -19,7 +19,7 @@ use symbol_linguist::walk::{walk, WalkOptions};
 
 use crate::adapters::{Registry, ScannedSymbol};
 
-pub const INDEX_VERSION: i64 = 7;
+pub const INDEX_VERSION: i64 = 8;
 const INDEX_REL_PATH: &str = ".symbol/symbol_index.msgpack.zst";
 const MAX_INDEX_FILE_BYTES: u64 = 20 * 1024 * 1024;
 const ZSTD_LEVEL: i32 = 3;

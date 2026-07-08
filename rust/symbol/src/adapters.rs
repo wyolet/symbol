@@ -282,11 +282,13 @@ impl Adapter {
         Ok(result["preview"].as_str().unwrap_or_default().to_owned())
     }
 
-    /// v2 engine rename analysis for one file. `owner_or_module_qpath` maps
-    /// to target_owner_qpath (member) or target_module_qpath (binding).
+    /// v2 engine rename analysis for one file. `method` is one of
+    /// "rename_member" / "rename_field" / "rename_module_binding";
+    /// `owner_or_module_qpath` maps to target_owner_qpath (member/field) or
+    /// target_module_qpath (binding).
     pub fn rename_analysis(
         &self,
-        member: bool,
+        method: &str,
         path: &Path,
         leaf: &str,
         target_qpath: &str,
@@ -305,13 +307,15 @@ impl Adapter {
         if let Some((s, e)) = decl_byte_range {
             params["decl_byte_range"] = serde_json::json!([s, e]);
         }
-        let method = if member {
-            params["target_owner_qpath"] = owner_or_module_qpath.into();
-            "rename_member"
-        } else {
-            params["target_module_qpath"] = owner_or_module_qpath.into();
-            "rename_module_binding"
-        };
+        match method {
+            "rename_member" | "rename_field" => {
+                params["target_owner_qpath"] = owner_or_module_qpath.into();
+            }
+            "rename_module_binding" => {
+                params["target_module_qpath"] = owner_or_module_qpath.into();
+            }
+            other => bail!("unknown rename method {other:?}"),
+        }
         let result = self.daemon.call(method, params)?;
         Ok(serde_json::from_value(result)?)
     }

@@ -11,6 +11,7 @@ Methods:
   validate_syntax  {source} -> ParseResult dict
   signature        {text} -> {signature}
   preview          {body, signature, max_lines?} -> {preview}
+  rename_member / rename_field / rename_module_binding -> RenameAnalysis dict
   shutdown         (notification) -> exits
 
 Run: python -m wyolet.symbol.adapters.pyscan
@@ -104,6 +105,11 @@ class _Daemon:
         kwargs = self._rename_common(params)
         kwargs["target_owner_qpath"] = params["target_owner_qpath"]
         return asdict(self.adapter.rename_member(**kwargs))
+
+    def rename_field(self, params: dict) -> dict:
+        kwargs = self._rename_common(params)
+        kwargs["target_owner_qpath"] = params["target_owner_qpath"]
+        return asdict(self.adapter.rename_field(**kwargs))
 
     def rename_module_binding(self, params: dict) -> dict:
         kwargs = self._rename_common(params)

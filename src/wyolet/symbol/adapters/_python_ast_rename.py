@@ -644,13 +644,45 @@ def rename_member(
         )
 
     rewrites: list[ByteRewrite] = []
-    unresolved: list[UnresolvedSite] = []
-    skipped: list[SkippedMismatchSite] = []
 
     if is_declaring_file and decl_byte_range is not None:
         decl = _decl_rewrite(source, line_starts, decl_byte_range, leaf, new_name)
         if decl is not None:
             rewrites.append(decl)
+
+    attr_rewrites, skipped, unresolved = _classify_attr_sites(
+        source=source, line_starts=line_starts, tree=tree, leaf=leaf,
+        new_name=new_name, target_owner_qpath=target_owner_qpath,
+        index=index, module_prefix=module_prefix,
+    )
+    rewrites.extend(attr_rewrites)
+
+    return RenameAnalysis(
+        rewrites=tuple(rewrites),
+        skipped_mismatch=tuple(skipped),
+        unresolved=tuple(unresolved),
+    )
+
+
+def _classify_attr_sites(
+    *,
+    source: bytes,
+    line_starts: list[int],
+    tree: ast.Module,
+    leaf: str,
+    new_name: str,
+    target_owner_qpath: SymbolPath,
+    index: IndexQuery,
+    module_prefix: str,
+) -> tuple[list[ByteRewrite], list[SkippedMismatchSite], list[UnresolvedSite]]:
+    """Walk every `Attribute(attr==leaf)` site and bucket it as
+    rewrite / skipped_mismatch / unresolved against `target_owner_qpath`'s
+    static MRO. Shared by member and field renames — both resolve the
+    receiver and test owner membership identically (a `self.count` write and
+    a `self.save()` call are the same receiver-resolution problem)."""
+    rewrites: list[ByteRewrite] = []
+    unresolved: list[UnresolvedSite] = []
+    skipped: list[SkippedMismatchSite] = []
 
     fast_path = len(index.owners_of_leaf(leaf)) <= 1
     resolver = None if fast_path else _PerFileResolver(tree, module_prefix, index)
@@ -709,6 +741,124 @@ def rename_member(
                 line=line, col=attr_col, receiver_source=recv_text,
                 resolved_to_qpath=qp,
             ))
+
+    return rewrites, skipped, unresolved
+
+
+# ──────────────────────────────────────────────────────────────────────
+# field rename (class attribute)
+
+def _field_decl_rewrites(
+    source: bytes,
+    line_starts: list[int],
+    tree: ast.Module,
+    module_prefix: str,
+    owner_qpath: SymbolPath,
+    leaf: str,
+    new_name: str,
+) -> list[ByteRewrite]:
+    """Rewrite class-body `Name` declaration targets (``count: int = 0`` /
+    ``count = 0``) whose id == leaf, directly inside the owner class.
+
+    `self.leaf` assignment TARGETS are `Attribute` nodes, so the generic
+    attribute walker in `_classify_attr_sites` already rewrites them (in the
+    declaring file and everywhere else); only the bare `Name` class-body form
+    needs handling here.
+    """
+    parent: dict[int, ast.AST] = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parent[id(child)] = node
+
+    def class_chain(cls: ast.ClassDef) -> list[str]:
+        chain: list[str] = []
+        cur: ast.AST | None = cls
+        while cur is not None:
+            if isinstance(cur, ast.ClassDef):
+                chain.append(cur.name)
+            cur = parent.get(id(cur))
+        chain.reverse()
+        return chain
+
+    owner_node: ast.ClassDef | None = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            chain = class_chain(node)
+            qp = ".".join([module_prefix, *chain]) if module_prefix else ".".join(chain)
+            if qp == owner_qpath:
+                owner_node = node
+                break
+    if owner_node is None:
+        return []
+
+    leaf_b = leaf.encode("utf-8")
+    rewrites: list[ByteRewrite] = []
+    for stmt in owner_node.body:
+        targets: list[ast.Name] = []
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            targets = [stmt.target]
+        elif isinstance(stmt, ast.Assign):
+            targets = [t for t in stmt.targets if isinstance(t, ast.Name)]
+        for t in targets:
+            if t.id != leaf:
+                continue
+            start = _col_to_byte(source, line_starts, t.lineno, t.col_offset)
+            end = start + len(leaf_b)
+            if source[start:end] != leaf_b:
+                continue
+            rewrites.append(ByteRewrite(
+                byte_start=start, byte_end=end, new_text=new_name,
+                line=t.lineno, col=t.col_offset, receiver_source="",
+            ))
+    return rewrites
+
+
+def rename_field(
+    *,
+    source: bytes,
+    leaf: str,
+    new_name: str,
+    target_qpath: SymbolPath,
+    target_owner_qpath: SymbolPath,
+    index: IndexQuery,
+    is_declaring_file: bool,
+    decl_byte_range: tuple[int, int] | None,
+    module_prefix: str,
+) -> RenameAnalysis:
+    """Per-file rename for a class field / instance attribute.
+
+    Signature mirrors `rename_member`. The attribute-access classification is
+    identical (receiver resolution + static MRO membership against
+    `target_owner_qpath`), so `self.leaf` reads/writes inside the owner class
+    and its subclasses' methods are handled by the shared walker. The only
+    field-specific work is rewriting the class-body `Name` declaration in the
+    declaring file (`decl_byte_range` is accepted for API symmetry but the
+    owner class is located by qpath).
+    """
+    line_starts = line_byte_offsets(source)
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        return RenameAnalysis(
+            unresolved=(UnresolvedSite(
+                byte_start=0, byte_end=0, line=e.lineno or 1, col=0,
+                receiver_source="", why=f"file failed to parse: {e.msg}",
+            ),),
+        )
+
+    rewrites: list[ByteRewrite] = []
+    if is_declaring_file:
+        rewrites.extend(_field_decl_rewrites(
+            source, line_starts, tree, module_prefix,
+            target_owner_qpath, leaf, new_name,
+        ))
+
+    attr_rewrites, skipped, unresolved = _classify_attr_sites(
+        source=source, line_starts=line_starts, tree=tree, leaf=leaf,
+        new_name=new_name, target_owner_qpath=target_owner_qpath,
+        index=index, module_prefix=module_prefix,
+    )
+    rewrites.extend(attr_rewrites)
 
     return RenameAnalysis(
         rewrites=tuple(rewrites),

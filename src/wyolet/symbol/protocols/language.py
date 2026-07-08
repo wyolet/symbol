@@ -154,6 +154,33 @@ class LanguageAdapter(Protocol):
         """
         ...
 
+    def rename_field(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_owner_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        """Classify every reference to a class field / instance attribute `leaf`.
+
+        - `target_owner_qpath`: qpath of the declaring class. Receiver
+          resolution + static MRO membership are identical to
+          `rename_member` — `self.leaf` reads and writes inside the owner
+          class and its subclasses' methods rewrite; same-leaf attributes
+          on unrelated classes go to skipped_mismatch.
+        - In the declaring file the class-body `Name` declaration
+          (`leaf: T = ...` / `leaf = ...`) is also rewritten; `self.leaf`
+          assignment targets are `Attribute` nodes covered by the shared
+          attribute walk.
+        """
+        ...
+
     def rename_member(
         self,
         path: Path,

@@ -173,7 +173,8 @@ def resolve_rename_symbol(
         declaring_lang in ("python", "go")
         and kind in (
             # python
-            "method", "async_method", "function", "async_function", "class", "constant",
+            "method", "async_method", "function", "async_function", "class",
+            "constant", "field", "attribute",
             # go (per adapters/go_ast scan output)
             "type", "var", "const",
         )

@@ -16,6 +16,7 @@ use crate::writes::tx::{commit_edits, FileEdit};
 
 const MEMBER_KINDS: [&str; 2] = ["method", "async_method"];
 const BINDING_KINDS: [&str; 4] = ["function", "async_function", "class", "constant"];
+const FIELD_KINDS: [&str; 2] = ["field", "attribute"];
 
 // Go engine kinds (emitted by the go-scan adapter): `method` renames as a
 // member (receiver-qualified), everything else as a module binding.
@@ -69,15 +70,27 @@ pub fn rename_symbol(
         .unwrap_or("")
         .to_owned();
     let member = MEMBER_KINDS.contains(&kind.as_str());
-    let py_engine = language == "python" && (member || BINDING_KINDS.contains(&kind.as_str()));
+    let field = FIELD_KINDS.contains(&kind.as_str());
+    let py_engine = language == "python"
+        && (member || field || BINDING_KINDS.contains(&kind.as_str()));
 
     let go_member = kind == "method";
     let go_engine =
         language == "go" && (go_member || GO_BINDING_KINDS.contains(&kind.as_str()));
 
     if py_engine {
+        // Member and field both resolve the owner class (prefix minus leaf);
+        // module bindings resolve the module qpath — same string, different
+        // daemon param, keyed by the method name.
+        let method = if member {
+            "rename_member"
+        } else if field {
+            "rename_field"
+        } else {
+            "rename_module_binding"
+        };
         rename_via_engine(
-            index, qualified_path, &new_qpath, &old_leaf, new_name, row, member,
+            index, qualified_path, &new_qpath, &old_leaf, new_name, row, method,
             &declaring_file_rel, prefix, project_root, reg, dry_run,
         )
     } else if go_engine {
@@ -103,7 +116,7 @@ fn rename_via_engine(
     old_leaf: &str,
     new_name: &str,
     row: i64,
-    member: bool,
+    method: &str,
     declaring_file_rel: &str,
     prefix: &str,
     project_root: &Path,
@@ -156,7 +169,7 @@ fn rename_via_engine(
         let Ok(source) = std::fs::read(&abs) else { continue };
         let is_declaring = rel == declaring_file_rel;
         let analysis = match adapter.rename_analysis(
-            member,
+            method,
             &abs,
             old_leaf,
             qualified_path,
