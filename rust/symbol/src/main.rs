@@ -111,6 +111,27 @@ enum Cmd {
     Undo,
     /// Index statistics
     Stats,
+    /// Lines of code by language (GitHub-Linguist port)
+    Loc {
+        /// Project root to scan (defaults to --root)
+        path: Option<PathBuf>,
+        #[arg(long)]
+        files: bool,
+        #[arg(long)]
+        classify: bool,
+        #[arg(long)]
+        exclude: Vec<String>,
+        #[arg(long)]
+        no_vendor_skip: bool,
+        #[arg(long)]
+        no_heuristics: bool,
+        #[arg(long)]
+        no_cache: bool,
+        #[arg(long)]
+        config_dir: Option<PathBuf>,
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -309,6 +330,20 @@ fn main() -> Result<()> {
             if result.status == "error" {
                 std::process::exit(1);
             }
+        }
+        Cmd::Loc { path, files, classify, exclude, no_vendor_skip, no_heuristics, no_cache, config_dir, verbose } => {
+            return symbol_linguist::loc::run(symbol_linguist::loc::LocArgs {
+                path: path.unwrap_or(root),
+                json: args.json,
+                files,
+                classify,
+                exclude,
+                no_vendor_skip,
+                no_heuristics,
+                no_cache,
+                config_dir,
+                verbose,
+            });
         }
         Cmd::Stats => {
             let (idx, source) = get_or_build(&root, reg)?;

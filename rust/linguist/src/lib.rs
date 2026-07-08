@@ -9,6 +9,7 @@ pub mod detector;
 pub mod fnmatch;
 pub mod language;
 pub mod lines;
+pub mod loc;
 pub mod re;
 pub mod stats;
 pub mod strategy;
