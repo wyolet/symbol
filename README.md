@@ -1,251 +1,185 @@
+<div align="center">
+
 # symbol
 
-**AST-native code intelligence for Python.** A CLI for humans, an MCP server for agents.
+**AST-native code intelligence, in Rust.**
 
-Point `symbol` at a directory and ask it questions a human or a coding agent actually has:
+A fast, single-binary code-intelligence engine for humans and coding agents.
+Point it at a codebase and ask where a symbol is defined, who calls it, or
+edit it precisely — without re-reading whole files.
 
-- What frameworks does this project use, where are the entry points, which files are dead, what runs on import, where the TODOs and swallowed exceptions hide?
-- Where is `UserService` defined, who calls `db.commit`, what's the body of `process_payment` — without re-reading 800 lines of file?
+![status](https://img.shields.io/badge/status-active%20rewrite-orange)
+![license](https://img.shields.io/badge/license-MIT-blue)
+![languages](https://img.shields.io/badge/languages-Python%20%7C%20Go-informational)
+
+</div>
+
+---
+
+`symbol` answers the questions a human or an agent actually has about an
+unfamiliar codebase:
+
+- **Where** is `UserService` defined, **who** calls `db.commit`, **what** is the
+  body of `process_payment` — by qualified path, in tokens, not line ranges.
+- **Edit** a symbol safely: rename it and its references, replace its
+  definition, insert next to it, or patch an exact byte range — every write
+  transactional and reversible with `undo`.
+- **Measure** a tree: lines of code across 500+ languages via a GitHub-Linguist
+  port.
 
 Static analysis only — `symbol` never imports or executes the target code.
 
-> **Status:** [`wyolet-symbol`](https://pypi.org/project/wyolet-symbol/) on PyPI (CLI command is `symbol` — the bare name is reserved by PyPI policy). Python is the proving ground; **Go** and **TypeScript** are next on the roadmap.
+> **Status.** This is the Rust rewrite (`symbol-rs`), the future of the
+> project. Its core — the symbol index, the read surface, the write surface,
+> and `loc` — is differentially verified **byte-for-byte** against the mature
+> Python implementation across real corpora (flask, gin, this repo). The Python
+> version is being wound down as the Rust surface reaches parity. `audit`, `map`
+> (import graph), and the MCP server still live in Python today and will be
+> ported to Rust after the core lands — nothing is being dropped.
 
-![symbol audit on a FastAPI app](docs/demos/audit.svg)
+## How it works
+
+The engine is language-neutral. It never parses source in-process. Instead,
+language analysis runs out-of-process in native-AST **daemons** that speak
+newline-delimited JSON-RPC 2.0 over stdio ([`schemas/symbol.rpc.schema.json`](schemas/symbol.rpc.schema.json)):
+
+| Language | Daemon | Backed by |
+| --- | --- | --- |
+| Python | `pyscan` | Python's own `ast` |
+| Go | `go-scan` | `go/types` |
+
+The Rust core owns everything neutral — the on-disk index, staleness and
+incremental refresh, search/read/write orchestration, transactions, the read
+cache, and LOC. A new language is a new daemon, not new branches in the engine.
+
+Daemon discovery is by environment: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` override
+the full command; `SYMBOL_REPO` points at a checkout that provides both.
 
 ## Install
 
-### CLI only
+> Distribution for the Rust binary is not finalized yet. For now, build from
+> source; a packaged release (`symbol` on your `PATH`) will land here.
 
 ```bash
-uv tool install wyolet-symbol      # or: pipx install wyolet-symbol
+git clone https://github.com/wyolet/symbol
+cd symbol/rust
+cargo build --release          # → target/release/symbol-rs
 ```
 
-Then `symbol audit /path/to/project`, `symbol loc`, `symbol map` work from any directory.
-
-### Claude Code plugin (CLI + MCP server + skill + hooks)
-
-For full agent integration — MCP tools (`SearchSymbol`, `SymbolBody`, `MultiPatch`, …), the `symbol` skill, and soft-nudge PreToolUse / PostToolUse hooks that steer Claude away from native Grep/Read/Edit on indexed Python files:
+The built binary is `symbol-rs`; it takes the canonical `symbol` name once
+packaged. Alias it while building from source:
 
 ```bash
-# 1. Install the CLI from PyPI
-uv tool install wyolet-symbol
-
-# 2. Install the plugin in Claude Code (bundles MCP server registration, skill, hooks)
-claude plugin install git+https://github.com/wyolet/symbol@main
+alias symbol="$PWD/target/release/symbol-rs"
 ```
 
-### Other agent coding tools
+The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
+lets you build it locally via `make build-go-scan`. Python analysis uses the
+`pyscan` adapter from this repo — no separate build.
 
-The MCP server is plain stdio MCP — it works anywhere MCP works. **opencode** setup is documented in [`docs/integrations/opencode.md`](docs/integrations/opencode.md). Cursor, Continue, and Zed integrations are tracked in [#8](https://github.com/wyolet/symbol/issues/8); help wanted. The Claude-Code-specific glue (skill + hooks) does not port automatically.
+## Usage
 
-### Updating / uninstall
+All commands take a global `--root PATH` (default `.`) and `--json` for machine
+output.
+
+### Index
 
 ```bash
-uv tool upgrade wyolet-symbol      # or: uv tool uninstall wyolet-symbol
-claude plugin update symbol        # or: claude plugin uninstall symbol
+symbol index          # build .symbol/symbol_index.msgpack.zst
+symbol refresh        # reindex only changed files
+symbol stats          # index statistics
 ```
 
-## Commands
+The index builds lazily — read and write commands build or refresh it as
+needed.
 
-### `symbol audit <path>` — Full codebase audit
-
-Runs all registered checkers: stack detection, entry points, orphan files, side effects, swallowed exceptions, TODOs, unused deps, code structure metrics.
+### Read
 
 ```bash
-symbol audit /path/to/project
-symbol -v audit /path/to/project   # verbose — full detail
-symbol /path/to/project            # shortcut — defaults to audit
+symbol search UserService                 # narrow candidates by name (signatures only)
+symbol search user service --fixed        # every pattern must appear as a substring
+symbol search '^get_' --regex             # regex match
+symbol search save --kind method --limit 20
+
+symbol code services.user.UserService     # body by qualified path
+symbol code services.user.UserService.save
+symbol code src/services/user.py:120-145  # body by explicit line range
+
+symbol outline src/services/user.py       # parent-child symbol tree of a file
+symbol callers UserService                # tier-1 textual reference scan
 ```
 
-### `symbol loc <path>` — Lines of code
+### Write
 
-GitHub Linguist port: 500+ languages, real GitHub colors, multi-strategy detection (modeline, shebang, filename, extension, XML, manpage). Colored bar chart by default.
+Every write is transactional and reversible. Pass `--dry-run` to preview the
+diff without touching disk.
 
 ```bash
-symbol loc /path/to/project
+# Byte-range edit — replace, or delete with empty content
+symbol patch src/foo.py 10-20 'new body'
+symbol patch src/foo.py 10-20 ''
+
+# Multiple non-overlapping edits to one file, applied atomically
+symbol multi-patch src/foo.py '[{"range":"10-12","content":"..."},{"old":"x=1","content":"x=2"}]'
+
+# Symbol-level ops by qualified path
+symbol rename-symbol services.user.UserService AccountService   # renames refs too
+symbol replace-symbol services.user.UserService.save 'def save(self): ...'
+symbol insert-symbol services.user.UserService after 'def new_method(self): ...'
+symbol delete-symbol services.user.old_helper                   # refuses if callers exist; --force overrides
+
+symbol undo           # revert the most recent transaction
 ```
 
-### `symbol map <path>` — Import graph analysis
+`insert-symbol` positions are `before` / `after` / `start` / `end` (relative to
+the anchor symbol). Range edits run a read-cache preflight so an agent can't
+patch a stale view of a file; `--force` skips it.
 
-Circular imports, hotspots, fragile modules, deep chains, leaf modules, blast radius.
+### Lines of code
 
 ```bash
-symbol map /path/to/project
-symbol map /path/to/project --blast src/models.py      # blast radius
-symbol map /path/to/project --min-chain 3              # show shorter chains
-symbol map /path/to/project --min-fan-in 3             # lower hotspot threshold
+symbol loc                       # colored breakdown by language
+symbol loc path/ --files         # per-file detail
+symbol loc --classify src/app.py # show how each file was classified
 ```
-
-### Symbol-level inspection
-
-```bash
-symbol search UserService              # exact / suffix match on qualified path
-symbol search user service --fixed     # all patterns must appear as substrings
-symbol search '^get_' --regex          # Python regex
-symbol search save --kind method
-
-symbol code services.user.UserService         # body by qualified path
-symbol code services.user.UserService.save    # method
-symbol code src/services/user.py:120-145      # by explicit line range
-
-symbol outline src/services/user.py    # parent-child tree of one file
-symbol callers UserService             # textual tier-1 reference scan
-```
-
-### `symbol patch <file>` — Byte-range edit
-
-Edit by line range without sending an `old_string` payload. Replace (with content), delete (empty content), or insert (zero-width range).
-
-```bash
-symbol patch src/foo.py --range 10-20 --content 'new body'    # replace
-symbol patch src/foo.py --range 10-20 --content ''            # delete
-symbol patch src/foo.py --range 10-10 --content 'import os'   # insert before line 10
-
-symbol patch src/foo.py --range 10-20 --content '...' --dry-run   # preview diff
-symbol patch src/foo.py --range 10-20 --content '...' --force     # skip read-cache check
-symbol patch src/foo.py --range 10-20 --content '...' --agent     # plain text for LLMs
-```
-
-Exit codes: `0` applied/dry-run, `1` error, `2` needs_read_confirmation.
-
-### Plus
-
-`symbol analyze <file>`, `symbol dump <path>`, `symbol init <path>`, `symbol update-linguist`, `symbol undo`, `symbol refresh [--full]`.
-
-## MCP surface (12 agent tools)
-
-When run as `symbol mcp` (or installed via the plugin), `symbol` exposes:
-
-| Read | Write | Safety |
-| --- | --- | --- |
-| `SearchSymbol` | `Patch` | `Undo` |
-| `SymbolBody` | `MultiPatch` | `Refresh` |
-| `SymbolOutline` | `InsertSymbol` | |
-| `SymbolCallers` | `DeleteSymbol` | |
-| | `RenameSymbol` | |
-| | `ReplaceSymbol` | |
-
-`Undo` is transactional and operates on `.symbol/transactions/` — no git involvement, no staged changes touched. `Refresh` is the escape hatch when the index drifts.
 
 ## Configuration
 
-Use `symbol.toml` at the project root, or add the same tables under
-`[tool.symbol]` in `pyproject.toml`.
+`symbol.toml` at the project root, or the same tables under `[tool.symbol]` in
+`pyproject.toml`. The Rust index honors global and project `[checker]` excludes:
 
 ```toml
-# symbol.toml
 [checker]
 exclude = ["alembic/*", "scripts/*"]
-
-[checkers.orphans]
-severity = "warning"        # default: error
-ignore = ["alembic/*", "src/main.py"]
-
-[checkers.side_effects]
-severity = "info"           # default: warning
-ignore = ["*.include_router()", "*.add_middleware()"]
-
-[checkers.unused_deps]
-severity = "error"          # default: error
-ignore = ["greenlet", "psycopg"]
 ```
 
-In `pyproject.toml`, prefix those tables with `tool.symbol`:
+`loc` takes `--exclude`, `--no-vendor-skip`, and `--config-dir` for one-off
+overrides.
 
-```toml
-[tool.symbol.checker]
-exclude = ["alembic/*", "scripts/*"]
+## Interop with the Python version
 
-[tool.symbol.checkers.orphans]
-severity = "warning"
-ignore = ["alembic/*", "src/main.py"]
-```
+During the transition, both implementations operate on the same `.symbol/`
+state, so a mixed agent session is safe:
 
-The config schema lives at
-[`schemas/symbol.config.schema.json`](schemas/symbol.config.schema.json). With
-Taplo, you can wire it up for both forms:
+- **Index** — `.symbol/symbol_index.msgpack.zst` is byte-compatible (v8). Either
+  implementation loads the other's index.
+- **Transactions** — `symbol undo` in one implementation rolls back writes
+  committed by the other.
+- **Read cache** — shared session cache, so patch preflight works across both.
 
-```toml
-[[rule]]
-include = ["symbol.toml"]
-schema = { path = "schemas/symbol.config.schema.json" }
-
-[[rule]]
-include = ["pyproject.toml"]
-keys = ["tool", "symbol"]
-schema = { path = "schemas/symbol.config.schema.json" }
-```
-
-See [`docs/spec-schema.md`](docs/spec-schema.md) for the package/spec schema.
-
-## Global options
+## Repository layout
 
 ```
--v, --verbose          Show full detail instead of compact output
---format json          Output as JSON (for CI/CD pipelines)
--i, --include PATTERN  Only analyze files matching glob pattern
--e, --exclude PATTERN  Skip files matching glob pattern
+rust/
+├── symbol/     symbol-core → the `symbol-rs` binary (index, reads, writes, loc)
+├── linguist/   symbol-linguist → GitHub-Linguist port + LOC counting
+├── dataset/    differential-test dataset mining and verification
+└── harness/    black-box feature harness
 ```
 
-## Why
-
-Most Python tools find problems *inside* files (lint, types, dead code). `symbol` finds problems *between* files — and exposes the result to agents in tokens, not line ranges:
-
-- **knip** does this for JavaScript/TypeScript. Python didn't have an equivalent. `symbol` fills that gap.
-- **GitHub Linguist ported to Python** — accurate detection for 500+ languages with real GitHub colors.
-- **scc-style LOC** with language breakdown and colored bar chart.
-- **Import-graph analysis** — circular imports, hotspots, blast radius. Things no other Python tool surfaces.
-- **Agent-friendly write surface** — symbol-level patch / rename / replace with byte-range edits and a transactional undo log, so coding agents don't have to re-read entire files to make safe changes.
-
-First thing you run on an unfamiliar codebase, before reading a single line of code.
-
-## Architecture
-
-```
-src/wyolet/symbol/
-├── cli.py                  Typer root CLI
-├── commands/               Thin command views (audit, loc, map, analyze,
-│                           search, code, outline, callers, patch, refresh,
-│                           undo, init, + symbol-level ops for MCP)
-├── checkers/               @register'd checkers
-│   ├── stack.py            tech stack from deps
-│   ├── entrypoints.py      __main__ guards, framework hooks
-│   ├── orphans.py          unreachable files
-│   ├── side_effects.py     bare module-level calls
-│   ├── swallowed.py        silenced exceptions
-│   ├── todos.py            TODO/FIXME/HACK/XXX
-│   ├── unused_deps.py      declared but unimported
-│   └── code_structure.py   functions, classes, type coverage
-├── shared/                 Core infrastructure
-│   ├── context.py          AnalysisContext (root, spec, cache, config)
-│   ├── ast_cache.py        parse once, share across checkers
-│   ├── registry.py         @register + views()
-│   ├── runner.py           dispatches file/project checkers
-│   ├── spec.py             spec loader
-│   ├── config_resolver.py  spec → packages → project-config layering
-│   ├── framework_detector.py
-│   ├── pipeline.py         @hook(pipeline, priority)
-│   ├── graph.py            import graph primitives
-│   ├── symbol_index.py     qualified-path index for MCP read/write tools
-│   └── linguist/           GitHub Linguist port (500+ langs)
-└── data/
-    ├── spec.toml           Global baseline spec
-    └── specs/NAME/         Per-package specs (237 packages: django, fastapi,
-                            celery, sqlalchemy, langchain, pydantic, ...)
-```
-
-## Contributing
-
-The fastest ways to help:
-
-- **Add a package spec** for a library we don't cover yet — no Python required, just TOML. See [#3](https://github.com/wyolet/symbol/issues/3) and [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- **Run `symbol` on your real Python project** and file false positives. See [#6](https://github.com/wyolet/symbol/issues/6).
-- **Benchmark the MCP surface** against native Read/Grep/Edit on representative agent tasks. See [#7](https://github.com/wyolet/symbol/issues/7).
-- **Wire `symbol mcp` into opencode / Cursor / Continue / Zed**. See [#8](https://github.com/wyolet/symbol/issues/8).
-
-Pinned issues on the repo show what's most useful right now.
+The Python implementation (`src/wyolet/symbol/`) remains in the tree until the
+Rust surface reaches parity.
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE).
