@@ -183,7 +183,7 @@ including deliberately nasty cases:
   ending exactly at EOF with no trailing newline.
 - **Refusals**: every write op in its expect_error form — colliding rename,
   referenced delete without force, out-of-bounds/missing-file patch, bad
-  insert position, nonexistent anchor, unknown rename-parameter param.
+  insert position, nonexistent anchor, and invalid replacement content.
 - **Go specifics** (Go repos): methods with receivers (receiver-
   discrimination: rename ONE receiver's method, leave same-named methods on
   other receivers untouched), **interface-implicating method renames** (rename

@@ -29,6 +29,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Build go-scan (dev binary for GoAdapter tests)
         run: make build-go-scan
       - name: Sync dependencies
@@ -38,6 +40,26 @@ jobs:
         continue-on-error: true  # TODO: clean up pre-existing lint debt, then make blocking
       - name: Test (pytest)
         run: uv run pytest -q
+      - name: Test Rust workspace
+        run: make test-rust
+      - name: Test Rust feature scenarios
+        run: make test-features
+      - name: Test pinned real-world Rust scenarios
+        run: make test-real-world
+      - name: Upload Rust feature report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-feature-report-${{ matrix.python }}
+          path: .tmp/feature-report.json
+          if-no-files-found: warn
+      - name: Upload real-world Rust feature report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-real-world-feature-report-${{ matrix.python }}
+          path: .tmp/real-world-feature-report.json
+          if-no-files-found: warn
 
   go-scan-cross-compile:
     name: go-scan cross-compile (${{ matrix.goos }}-${{ matrix.goarch }})

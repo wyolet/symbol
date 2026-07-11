@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
-.PHONY: help install sync test test-fast lint validate validate-specs audit clean \
-        build-go-scan build-go-scan-all
+.PHONY: help install sync test test-fast test-rust test-features test-real-world lint validate \
+        validate-specs audit clean build-go-scan build-go-scan-all
 
 UV ?= uv
 GO ?= go
@@ -28,6 +28,22 @@ test: ## Run the full pytest suite
 
 test-fast: ## Run pytest with -x (fail fast) and verbose names
 	$(UV) run --extra dev pytest -x -v
+
+test-rust: ## Run the Rust workspace tests
+	cargo test --manifest-path rust/Cargo.toml --workspace
+
+test-features: ## Run configured black-box scenarios against symbol-rs
+	cargo build --manifest-path rust/Cargo.toml -p symbol-core
+	cargo run --manifest-path rust/Cargo.toml -p symbol-harness -- \
+		scripts/feature_cases/python_core.json --report .tmp/feature-report.json
+
+test-real-world: ## Replay pinned external-corpus scenarios against symbol-rs
+	cargo build --manifest-path rust/Cargo.toml -p symbol-core
+	cargo run --manifest-path rust/Cargo.toml -p symbol-dataset -- \
+		fetch scripts/feature_cases/real_world_pilot_corpora.json
+	cargo run --manifest-path rust/Cargo.toml -p symbol-harness -- \
+		scripts/feature_cases/real_world_pilot.json --repo-cache .tmp/corpora \
+		--report .tmp/real-world-feature-report.json
 
 lint: ## Run ruff
 	$(UV) run --extra dev ruff check .
