@@ -540,6 +540,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "symbol-dataset"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "symbol-harness"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "symbol-linguist"
 version = "0.1.0"
 dependencies = [

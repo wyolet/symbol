@@ -1,0 +1,398 @@
+{
+  "version": 1,
+  "fixture": "fixtures/python_core",
+  "scenarios": [
+    {
+      "id": "index_and_reads",
+      "auto_index": false,
+      "steps": [
+        {
+          "id": "index",
+          "op": "index",
+          "expect": {
+            "json": {
+              "stats.files": 3,
+              "stats.symbols": 11
+            }
+          }
+        },
+        {
+          "id": "stats",
+          "op": "stats",
+          "expect": {
+            "json": {
+              "stats.live_symbols": 11
+            }
+          }
+        },
+        {
+          "id": "search",
+          "op": "search",
+          "args": {
+            "patterns": ["save"],
+            "fixed": true,
+            "kind": "method"
+          },
+          "expect": {
+            "json": {
+              "length": 2,
+              "0.path": "app.models.User.save",
+              "1.path": "app.models.Other.save"
+            }
+          }
+        },
+        {
+          "id": "code_symbol",
+          "op": "code",
+          "args": {
+            "target": "app.models.User.save"
+          },
+          "expect": {
+            "json": {
+              "path": "app.models.User.save",
+              "kind": "method"
+            },
+            "json_contains": ["self.name"]
+          }
+        },
+        {
+          "id": "code_range",
+          "op": "code",
+          "args": {
+            "target": "app/service.py:4-5"
+          },
+          "expect": {
+            "json": {
+              "kind": "slice",
+              "start_line": 4,
+              "end_line": 5
+            }
+          }
+        },
+        {
+          "id": "outline",
+          "op": "outline",
+          "args": {
+            "query": "app/models.py"
+          },
+          "expect": {
+            "json_contains": [
+              "app.models.User.save",
+              "app.models.Other.save"
+            ]
+          }
+        },
+        {
+          "id": "callers",
+          "op": "callers",
+          "args": {
+            "name": "referenced_helper"
+          },
+          "expect": {
+            "json": {
+              "length": 1,
+              "0.source_path": "app.service.cached_label"
+            }
+          }
+        },
+        {
+          "id": "loc",
+          "op": "loc",
+          "args": {
+            "no_cache": true
+          },
+          "expect": {
+            "json": {
+              "summary.files": 3,
+              "languages.0.name": "Python"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "refresh_after_external_change",
+      "steps": [
+        {
+          "id": "append_symbol",
+          "op": "append-file",
+          "args": {
+            "file": "app/models.py",
+            "content": "\n\ndef added_later() -> str:\n    return \"new\"\n"
+          },
+          "expect": {
+            "json": {
+              "status": "applied"
+            },
+            "tree_changed": true
+          }
+        },
+        {
+          "id": "refresh",
+          "op": "refresh",
+          "expect": {
+            "json": {
+              "source": "refresh",
+              "stats.live_symbols": 12
+            }
+          }
+        },
+        {
+          "id": "find_added_symbol",
+          "op": "search",
+          "args": {
+            "patterns": ["added_later"],
+            "fixed": true
+          },
+          "expect": {
+            "json": {
+              "length": 1,
+              "0.path": "app.models.added_later"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rename_and_undo",
+      "steps": [
+        {
+          "id": "rename",
+          "op": "rename-symbol",
+          "args": {
+            "qualified_path": "app.models.User.save",
+            "new_name": "store"
+          },
+          "expect": {
+            "json": {
+              "status": "applied",
+              "engine": "v2",
+              "skipped_mismatch.length": 1,
+              "unresolved.length": 0
+            },
+            "files": {
+              "app/models.py": {
+                "contains": ["def store(self", "class Other:\n    def save(self"]
+              },
+              "app/service.py": {
+                "contains": ["user.store(record=", "other.save(record="]
+              }
+            },
+            "tree_changed": true
+          }
+        },
+        {
+          "id": "undo",
+          "op": "undo",
+          "expect": {
+            "json": {
+              "status": "undone",
+              "files_restored.length": 2
+            },
+            "tree_equals": "initial"
+          }
+        },
+        {
+          "id": "resolve_restored_symbol",
+          "op": "code",
+          "args": {
+            "target": "app.models.User.save"
+          },
+          "expect": {
+            "json": {
+              "path": "app.models.User.save"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "replace_parameter_and_undo",
+      "steps": [
+        {
+          "id": "replace",
+          "op": "replace-symbol",
+          "args": {
+            "qualified_path": "app.models.User.save",
+            "content": "def save(self, item: str) -> str:\n    return f\"{self.name}:{item}\""
+          },
+          "expect": {
+            "json": {
+              "status": "applied",
+              "parameter_renames.0.old": "record",
+              "parameter_renames.0.new": "item"
+            },
+            "files": {
+              "app/models.py": {
+                "contains": ["def save(self, item: str)"]
+              },
+              "app/service.py": {
+                "contains": ["user.save(item=", "other.save(record="]
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "op": "undo",
+          "expect": {
+            "json": {
+              "status": "undone",
+              "files_restored.length": 2
+            },
+            "tree_equals": "initial"
+          }
+        }
+      ]
+    },
+    {
+      "id": "patch_read_contract",
+      "steps": [
+        {
+          "id": "refuse_unread_patch",
+          "op": "patch",
+          "args": {
+            "file": "app/service.py",
+            "range": "12-12",
+            "content": "    return \"blocked\""
+          },
+          "expect": {
+            "exit_code": 1,
+            "json": {
+              "status": "needs_read_confirmation"
+            },
+            "tree_changed": false
+          }
+        },
+        {
+          "id": "apply_after_read",
+          "op": "patch",
+          "read": "app.service.persist",
+          "args": {
+            "file": "app/service.py",
+            "range": "12-12",
+            "content": "    return \"patched\""
+          },
+          "expect": {
+            "json": {
+              "status": "applied",
+              "file_rel": "app/service.py"
+            },
+            "files": {
+              "app/service.py": {
+                "contains": ["return \"patched\""]
+              }
+            },
+            "tree_changed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "insert_after_decorated_symbol",
+      "steps": [
+        {
+          "id": "insert",
+          "op": "insert-symbol",
+          "args": {
+            "anchor_path": "app.service.cached_label",
+            "position": "after",
+            "content": "def audit_marker() -> str:\n    return \"inserted\""
+          },
+          "expect": {
+            "json": {
+              "status": "applied",
+              "position": "after"
+            },
+            "files": {
+              "app/service.py": {
+                "contains": [
+                  "@functools.cache\ndef cached_label()",
+                  "def audit_marker() -> str:"
+                ]
+              }
+            },
+            "tree_changed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "multi_patch_atomic_edits",
+      "steps": [
+        {
+          "id": "apply_two_exact_edits",
+          "op": "multi-patch",
+          "args": {
+            "file": "app/models.py",
+            "edits": [
+              {
+                "old": "return f\"{self.name}:{record}\"",
+                "content": "return f\"saved:{self.name}:{record}\""
+              },
+              {
+                "old": "return record.upper()",
+                "content": "return f\"other:{record.upper()}\""
+              }
+            ]
+          },
+          "expect": {
+            "json": {
+              "status": "applied",
+              "file_rel": "app/models.py",
+              "per_edit.length": 2
+            },
+            "files": {
+              "app/models.py": {
+                "contains": [
+                  "return f\"saved:{self.name}:{record}\"",
+                  "return f\"other:{record.upper()}\""
+                ]
+              }
+            },
+            "tree_changed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "delete_refusal_and_success",
+      "steps": [
+        {
+          "id": "refuse_referenced",
+          "op": "delete-symbol",
+          "args": {
+            "qualified_path": "app.models.referenced_helper"
+          },
+          "expect": {
+            "exit_code": 1,
+            "json": {
+              "status": "error",
+              "error_code": "has_live_references",
+              "callers.length": 1
+            },
+            "tree_changed": false
+          }
+        },
+        {
+          "id": "delete_unused",
+          "op": "delete-symbol",
+          "args": {
+            "qualified_path": "app.models.unused_helper"
+          },
+          "expect": {
+            "json": {
+              "status": "applied"
+            },
+            "files": {
+              "app/models.py": {
+                "not_contains": ["def unused_helper"]
+              }
+            },
+            "tree_changed": true
+          }
+        }
+      ]
+    }
+  ]
+}

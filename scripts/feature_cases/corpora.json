@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "corpora": [
+    {
+      "id": "fastapi",
+      "url": "https://github.com/fastapi/fastapi.git",
+      "language": "python",
+      "source_paths": ["fastapi"],
+      "exclude_paths": ["fastapi/openapi/docs.py"],
+      "history_limit": 1800,
+      "max_files": 6,
+      "max_diff_lines": 350,
+      "check_command": []
+    },
+    {
+      "id": "click",
+      "url": "https://github.com/pallets/click.git",
+      "language": "python",
+      "source_paths": ["src/click"],
+      "exclude_paths": [],
+      "history_limit": 1800,
+      "max_files": 6,
+      "max_diff_lines": 350,
+      "check_command": []
+    },
+    {
+      "id": "httpx",
+      "url": "https://github.com/encode/httpx.git",
+      "language": "python",
+      "source_paths": ["httpx"],
+      "exclude_paths": [],
+      "history_limit": 1800,
+      "max_files": 6,
+      "max_diff_lines": 350,
+      "check_command": []
+    },
+    {
+      "id": "cobra",
+      "url": "https://github.com/spf13/cobra.git",
+      "language": "go",
+      "source_paths": [],
+      "exclude_paths": ["site/", "doc/", "assets/"],
+      "history_limit": 1400,
+      "max_files": 6,
+      "max_diff_lines": 350,
+      "check_command": ["go", "test", "./..."]
+    },
+    {
+      "id": "echo",
+      "url": "https://github.com/labstack/echo.git",
+      "language": "go",
+      "source_paths": [],
+      "exclude_paths": ["_fixture/"],
+      "history_limit": 1800,
+      "max_files": 6,
+      "max_diff_lines": 350,
+      "check_command": ["go", "test", "./..."]
+    },
+    {
+      "id": "testify",
+      "url": "https://github.com/stretchr/testify.git",
+      "language": "go",
+      "source_paths": ["assert", "mock", "require", "suite", "internal"],
+      "exclude_paths": ["_codegen/"],
+      "history_limit": 1400,
+      "max_files": 6,
+      "max_diff_lines": 350,
+      "check_command": ["go", "test", "./..."]
+    }
+  ]
+}

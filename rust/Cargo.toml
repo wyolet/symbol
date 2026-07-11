@@ -1,3 +1,7 @@
 [workspace]
-members = ["linguist", "symbol"]
+members = ["dataset", "harness", "linguist", "symbol"]
 resolver = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1

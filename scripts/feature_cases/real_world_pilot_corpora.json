@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "corpora": [
+    {
+      "id": "cobra",
+      "url": "https://github.com/spf13/cobra.git",
+      "language": "go",
+      "revision": "10d4b48a79be3d4e89e6c45cb59f4d32a3d2ae19",
+      "source_paths": [],
+      "exclude_paths": [
+        "site/",
+        "doc/",
+        "assets/"
+      ],
+      "history_limit": 1400,
+      "max_files": 6,
+      "max_diff_lines": 350,
+      "check_command": [
+        "go",
+        "test",
+        "./..."
+      ]
+    }
+  ]
+}
