@@ -35,12 +35,20 @@ fn setup() -> tempfile::TempDir {
          \x20\x20\x20\x20\x20\x20\x20\x20return u\n",
     )
     .unwrap();
-    run(dir.path(), &["index"]);
+    let indexed = run(dir.path(), &["index"]);
+    assert_eq!(
+        indexed["stats"]["symbols"], 4,
+        "index setup failed: {indexed}"
+    );
     dir
 }
 
 fn run(root: &Path, args: &[&str]) -> serde_json::Value {
     let out = Command::new(bin())
+        // Keep daemon startup hermetic. CI and managed environments may not
+        // allow uv to initialize its default cache below the user's home.
+        .env("UV_CACHE_DIR", root.join(".uv-cache"))
+        .env("SYMBOL_SESSION_ID", "cli-tests")
         .arg("--root")
         .arg(root)
         .arg("--json")
@@ -48,9 +56,13 @@ fn run(root: &Path, args: &[&str]) -> serde_json::Value {
         .output()
         .expect("spawn symbol-rs");
     let stdout = String::from_utf8_lossy(&out.stdout);
-    // `index` prints a stats line, not necessarily parseable as one value we
-    // care about; only the write ops are parsed by callers.
-    serde_json::from_str(&stdout).unwrap_or(serde_json::Value::Null)
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "invalid symbol-rs JSON (status {})\nerror: {e}\nstdout: {stdout}\nstderr: {stderr}",
+            out.status
+        )
+    })
 }
 
 fn read(root: &Path, rel: &str) -> String {
@@ -63,7 +75,12 @@ fn after_lands_below_anchor() {
     let root = dir.path();
     let res = run(
         root,
-        &["insert-symbol", "app.mod.plain", "after", "def helper():\n    return 1"],
+        &[
+            "insert-symbol",
+            "app.mod.plain",
+            "after",
+            "def helper():\n    return 1",
+        ],
     );
     assert_eq!(res["status"], "applied", "{res}");
     let text = read(root, "app/mod.py");
@@ -82,14 +99,22 @@ fn before_lands_above_decorator() {
     let root = dir.path();
     let res = run(
         root,
-        &["insert-symbol", "app.mod.cached_thing", "before", "def top():\n    return 0"],
+        &[
+            "insert-symbol",
+            "app.mod.cached_thing",
+            "before",
+            "def top():\n    return 0",
+        ],
     );
     assert_eq!(res["status"], "applied", "{res}");
     let text = read(root, "app/mod.py");
     let idx_top = text.find("def top").unwrap();
     let idx_deco = text.find("@functools.cache").unwrap();
     // The insert must land ABOVE the decorator, not between it and the def.
-    assert!(idx_top < idx_deco, "top should precede the decorator:\n{text}");
+    assert!(
+        idx_top < idx_deco,
+        "top should precede the decorator:\n{text}"
+    );
 }
 
 #[test]
@@ -117,12 +142,20 @@ fn end_indents_into_class_body() {
     let root = dir.path();
     let res = run(
         root,
-        &["insert-symbol", "app.mod.Svc", "end", "def extra(self):\n    return 9"],
+        &[
+            "insert-symbol",
+            "app.mod.Svc",
+            "end",
+            "def extra(self):\n    return 9",
+        ],
     );
     assert_eq!(res["status"], "applied", "{res}");
     let text = read(root, "app/mod.py");
     // end of class Svc: content lands at body indent (4 spaces).
-    assert!(text.contains("\n    def extra(self):\n        return 9\n"), "{text}");
+    assert!(
+        text.contains("\n    def extra(self):\n        return 9\n"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -132,7 +165,13 @@ fn dry_run_leaves_tree_untouched() {
     let before = read(root, "app/mod.py");
     let res = run(
         root,
-        &["insert-symbol", "app.mod.plain", "after", "def helper():\n    return 1", "--dry-run"],
+        &[
+            "insert-symbol",
+            "app.mod.plain",
+            "after",
+            "def helper():\n    return 1",
+            "--dry-run",
+        ],
     );
     assert_eq!(res["status"], "dry_run", "{res}");
     let after = read(root, "app/mod.py");
@@ -147,7 +186,13 @@ fn no_reindent_sends_content_verbatim() {
     // trailing-newline fixup applies), so the odd indent survives.
     let res = run(
         root,
-        &["insert-symbol", "app.mod.plain", "after", "  raw = 1", "--no-reindent"],
+        &[
+            "insert-symbol",
+            "app.mod.plain",
+            "after",
+            "  raw = 1",
+            "--no-reindent",
+        ],
     );
     assert_eq!(res["status"], "applied", "{res}");
     let text = read(root, "app/mod.py");
@@ -158,10 +203,7 @@ fn no_reindent_sends_content_verbatim() {
 fn invalid_position_is_refused() {
     let dir = setup();
     let root = dir.path();
-    let res = run(
-        root,
-        &["insert-symbol", "app.mod.plain", "middle", "x = 1"],
-    );
+    let res = run(root, &["insert-symbol", "app.mod.plain", "middle", "x = 1"]);
     assert_eq!(res["status"], "error", "{res}");
     assert_eq!(res["error_code"], "invalid_argument", "{res}");
 }
@@ -170,10 +212,54 @@ fn invalid_position_is_refused() {
 fn unknown_anchor_is_refused() {
     let dir = setup();
     let root = dir.path();
-    let res = run(
-        root,
-        &["insert-symbol", "app.mod.nope", "after", "x = 1"],
-    );
+    let res = run(root, &["insert-symbol", "app.mod.nope", "after", "x = 1"]);
     assert_eq!(res["status"], "error", "{res}");
     assert_eq!(res["error_code"], "symbol_not_found", "{res}");
+}
+
+#[test]
+fn undo_refreshes_the_persisted_index() {
+    let dir = setup();
+    let root = dir.path();
+
+    let renamed = run(root, &["rename-symbol", "app.mod.plain", "renamed"]);
+    assert_eq!(renamed["status"], "applied", "{renamed}");
+
+    let undone = run(root, &["undo"]);
+    assert_eq!(undone["status"], "undone", "{undone}");
+
+    let restored = run(root, &["code", "app.mod.plain"]);
+    assert_eq!(restored["path"], "app.mod.plain", "{restored}");
+    assert!(restored["body"].as_str().unwrap().contains("def plain"));
+}
+
+#[test]
+fn patch_resolves_relative_paths_from_root_and_uses_the_read_cache() {
+    let dir = setup();
+    let root = dir.path();
+
+    let served = run(root, &["code", "app.mod.plain"]);
+    assert_eq!(served["path"], "app.mod.plain", "{served}");
+
+    let patched = run(root, &["patch", "app/mod.py", "10-10", "    return y + 1"]);
+    assert_eq!(patched["status"], "applied", "{patched}");
+    assert!(read(root, "app/mod.py").contains("return y + 1"));
+}
+
+#[test]
+fn multi_patch_applies_json_edits_in_one_cli_call() {
+    let dir = setup();
+    let root = dir.path();
+    let edits = serde_json::json!([
+        {"old": "return x + 1", "content": "return x + 2"},
+        {"old": "return y", "content": "return y * 2"}
+    ])
+    .to_string();
+
+    let patched = run(root, &["multi-patch", "app/mod.py", &edits]);
+    assert_eq!(patched["status"], "applied", "{patched}");
+    assert_eq!(patched["per_edit"].as_array().unwrap().len(), 2);
+    let text = read(root, "app/mod.py");
+    assert!(text.contains("return x + 2"), "{text}");
+    assert!(text.contains("return y * 2"), "{text}");
 }

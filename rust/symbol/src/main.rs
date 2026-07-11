@@ -7,7 +7,9 @@ use symbol_core::adapters::default_registry;
 use symbol_core::index::{full_build, get_or_build, Index};
 use symbol_core::reads;
 use symbol_core::writes::ops::{delete_symbol, insert_symbol, replace_symbol};
-use symbol_core::writes::patch::{apply_patch, preflight, validate_args};
+use symbol_core::writes::patch::{
+    apply_multi_patch, apply_patch, preflight, validate_args, MultiPatchEdit,
+};
 use symbol_core::writes::read_cache::ReadCache;
 use symbol_core::writes::rename::rename_symbol;
 use symbol_core::writes::tx::undo_last;
@@ -67,6 +69,16 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Apply multiple non-overlapping edits to one file atomically
+    MultiPatch {
+        file: String,
+        /// JSON array of {range|old, content} edit objects
+        edits: String,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Remove a named symbol (refuses if callers exist; --force overrides)
     DeleteSymbol {
         qualified_path: String,
@@ -92,7 +104,7 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Rename a symbol and its references (tier-1 textual)
+    /// Rename a symbol and its references (AST-aware with tier-1 fallback)
     RenameSymbol {
         qualified_path: String,
         new_name: String,
@@ -141,13 +153,19 @@ fn main() -> Result<()> {
             let save_ms = t1.elapsed().as_millis();
             let stats = idx.stats();
             if args.json {
-                println!("{}", serde_json::json!({"stats": stats, "path": path, "build_ms": build_ms, "save_ms": save_ms}));
+                println!(
+                    "{}",
+                    serde_json::json!({"stats": stats, "path": path, "build_ms": build_ms, "save_ms": save_ms})
+                );
             } else {
                 println!(
                     "indexed {} files → {} symbols, {} imports, {} refs",
                     stats["files"], stats["symbols"], stats["imports"], stats["refs"]
                 );
-                println!("build {build_ms} ms  •  save {save_ms} ms  •  {}", path.display());
+                println!(
+                    "build {build_ms} ms  •  save {save_ms} ms  •  {}",
+                    path.display()
+                );
             }
         }
         Cmd::Refresh => {
@@ -156,10 +174,21 @@ fn main() -> Result<()> {
             if args.json {
                 println!("{}", serde_json::json!({"source": source, "stats": stats}));
             } else {
-                println!("{source}: {} files, {} live symbols", stats["files"], stats["live_symbols"]);
+                println!(
+                    "{source}: {} files, {} live symbols",
+                    stats["files"], stats["live_symbols"]
+                );
             }
         }
-        Cmd::Search { patterns, kind, file, regex, fixed, ignore_case, limit } => {
+        Cmd::Search {
+            patterns,
+            kind,
+            file,
+            regex,
+            fixed,
+            ignore_case,
+            limit,
+        } => {
             let (idx, _) = get_or_build(&root, reg)?;
             let hits = reads::search(
                 &idx,
@@ -251,7 +280,13 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Cmd::Patch { file, range, content, force, dry_run } => {
+        Cmd::Patch {
+            file,
+            range,
+            content,
+            force,
+            dry_run,
+        } => {
             let cache = ReadCache::for_session(&root);
             let request = match validate_args(
                 &file,
@@ -278,47 +313,126 @@ fn main() -> Result<()> {
             if args.json {
                 println!("{}", serde_json::to_string_pretty(&result)?);
             } else if failed {
-                println!("error [{}]: {}", result.error_code.as_deref().unwrap_or(""), result.message.as_deref().unwrap_or(""));
+                println!(
+                    "error [{}]: {}",
+                    result.error_code.as_deref().unwrap_or(""),
+                    result.message.as_deref().unwrap_or("")
+                );
             } else {
-                println!("{} {}  -{} +{}", result.status, result.file_rel, result.lines_removed, result.lines_added);
+                println!(
+                    "{} {}  -{} +{}",
+                    result.status, result.file_rel, result.lines_removed, result.lines_added
+                );
                 println!("{}", result.diff);
             }
             if failed {
                 std::process::exit(1);
             }
         }
-        Cmd::DeleteSymbol { qualified_path, force, dry_run } => {
+        Cmd::MultiPatch {
+            file,
+            edits,
+            force,
+            dry_run,
+        } => {
+            let parsed: Vec<MultiPatchEdit> = match serde_json::from_str(&edits) {
+                Ok(edits) => edits,
+                Err(error) => {
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "status": "error",
+                            "file_rel": file,
+                            "error_code": "invalid_argument",
+                            "message": format!("edits must be a JSON array: {error}")
+                        })
+                    );
+                    std::process::exit(1);
+                }
+            };
+            let cache = ReadCache::for_session(&root);
+            let result = apply_multi_patch(&file, &parsed, &root, &cache, dry_run, force, 5);
+            let failed = matches!(result.status, "error" | "needs_read_confirmation");
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            if failed {
+                std::process::exit(1);
+            }
+        }
+        Cmd::DeleteSymbol {
+            qualified_path,
+            force,
+            dry_run,
+        } => {
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = delete_symbol(&mut idx, &qualified_path, &root, reg, force, dry_run);
-            finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
+            finish_write(&root, &mut idx, reg, result, dry_run)?;
         }
-        Cmd::ReplaceSymbol { qualified_path, content, dry_run } => {
+        Cmd::ReplaceSymbol {
+            qualified_path,
+            content,
+            dry_run,
+        } => {
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = replace_symbol(&mut idx, &qualified_path, &content, &root, reg, dry_run);
-            finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
+            finish_write(&root, &mut idx, reg, result, dry_run)?;
         }
-        Cmd::InsertSymbol { anchor_path, position, content, no_reindent, dry_run } => {
+        Cmd::InsertSymbol {
+            anchor_path,
+            position,
+            content,
+            no_reindent,
+            dry_run,
+        } => {
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = insert_symbol(
-                &mut idx, &anchor_path, &position, &content, !no_reindent, &root, reg, dry_run,
+                &mut idx,
+                &anchor_path,
+                &position,
+                &content,
+                !no_reindent,
+                &root,
+                reg,
+                dry_run,
             );
-            finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
+            finish_write(&root, &mut idx, reg, result, dry_run)?;
         }
-        Cmd::RenameSymbol { qualified_path, new_name, dry_run } => {
+        Cmd::RenameSymbol {
+            qualified_path,
+            new_name,
+            dry_run,
+        } => {
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = rename_symbol(&mut idx, &qualified_path, &new_name, &root, reg, dry_run);
-            finish_write(&root, &mut idx, reg, result, args.json, dry_run)?;
+            finish_write(&root, &mut idx, reg, result, dry_run)?;
         }
         Cmd::Undo => {
             let result = undo_last(&root);
-            // Bring the index back in line with the restored tree.
-            let _ = get_or_build(&root, reg);
+            if result.status == "undone" && !result.files_restored.is_empty() {
+                // Do not rely on mtime detection here: a fast restore can land
+                // within the filesystem's timestamp granularity. Mirror the
+                // Python command and explicitly refresh every restored file.
+                if let Some(mut idx) = Index::load(&root) {
+                    let stale = result.files_restored.iter().cloned().collect();
+                    idx.refresh(&stale, &Default::default(), reg);
+                    idx.save()?;
+                }
+            }
             println!("{}", serde_json::to_string_pretty(&result)?);
             if result.status == "error" {
                 std::process::exit(1);
             }
         }
-        Cmd::Loc { path, files, classify, exclude, no_vendor_skip, no_heuristics, no_cache, config_dir, verbose } => {
+        Cmd::Loc {
+            path,
+            files,
+            classify,
+            exclude,
+            no_vendor_skip,
+            no_heuristics,
+            no_cache,
+            config_dir,
+            verbose,
+        } => {
             return symbol_linguist::loc::run(symbol_linguist::loc::LocArgs {
                 path: path.unwrap_or(root),
                 json: args.json,
@@ -352,7 +466,6 @@ fn finish_write(
     idx: &mut Index,
     reg: &'static symbol_core::adapters::Registry,
     result: serde_json::Value,
-    json: bool,
     dry_run: bool,
 ) -> Result<()> {
     let failed = result["status"] == "error";
@@ -375,11 +488,7 @@ fn finish_write(
             let _ = idx.save();
         }
     }
-    if json {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    } else {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    }
+    println!("{}", serde_json::to_string_pretty(&result)?);
     if failed {
         std::process::exit(1);
     }
@@ -388,31 +497,36 @@ fn finish_write(
 
 /// Record served bodies in the session read cache so a follow-up patch
 /// passes preflight — mirrors how commands/code.py records reads.
-fn record_read(root: &std::path::Path, idx: &Index, payload: &serde_json::Value) {
-    use symbol_core::writes::patch::{mtime_f64, now_f64, short_sha256};
+fn record_read(root: &std::path::Path, _idx: &Index, payload: &serde_json::Value) {
+    use symbol_core::writes::patch::{
+        line_end_byte, line_start_byte, mtime_f64, now_f64, short_sha256,
+    };
     use symbol_core::writes::read_cache::CachedRead;
 
-    let Some(file) = payload["file"].as_str() else { return };
-    let cache = ReadCache::for_session(root);
-    let body = payload["body"].as_str().unwrap_or("");
-    // Approximate byte range from the indexed row when present.
-    let (Some(path), Some(_)) = (payload["path"].as_str(), payload["body"].as_str()) else {
+    let Some(file) = payload["file"].as_str() else {
         return;
     };
-    if let Some(rows) = idx.by_path.get(path) {
-        if rows.len() == 1 {
-            let (s, e) = idx.byte_range_of(rows[0]);
-            if let Some(mt) = mtime_f64(&root.join(file)) {
-                cache.record(&CachedRead {
-                    file: file.to_owned(),
-                    byte_range: (s as usize, e as usize),
-                    content_hash: short_sha256(body.as_bytes()),
-                    served_at: now_f64(),
-                    served_mtime: mt,
-                    tool_call_idx: 0,
-                });
-            }
-        }
+    let Some(start_line) = payload["start_line"].as_i64() else {
+        return;
+    };
+    let Some(end_line) = payload["end_line"].as_i64() else {
+        return;
+    };
+    let Ok(source) = std::fs::read(root.join(file)) else {
+        return;
+    };
+    let start = line_start_byte(&source, start_line);
+    let end = line_end_byte(&source, end_line);
+    let cache = ReadCache::for_session(root);
+    if let Some(mt) = mtime_f64(&root.join(file)) {
+        cache.record(&CachedRead {
+            file: file.to_owned(),
+            byte_range: (start, end),
+            content_hash: short_sha256(&source[start..end]),
+            served_at: now_f64(),
+            served_mtime: mt,
+            tool_call_idx: 0,
+        });
     }
 }
 
@@ -426,7 +540,11 @@ fn print_tree(node: &serde_json::Value, depth: usize) {
         node["end_line"],
         node["signature"].as_str().unwrap_or(""),
     );
-    for child in node["children"].as_array().map(Vec::as_slice).unwrap_or(&[]) {
+    for child in node["children"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
         print_tree(child, depth + 1);
     }
 }

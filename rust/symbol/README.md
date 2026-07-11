@@ -2,22 +2,23 @@
 
 Rust port of symbol's language-neutral core: the symbol index, the read
 surface (search / code / outline / callers), and the write surface (patch /
-delete-symbol / replace-symbol / rename-symbol / undo) behind the `symbol-rs`
-binary. Language analysis never happens in-process — it runs in native-AST
-daemons speaking newline-delimited JSON-RPC 2.0 over stdio
-(schemas/symbol.rpc.schema.json):
+multi-patch / delete-symbol / insert-symbol / replace-symbol / rename-symbol /
+undo), plus
+LOC counting, behind the `symbol-rs` binary. Language analysis never happens
+in-process — it runs in native-AST daemons speaking newline-delimited JSON-RPC
+2.0 over stdio (`schemas/symbol.rpc.schema.json`):
 
 - **Python** → `wyolet.symbol.adapters.pyscan` (new; ~150-line stdio socket
   around the existing `PythonAstAdapter` — Python code is analyzed by
   Python's own `ast`, exactly as before)
-- **Go** → the existing `daemon/go-scan` binary, unchanged
+- **Go** → the `daemon/go-scan` binary
 
 Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
 `SYMBOL_REPO` (checkout providing both), else the crate's own repo (dev mode).
 
 ## Interop guarantees (verified end-to-end)
 
-- **Index**: `.symbol/symbol_index.msgpack.zst` is byte-compatible v6 —
+- **Index**: `.symbol/symbol_index.msgpack.zst` is byte-compatible v8 —
   Python loads Rust-built indexes and vice versa. (Gotcha encoded in
   `index.rs`: Python's `zstandard.decompress()` requires the frame content
   size, so saves use `zstd::bulk::compress`.)
@@ -28,33 +29,33 @@ Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
   JSON shape as caches/disk.py, so patch preflight works across both CLIs
   in one agent session.
 
-## Documented divergences (tonight's cut lines)
+## Current scope boundary
 
-- **rename-symbol**: Python engine kinds run the REAL v2 receiver-aware
-  analysis — pyscan loads the shared on-disk index, builds
-  RenamerIndexQuery, and executes rename_member/rename_module_binding;
-  verified byte-identical to Python including discriminator skips. Go
-  engine kinds remain tier-1 until go-scan's rename RPC is mirrored.
-  Results carry `"engine": "v2"` or `"engine": "tier1"`.
-- **insert-symbol not ported** (its reindent logic is `ast`-bound in
-  Python; belongs in the daemon as an RPC first).
+- **rename-symbol**: supported Python and Go kinds use the same v2
+  receiver-aware daemon analysis as the Python CLI. Unsupported kinds retain
+  the shared tier-1 fallback. Results carry `"engine": "v2"` or
+  `"engine": "tier1"`.
+- **Parameter renames** are not a standalone verb. `replace-symbol` detects
+  unambiguous signature parameter edits and propagates Python keyword call
+  sites in the same transaction.
+- **multi-patch** atomically applies multiple non-overlapping range-addressed
+  or exact-old edits to one file. Range edits use the same read-cache preflight
+  as `patch`; exact-old edits must match once and prove their own context.
 - **audit / map / analyze / MCP server not ported** — out of scope by
   design; they're the Python-specific engine documented in CLAUDE.md.
 - Index build applies linguist classification (heuristics off = Python
-  chain) + the adapter gate, but not `[scanner]`/`[checker]` spec excludes.
+  chain), the adapter gate, and global/project `[checker]` excludes. It does
+  not yet load per-package spec excludes.
 - Blank-gap normalization after delete/replace goes through the daemon
   (`normalize_blank_gaps` RPC), preserving the PEP 8 behavior for Python;
   other languages skip it.
-- Go indexing works through go-scan but `module_prefix` is currently left
-  to the daemon default; Go qualified paths may differ from a Python-core
-  build until that's mirrored.
 
 ## Layout
 
 ```
 src/rpc.rs        JSON-RPC stdio client (go_ast transport, reused)
 src/adapters.rs   registry + daemon adapters + wire types (protocols/types.py)
-src/index.rs      shared/symbol_index.py — v6 format, staleness, refresh
+src/index.rs      shared/symbol_index.py — v8 format, staleness, refresh
 src/reads.rs      reads/ — search, code, outline, callers
 src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename
 src/main.rs       clap CLI (symbol-rs)
@@ -84,9 +85,9 @@ field/constant kinds, class bases, refs, byte ranges, imports). Every
 dataset op — reads (code/callers/outline/search incl. Go signatures and
 limit-truncated searches) and writes (197 renames incl. Go
 interface-implicating + receiver-discriminated, Python MRO/inheritance,
-field renames with same-name decoys, constants; rename-parameter;
-insert-symbol all four positions; patches; deletes; every expect_error
-refusal) — agrees byte-for-byte, with clean undo round-trips on
+field renames with same-name decoys, constants, and parameter edits through
+replace-symbol; insert-symbol all four positions; patches; deletes; every
+expect_error refusal) — agrees byte-for-byte, with clean undo round-trips on
 transaction-backed ops. `known_divergence` is 0 everywhere; the
 `engine-kind` tag never fired.
 
@@ -121,7 +122,6 @@ read ops are not — Python reads run in-process on a pre-loaded index while
 |---|---|---|---|
 | index build | 0.72 / 0.31 | 0.49 / 0.11 | 1.36 / 0.50 |
 | rename-symbol | 0.81 / 0.41 | 0.97 / 0.58 | 1.41 / 0.60 |
-| rename-parameter | 0.82 / 0.40 | — | 1.42 / 0.62 |
 | replace-symbol | 0.39 / 0.37 | 0.36 / 0.12 | 0.37 / 0.51 |
 | insert-symbol | 0.74 / 0.34 | 0.51 / 0.15 | 1.37 / 0.56 |
 | delete-symbol | 0.75 / 0.37 | 0.51 / 0.15 | 1.38 / 0.53 |
