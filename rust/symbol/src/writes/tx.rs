@@ -68,8 +68,7 @@ pub fn commit_edits(
         }
     }
 
-    let mut written = 0usize;
-    for edit in edits {
+    for (written, edit) in edits.iter().enumerate() {
         if let Err(e) = atomic_write(&edit.file_abs, &edit.new_content) {
             // Rollback everything already written.
             for (i, done) in edits.iter().enumerate().take(written) {
@@ -93,7 +92,6 @@ pub fn commit_edits(
                 )),
             };
         }
-        written += 1;
     }
 
     let tx_id = persist_transaction(project_root, op_name, subject, edits, &pre_images);

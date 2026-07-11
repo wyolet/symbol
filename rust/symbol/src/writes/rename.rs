@@ -1,11 +1,8 @@
 //! Port of writes/rename_symbol.py + writes/rename/renamer.py.
 //!
-//! Engine routing mirrors Python: python-language symbols of engine kinds go
-//! through the v2 receiver-aware analysis — executed in the pyscan daemon,
-//! which loads the shared on-disk index and runs the real
-//! rename_member/rename_module_binding. Everything else (and Go, until the
-//! go-scan rename RPC is mirrored) takes the tier-1 textual path; results
-//! carry "engine": "v2" | "tier1".
+//! Engine routing mirrors Python: supported Python and Go symbol kinds go
+//! through their v2 receiver-aware daemon analysis. Unsupported kinds take
+//! the tier-1 textual fallback. Results carry "engine": "v2" | "tier1".
 
 use std::path::Path;
 
@@ -44,7 +41,11 @@ pub fn rename_symbol(
         Err(e) => return e,
     };
     let declaring_file_rel = index.file_of(row).to_owned();
-    let old_leaf = qualified_path.rsplit('.').next().unwrap_or(qualified_path).to_owned();
+    let old_leaf = qualified_path
+        .rsplit('.')
+        .next()
+        .unwrap_or(qualified_path)
+        .to_owned();
     if old_leaf == new_name {
         return serde_json::json!({
             "status": "error", "error_code": "invalid_argument",
@@ -71,12 +72,11 @@ pub fn rename_symbol(
         .to_owned();
     let member = MEMBER_KINDS.contains(&kind.as_str());
     let field = FIELD_KINDS.contains(&kind.as_str());
-    let py_engine = language == "python"
-        && (member || field || BINDING_KINDS.contains(&kind.as_str()));
+    let py_engine =
+        language == "python" && (member || field || BINDING_KINDS.contains(&kind.as_str()));
 
     let go_member = kind == "method";
-    let go_engine =
-        language == "go" && (go_member || GO_BINDING_KINDS.contains(&kind.as_str()));
+    let go_engine = language == "go" && (go_member || GO_BINDING_KINDS.contains(&kind.as_str()));
 
     if py_engine {
         // Member and field both resolve the owner class (prefix minus leaf);
@@ -90,18 +90,44 @@ pub fn rename_symbol(
             "rename_module_binding"
         };
         rename_via_engine(
-            index, qualified_path, &new_qpath, &old_leaf, new_name, row, method,
-            &declaring_file_rel, prefix, project_root, reg, dry_run,
+            index,
+            qualified_path,
+            &new_qpath,
+            &old_leaf,
+            new_name,
+            row,
+            method,
+            &declaring_file_rel,
+            prefix,
+            project_root,
+            reg,
+            dry_run,
         )
     } else if go_engine {
         rename_via_go_engine(
-            index, qualified_path, &new_qpath, &old_leaf, new_name, row, go_member,
-            &declaring_file_rel, prefix, project_root, reg, dry_run,
+            index,
+            qualified_path,
+            &new_qpath,
+            &old_leaf,
+            new_name,
+            row,
+            go_member,
+            &declaring_file_rel,
+            prefix,
+            project_root,
+            reg,
+            dry_run,
         )
     } else {
         rename_tier1(
-            index, qualified_path, &new_qpath, &old_leaf, new_name,
-            &declaring_file_rel, project_root, dry_run,
+            index,
+            qualified_path,
+            &new_qpath,
+            &old_leaf,
+            new_name,
+            &declaring_file_rel,
+            project_root,
+            dry_run,
         )
     }
 }
@@ -166,7 +192,9 @@ fn rename_via_engine(
             continue;
         }
         let abs = project_root.join(rel);
-        let Ok(source) = std::fs::read(&abs) else { continue };
+        let Ok(source) = std::fs::read(&abs) else {
+            continue;
+        };
         let is_declaring = rel == declaring_file_rel;
         let analysis = match adapter.rename_analysis(
             method,
@@ -250,7 +278,10 @@ fn rename_via_engine(
             "qualified_path": qualified_path, "new_qualified_path": new_qpath,
         });
     }
-    let total: i64 = per_file.iter().map(|f| f["refs_updated"].as_i64().unwrap_or(0)).sum();
+    let total: i64 = per_file
+        .iter()
+        .map(|f| f["refs_updated"].as_i64().unwrap_or(0))
+        .sum();
     serde_json::json!({
         "status": if dry_run { "dry_run" } else { "applied" },
         "engine": "v2",
@@ -358,7 +389,9 @@ fn rename_via_go_engine(
 
         if !analysis.rewrites.is_empty() {
             let abs = project_root.join(rel);
-            let Ok(source) = std::fs::read(&abs) else { continue };
+            let Ok(source) = std::fs::read(&abs) else {
+                continue;
+            };
             let mut buf = source;
             let mut sorted = analysis.rewrites.clone();
             sorted.sort_by_key(|r| std::cmp::Reverse(r.byte_start));
@@ -420,7 +453,10 @@ fn rename_via_go_engine(
             "qualified_path": qualified_path, "new_qualified_path": new_qpath,
         });
     }
-    let total: i64 = per_file.iter().map(|f| f["refs_updated"].as_i64().unwrap_or(0)).sum();
+    let total: i64 = per_file
+        .iter()
+        .map(|f| f["refs_updated"].as_i64().unwrap_or(0))
+        .sum();
     serde_json::json!({
         "status": if dry_run { "dry_run" } else { "applied" },
         "engine": "v2",
@@ -440,6 +476,7 @@ fn rename_via_go_engine(
 
 // ---------------------------------------------------------- tier-1 path
 
+#[allow(clippy::too_many_arguments)]
 fn rename_tier1(
     index: &mut Index,
     qualified_path: &str,
@@ -461,7 +498,9 @@ fn rename_tier1(
     let mut per_file: Vec<serde_json::Value> = vec![];
     for rel in &ref_files {
         let abs = project_root.join(rel);
-        let Ok(source) = std::fs::read(&abs) else { continue };
+        let Ok(source) = std::fs::read(&abs) else {
+            continue;
+        };
         let text = String::from_utf8_lossy(&source).into_owned();
         let count = pattern.find_iter(&text).count();
         if count == 0 {
@@ -494,7 +533,10 @@ fn rename_tier1(
         });
     }
 
-    let total: i64 = per_file.iter().map(|f| f["refs_updated"].as_i64().unwrap_or(0)).sum();
+    let total: i64 = per_file
+        .iter()
+        .map(|f| f["refs_updated"].as_i64().unwrap_or(0))
+        .sum();
     serde_json::json!({
         "status": if dry_run { "dry_run" } else { "applied" },
         "engine": "tier1",

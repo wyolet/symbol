@@ -8,9 +8,8 @@
 /// the Unicode "maximal subpart" rule, so skipping `error_len()` bytes agrees
 /// with CPython's ignore handler; an incomplete trailing sequence is dropped.
 pub fn decode_ignore(bytes: &[u8]) -> String {
-    match std::str::from_utf8(bytes) {
-        Ok(s) => return s.to_owned(),
-        Err(_) => {}
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        return s.to_owned();
     }
     let mut out = String::with_capacity(bytes.len());
     let mut rest = bytes;

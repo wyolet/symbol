@@ -1,5 +1,5 @@
 //! Port of shared/symbol_index.py — the columnar symbol lookup table.
-//! Persisted format is BYTE-COMPATIBLE with Python's v7 index
+//! Persisted format is BYTE-COMPATIBLE with Python's v8 index
 //! (.symbol/symbol_index.msgpack.zst): either side can read the other's.
 
 use std::collections::HashMap;
@@ -234,7 +234,9 @@ impl Index {
         let Ok(rel) = path.strip_prefix(&self.project_root) else {
             return;
         };
-        let rel = rel.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/");
+        let rel = rel
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
         let Ok(meta) = std::fs::metadata(path) else {
             return;
         };
@@ -315,7 +317,9 @@ impl Index {
         for (src_row, refs) in self.refs_of.iter().enumerate() {
             for &(packed, line) in refs {
                 let (name_id, kind) = unpack_ref(packed);
-                by.entry(name_id).or_default().push((src_row as i64, line, kind));
+                by.entry(name_id)
+                    .or_default()
+                    .push((src_row as i64, line, kind));
             }
         }
         self.by_name_id = by;
@@ -391,7 +395,11 @@ impl Index {
             .iter()
             .map(|&(packed, line)| {
                 let (name_id, kind) = unpack_ref(packed);
-                (self.strings[name_id as usize].as_str(), ref_label(kind), line)
+                (
+                    self.strings[name_id as usize].as_str(),
+                    ref_label(kind),
+                    line,
+                )
             })
             .collect()
     }
@@ -471,7 +479,12 @@ impl Index {
         out
     }
 
-    pub fn build_tree(&self, row_ids: &[i64], root_row: Option<i64>, reg: &Registry) -> Vec<serde_json::Value> {
+    pub fn build_tree(
+        &self,
+        row_ids: &[i64],
+        root_row: Option<i64>,
+        reg: &Registry,
+    ) -> Vec<serde_json::Value> {
         let mut nodes: HashMap<i64, serde_json::Value> = HashMap::new();
         let mut order: Vec<i64> = vec![];
         for &row in row_ids {
@@ -646,7 +659,12 @@ impl Index {
             &self.project_root,
             &["diff", "--name-only", &format!("{from_sha}..HEAD")],
         )
-        .map(|out| out.lines().filter(|l| !l.is_empty()).map(str::to_owned).collect())
+        .map(|out| {
+            out.lines()
+                .filter(|l| !l.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
         .unwrap_or_default()
     }
 
@@ -657,7 +675,10 @@ impl Index {
             &["ls-files", "-z", "--others", "--exclude-standard"],
         )?;
         let mut rels: std::collections::HashSet<String> = Default::default();
-        for chunk in tracked.split(|&b| b == 0).chain(untracked.split(|&b| b == 0)) {
+        for chunk in tracked
+            .split(|&b| b == 0)
+            .chain(untracked.split(|&b| b == 0))
+        {
             if !chunk.is_empty() {
                 rels.insert(String::from_utf8_lossy(chunk).into_owned());
             }
@@ -699,7 +720,10 @@ impl Index {
     pub fn stale_files(
         &self,
         reg: &Registry,
-    ) -> (std::collections::HashSet<String>, std::collections::HashSet<String>) {
+    ) -> (
+        std::collections::HashSet<String>,
+        std::collections::HashSet<String>,
+    ) {
         let saved: std::collections::HashSet<String> = self.files.iter().cloned().collect();
         let mut stale: std::collections::HashSet<String> = Default::default();
 
@@ -932,8 +956,7 @@ impl Index {
 /// `symbol.toml` / `pyproject.toml [tool.symbol.checker]` extensions.
 /// (Per-package spec excludes are not shimmed yet — documented.)
 fn checker_excludes(project_root: &Path) -> Vec<GlobPat> {
-    const EMBEDDED_SPEC: &str =
-        include_str!("../../../src/wyolet/symbol/data/spec.toml");
+    const EMBEDDED_SPEC: &str = include_str!("../../../src/wyolet/symbol/data/spec.toml");
 
     let mut patterns: Vec<String> = vec![];
     let global = std::env::var("SYMBOL_REPO")
@@ -962,7 +985,10 @@ fn checker_excludes(project_root: &Path) -> Vec<GlobPat> {
 }
 
 fn push_excludes(out: &mut Vec<String>, checker: Option<&toml::Value>) {
-    if let Some(arr) = checker.and_then(|c| c.get("exclude")).and_then(|e| e.as_array()) {
+    if let Some(arr) = checker
+        .and_then(|c| c.get("exclude"))
+        .and_then(|e| e.as_array())
+    {
         out.extend(arr.iter().filter_map(|v| v.as_str().map(str::to_owned)));
     }
 }
@@ -987,7 +1013,9 @@ pub fn full_build(project_root: &Path, reg: &Registry) -> Result<Index> {
         if excludes.iter().any(|g| g.matches(&f.rel)) {
             continue;
         }
-        let Some(key) = classify(&f.abs) else { continue };
+        let Some(key) = classify(&f.abs) else {
+            continue;
+        };
         if !reg.has_adapter(&key) {
             continue;
         }
@@ -1055,7 +1083,11 @@ fn git(cwd: &Path, args: &[&str]) -> Option<String> {
 }
 
 fn git_bytes(cwd: &Path, args: &[&str]) -> Option<Vec<u8>> {
-    let out = Command::new("git").args(args).current_dir(cwd).output().ok()?;
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .ok()?;
     out.status.success().then_some(out.stdout)
 }
 
@@ -1086,7 +1118,12 @@ mod tests {
         let fid = idx.file_id("mod.py", "python");
         let lid = idx.lang_id("python");
         idx.ingest_symbol(&sym("class", "mod.Base", &[]), fid, -1, lid);
-        idx.ingest_symbol(&sym("class", "mod.Sub", &["Base", "mod.Mixin"]), fid, -1, lid);
+        idx.ingest_symbol(
+            &sym("class", "mod.Sub", &["Base", "mod.Mixin"]),
+            fid,
+            -1,
+            lid,
+        );
         idx.ingest_symbol(&sym("function", "mod.helper", &[]), fid, -1, lid);
         idx.build_by_name_id();
 

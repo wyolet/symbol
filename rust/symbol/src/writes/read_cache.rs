@@ -72,10 +72,11 @@ impl ReadCache {
             let Ok(entry) = serde_json::from_value::<CachedRead>(raw.clone()) else {
                 continue;
             };
-            if entry.byte_range.0 <= byte_range.0 && entry.byte_range.1 >= byte_range.1 {
-                if best.as_ref().map_or(true, |b| entry.served_at > b.served_at) {
-                    best = Some(entry);
-                }
+            if entry.byte_range.0 <= byte_range.0
+                && entry.byte_range.1 >= byte_range.1
+                && best.as_ref().is_none_or(|b| entry.served_at > b.served_at)
+            {
+                best = Some(entry);
             }
         }
         best

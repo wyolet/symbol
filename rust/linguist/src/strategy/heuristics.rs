@@ -165,9 +165,8 @@ impl HeuristicsStrategy {
                                 .collect(),
                             _ => vec![],
                         };
-                        match parse_matcher(&named, rule, &mut dropped) {
-                            Some(matcher) => rules.push(HRule { languages, matcher }),
-                            None => {} // rule dropped (incompatible pattern)
+                        if let Some(matcher) = parse_matcher(&named, rule, &mut dropped) {
+                            rules.push(HRule { languages, matcher });
                         }
                     }
                 }

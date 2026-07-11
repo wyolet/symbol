@@ -8,6 +8,9 @@ use anyhow::{bail, Result};
 use crate::adapters::Registry;
 use crate::index::{Index, S_SLINE};
 
+type Matcher = Box<dyn Fn(&str) -> bool>;
+type Matchers = Vec<Matcher>;
+
 // ---------------------------------------------------------- callers
 
 pub fn callers(index: &Index, name: &str) -> Vec<serde_json::Value> {
@@ -124,7 +127,7 @@ fn by_range(
         }
         if rs <= start && re_ >= end {
             let span = re_ - rs;
-            if best_span.map_or(true, |(bs, be)| span < be - bs) {
+            if best_span.is_none_or(|(bs, be)| span < be - bs) {
                 best_row = row;
                 best_span = Some((rs, re_));
             }
@@ -219,10 +222,7 @@ pub fn search(
     if patterns.is_empty() {
         return Ok(vec![]);
     }
-    let matchers: Result<Vec<Box<dyn Fn(&str) -> bool>>> = patterns
-        .iter()
-        .map(|p| compile_matcher(p, opts))
-        .collect();
+    let matchers: Result<Matchers> = patterns.iter().map(|p| compile_matcher(p, opts)).collect();
     let matchers = matchers?;
 
     let mut row_ids: Vec<i64> = vec![];
@@ -262,7 +262,7 @@ pub fn search(
         let signature = index.signature(row, reg);
         let body = index.body(row);
         let preview = reg
-            .for_language(&index.language_of(row).to_owned())
+            .for_language(index.language_of(row))
             .ok()
             .and_then(|a| a.preview(&body, &signature, PREVIEW_LINES).ok())
             .unwrap_or_else(|| body.lines().take(PREVIEW_LINES).collect::<Vec<_>>().join("\n"));
@@ -283,7 +283,7 @@ pub fn search(
     Ok(out)
 }
 
-fn compile_matcher(pattern: &str, opts: &SearchOpts) -> Result<Box<dyn Fn(&str) -> bool>> {
+fn compile_matcher(pattern: &str, opts: &SearchOpts) -> Result<Matcher> {
     if opts.regex {
         let p = if opts.ignore_case {
             format!("(?i){pattern}")

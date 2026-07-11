@@ -374,6 +374,7 @@ impl Adapter {
     /// "rename_member" / "rename_field" / "rename_module_binding";
     /// `owner_or_module_qpath` maps to target_owner_qpath (member/field) or
     /// target_module_qpath (binding).
+    #[allow(clippy::too_many_arguments)]
     pub fn rename_analysis(
         &self,
         method: &str,
