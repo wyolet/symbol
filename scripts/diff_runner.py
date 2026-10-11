@@ -37,6 +37,7 @@ MCP mode (--mcp) replays the same dataset as tool calls against both MCP
 servers (`symbol mcp`), each on its own copy of the target, and compares
 the full tool results (text payloads byte-for-byte, after replacing each
 copy's root with <root>), plus tools/list and initialize. See McpRunner.
+Tools only the Rust server lists get a rust_only verdict, not MISMATCH.
 """
 
 import argparse
@@ -633,18 +634,22 @@ class McpRunner(Runner):
             a = dict(py.initialize, serverInfo={"name": py.initialize["serverInfo"]["name"]})
             b = dict(rs.initialize, serverInfo={"name": rs.initialize["serverInfo"]["name"]})
             self.compare("initialize", "initialize", a, b, py_copy, rs_copy)
-            py_tools = py.request("tools/list", {})
-            rs_tools = rs.request("tools/list", {})
+            py_tools = py.request("tools/list", {}).get("tools", [])
+            rs_tools = rs.request("tools/list", {}).get("tools", [])
+            pt = {t["name"]: t for t in py_tools}
+            self.rust_only = [t["name"] for t in rs_tools if t["name"] not in pt]
+            for name in self.rust_only:
+                self.verdict("rust_only", f"tools/list:{name}", "tools/list")
+            rs_tools = [t for t in rs_tools if t["name"] in pt]
             if py_tools == rs_tools:
                 self.verdict("match", "tools/list", "tools/list")
             else:
-                pt = {t["name"]: t for t in py_tools.get("tools", [])}
-                rt = {t["name"]: t for t in rs_tools.get("tools", [])}
+                rt = {t["name"]: t for t in rs_tools}
                 for name in sorted(set(pt) | set(rt)):
                     if pt.get(name) != rt.get(name):
                         self.verdict("MISMATCH", f"tools/list:{name}", "tools/list",
                                      f"py={json.dumps(pt.get(name))[:240]} rs={json.dumps(rt.get(name))[:240]}")
-                if [t["name"] for t in py_tools["tools"]] != [t["name"] for t in rs_tools["tools"]]:
+                if [t["name"] for t in py_tools] != [t["name"] for t in rs_tools]:
                     self.verdict("MISMATCH", "tools/list:order", "tools/list", "tool order differs")
         finally:
             py.close()
@@ -803,6 +808,8 @@ def main():
         shutil.rmtree(runner.read_copy, ignore_errors=True)
     print(json.dumps({"verdicts": report["verdicts"],
                       "timing_median_s": report["timing_median_s"]}, indent=2))
+    if getattr(runner, "rust_only", None):
+        print(f"rust-only tools: {', '.join(runner.rust_only)}")
     for f in report["failures"][:15]:
         print(f"MISMATCH {f['id']} ({f['op']}): {f['detail'][:220]}")
     if args.report:
