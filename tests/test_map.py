@@ -207,6 +207,15 @@ def test_map_cmd_without_python_json(tmp_path: Path, capsys):
     assert "No Python sources found" in data["message"]
 
 
+def test_map_cmd_relative_root(tmp_path: Path, capsys, monkeypatch):
+    _make_project(tmp_path, {"a.py": "import b\n", "b.py": "x = 1\n"})
+    monkeypatch.chdir(tmp_path)
+    map_cmd(".", format="json")
+    data = json.loads(capsys.readouterr().out)
+    assert data["total_files"] == 2
+    assert data["total_edges"] == 1
+
+
 def test_map_cmd_blast_without_python_says_so(tmp_path: Path, capsys):
     _make_project(tmp_path, {"main.go": "package main\n"})
     map_cmd(str(tmp_path), blast="main.go")

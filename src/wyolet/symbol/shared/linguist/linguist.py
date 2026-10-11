@@ -130,7 +130,11 @@ class Linguist:
         )
 
         for file_path in paths:
-            blob = Blob(file_path)
+            try:
+                blob = Blob(file_path)
+            except OSError:
+                # Removed or unreadable since the walk listed it (e.g. build output).
+                continue
 
             if not (language := self.detect(blob)):
                 continue
