@@ -789,6 +789,8 @@ fn run(cli: Cli) -> Result<()> {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
+            // The Python command classifies without heuristics and keeps no
+            // cache in the project.
             let args = symbol_linguist::loc::LocArgs {
                 path: path.unwrap_or(root),
                 json: native_json,
@@ -796,8 +798,8 @@ fn run(cli: Cli) -> Result<()> {
                 classify,
                 exclude: excludes,
                 no_vendor_skip,
-                no_heuristics,
-                no_cache,
+                no_heuristics: no_heuristics || !native,
+                no_cache: no_cache || !native,
                 config_dir,
                 verbose,
             };
@@ -806,7 +808,7 @@ fn run(cli: Cli) -> Result<()> {
             }
             let report = symbol_linguist::loc::collect(&args)?;
             if out.py_json {
-                render::print_json(&symbol_linguist::loc::json_value(&report, false)?);
+                render::print_json(&render::loc_json(&report)?);
             } else {
                 render::loc_rich(&report, &project_name);
             }

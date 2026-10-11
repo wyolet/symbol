@@ -36,12 +36,11 @@ fn walk_dir(dir: &Path, rel_dir: &str, opts: &WalkOptions, out: &mut Vec<WalkedF
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
-    let mut entries: Vec<_> = entries.flatten().collect();
-    // os.walk order is filesystem order; sort for deterministic output.
-    // Aggregate results are order-independent, so this is not a divergence.
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
+    // os.walk order: a directory's files in filesystem (readdir) order, then
+    // its subdirectories. Per-language first-seen order — and so the order
+    // of `loc` output — follows it.
+    let mut subdirs = vec![];
+    for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         let rel = if rel_dir.is_empty() {
             name.clone()
@@ -80,7 +79,7 @@ fn walk_dir(dir: &Path, rel_dir: &str, opts: &WalkOptions, out: &mut Vec<WalkedF
             if excluded(&rel, opts.exclude) {
                 continue;
             }
-            walk_dir(&entry.path(), &rel, opts, out);
+            subdirs.push((entry.path(), rel));
         } else {
             if excluded(&rel, opts.exclude) {
                 continue;
@@ -105,6 +104,9 @@ fn walk_dir(dir: &Path, rel_dir: &str, opts: &WalkOptions, out: &mut Vec<WalkedF
                 size: meta.len(),
             });
         }
+    }
+    for (path, rel) in subdirs {
+        walk_dir(&path, &rel, opts, out);
     }
 }
 

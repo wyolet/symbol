@@ -72,6 +72,7 @@ struct Payload {
     imports: Vec<[i64; 4]>,
     refs_of: Vec<Vec<(i64, i64)>>,
     bases_of: Vec<Vec<i64>>,
+    #[serde(serialize_with = "first_seen_order")]
     by_path: HashMap<String, Vec<i64>>,
     by_file: HashMap<i64, Vec<i64>>,
     imps_by_file: HashMap<i64, Vec<i64>>,
@@ -85,6 +86,17 @@ struct Payload {
     scope_exclude: Vec<String>,
     #[serde(default)]
     dead_rows: i64,
+}
+
+/// Python loads `by_path` into a dict whose order drives suffix lookups and
+/// search results; write it in first-seen (first row) order, as Python does.
+fn first_seen_order<S: serde::Serializer>(
+    map: &HashMap<String, Vec<i64>>,
+    s: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    let mut entries: Vec<_> = map.iter().collect();
+    entries.sort_by_key(|(_, rows)| rows.first().copied().unwrap_or(i64::MAX));
+    s.collect_map(entries)
 }
 
 // ---------------------------------------------------------- linguist context

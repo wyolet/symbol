@@ -46,6 +46,10 @@ pub fn plain(markup: &str) -> String {
 /// Rich's `divide_line` + fold: words carry their trailing whitespace, a
 /// word that doesn't fit starts a new line, an over-long word is chopped.
 pub fn wrap(text: &str, width: usize) -> Vec<String> {
+    divide(text, width, true)
+}
+
+fn divide(text: &str, width: usize, fold: bool) -> Vec<String> {
     static WORD: std::sync::LazyLock<regex::Regex> =
         std::sync::LazyLock::new(|| regex::Regex::new(r"\s*\S+\s*").unwrap());
     let chars: Vec<char> = text.chars().collect();
@@ -58,6 +62,11 @@ pub fn wrap(text: &str, width: usize) -> Vec<String> {
         let word_len = cells(word.trim_end());
         if width.saturating_sub(offset) >= word_len {
             offset += cells(word);
+        } else if word_len > width && !fold {
+            if start > 0 {
+                breaks.push(start);
+            }
+            offset = cells(word);
         } else if word_len > width {
             let wchars: Vec<char> = word.chars().collect();
             let chunks: Vec<&[char]> = wchars.chunks(width.max(1)).collect();
@@ -200,8 +209,9 @@ impl Table {
         self
     }
 
+    /// Cells are console markup, as strings given to Rich's `add_row` are.
     pub fn row(&mut self, cells: Vec<String>) {
-        self.rows.push(cells);
+        self.rows.push(cells.iter().map(|c| plain(c)).collect());
     }
 
     /// Column widths (padding included), collapsed like Rich's
@@ -296,17 +306,7 @@ fn cell_lines(text: &str, w: usize) -> Vec<String> {
     if cells(text) <= w {
         return vec![text.to_owned()];
     }
-    let mut lines: Vec<String> = vec![];
-    let mut current = String::new();
-    for word in text.split_inclusive(' ') {
-        if !current.is_empty() && cells(current.trim_end()) + cells(word.trim_end()) > w {
-            lines.push(current.trim_end().to_owned());
-            current = String::new();
-        }
-        current.push_str(word);
-    }
-    lines.push(current.trim_end().to_owned());
-    lines
+    divide(text, w, false)
         .into_iter()
         .map(|l| {
             if cells(&l) > w {
@@ -791,25 +791,51 @@ pub fn outline_rich(arg: &str, roots: &[Value]) {
             node["end_line"]
         ))
     }
+    // A label wraps within the width left after its guides; continuation
+    // lines carry the guide that runs past it.
     fn walk(nodes: &[Value], prefix: &str, out: &mut Vec<String>) {
         for (i, node) in nodes.iter().enumerate() {
             let last = i + 1 == nodes.len();
-            out.push(format!(
-                "{prefix}{}{}",
-                if last { "└── " } else { "├── " },
-                label(node)
-            ));
+            let (branch, through) = if last {
+                ("└── ", "    ")
+            } else {
+                ("├── ", "│   ")
+            };
+            let next = format!("{prefix}{through}");
+            let room = width().saturating_sub(cells(&next)).max(1);
+            for (j, line) in wrap(&label(node), room).iter().enumerate() {
+                let guide = if j == 0 { branch } else { through };
+                out.push(format!("{prefix}{guide}{line}"));
+            }
             let children = node["children"]
                 .as_array()
                 .map(Vec::as_slice)
                 .unwrap_or(&[]);
-            let next = format!("{prefix}{}", if last { "    " } else { "│   " });
             walk(children, &next, out);
         }
     }
-    let mut out = vec![plain(&format!("[bold]{arg}[/bold]"))];
+    let mut out = wrap(&plain(&format!("[bold]{arg}[/bold]")), width());
     walk(roots, "", &mut out);
     print_lines(&out);
+}
+
+/// commands/loc.py `--format json`. Percentages Python never computed (an
+/// uncounted language, or nothing counted) stay the integer 0.
+pub fn loc_json(report: &symbol_linguist::loc::LocReport) -> anyhow::Result<Value> {
+    let mut data = symbol_linguist::loc::json_value(report, false)?;
+    let counted: Vec<_> = report.stats.iter().filter(|s| s.is_counted).collect();
+    let no_lines = counted.iter().map(|s| s.sloc).sum::<u64>() == 0;
+    let no_bytes = counted.iter().map(|s| s.size).sum::<u64>() == 0;
+    for lang in data["languages"].as_array_mut().into_iter().flatten() {
+        let counted = lang["is_counted"] == true;
+        if !counted || no_lines {
+            lang["percentage_lines"] = json!(0);
+        }
+        if !counted || no_bytes {
+            lang["percentage_bytes"] = json!(0);
+        }
+    }
+    Ok(data)
 }
 
 pub fn callers_rich(name: &str, hits: &[Value]) {
