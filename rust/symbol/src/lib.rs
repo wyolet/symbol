@@ -9,5 +9,6 @@ pub mod map;
 pub mod pyscan;
 pub mod reads;
 pub mod rpc;
+pub mod specs;
 pub mod writes;
 pub mod xref;

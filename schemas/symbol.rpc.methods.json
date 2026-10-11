@@ -119,6 +119,30 @@
             "result": { "$ref": "symbol.rpc.schema.json#/$defs/ParseResult" }
           }
         },
+        "project_dependencies": {
+          "type": "object",
+          "description": "Optional. Dependencies the project declares in this language's manifests, as the ecosystem names them (normalized). The host matches them against package specs to apply their file-scope excludes. A worker without the method declares none.",
+          "additionalProperties": false,
+          "required": ["params", "result"],
+          "properties": {
+            "params": {
+              "type": "object",
+              "properties": {
+                "project_root": {
+                  "type": "string",
+                  "description": "Defaults to the root given at initialize."
+                }
+              }
+            },
+            "result": {
+              "type": "object",
+              "required": ["dependencies"],
+              "properties": {
+                "dependencies": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
         "shutdown": {
           "type": "object",
           "description": "Graceful shutdown notification. No response. Worker should flush state and exit.",

@@ -112,7 +112,7 @@ fn linguist() -> &'static LinguistCtx {
 
 /// Classify one file the way ASTCache/_git_tracked_sources does:
 /// linguist detect → lang.key (name lowercased), None for Unknown/gated.
-fn classify(path: &Path) -> Option<String> {
+pub(crate) fn classify(path: &Path) -> Option<String> {
     let meta = std::fs::metadata(path).ok()?;
     let blob = Blob::from_path(path, false, meta.len()).ok()?;
     let ctx = linguist();
@@ -954,72 +954,73 @@ impl Index {
 
 // ---------------------------------------------------------- build / refresh drivers
 
-/// The `[checker] exclude` scope Python's full build applies via
-/// filter_paths: global data/spec.toml baseline + the target project's
-/// `symbol.toml` / `pyproject.toml [tool.symbol.checker]` extensions.
-/// (Per-package spec excludes are not shimmed yet — documented.)
-fn checker_excludes(project_root: &Path) -> Vec<GlobPat> {
-    const EMBEDDED_SPEC: &str = include_str!("../../../src/wyolet/symbol/data/spec.toml");
-
-    let mut patterns: Vec<String> = vec![];
-    let global = std::env::var("SYMBOL_REPO")
-        .map(|r| Path::new(&r).join("src/wyolet/symbol/data/spec.toml"))
-        .ok()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .unwrap_or_else(|| EMBEDDED_SPEC.to_owned());
-    if let Ok(spec) = global.parse::<toml::Table>() {
-        push_excludes(&mut patterns, spec.get("checker"));
-    }
-    if let Ok(text) = std::fs::read_to_string(project_root.join("symbol.toml")) {
-        if let Ok(cfg) = text.parse::<toml::Table>() {
-            push_excludes(&mut patterns, cfg.get("checker"));
-        }
-    }
-    if let Ok(text) = std::fs::read_to_string(project_root.join("pyproject.toml")) {
-        if let Ok(cfg) = text.parse::<toml::Table>() {
-            let checker = cfg
-                .get("tool")
-                .and_then(|t| t.get("symbol"))
-                .and_then(|s| s.get("checker"));
-            push_excludes(&mut patterns, checker);
-        }
-    }
+fn globs(patterns: &[String]) -> Vec<GlobPat> {
     patterns.iter().filter_map(|p| GlobPat::new(p)).collect()
 }
 
-fn push_excludes(out: &mut Vec<String>, checker: Option<&toml::Value>) {
-    if let Some(arr) = checker
-        .and_then(|c| c.get("exclude"))
-        .and_then(|e| e.as_array())
-    {
-        out.extend(arr.iter().filter_map(|v| v.as_str().map(str::to_owned)));
+/// The walk prunes a directory whose path matches an exclude, so a file is
+/// out when it or any ancestor directory matches.
+fn excluded_with_ancestors(rel: &str, excludes: &[GlobPat]) -> bool {
+    let mut end = 0;
+    while let Some(i) = rel[end..].find('/') {
+        end += i;
+        if excludes.iter().any(|g| g.matches(&rel[..end])) {
+            return true;
+        }
+        end += 1;
     }
+    excludes.iter().any(|g| g.matches(rel))
 }
 
+/// Python's full build (build_context → ASTCache): the `[checker]` scope is
+/// the global baseline + project config, plus the excludes of package specs
+/// for the dependencies each present language's adapter reports.
 pub fn full_build(project_root: &Path, reg: &Registry) -> Result<Index> {
     let ctx = linguist();
     let mut idx = Index::empty(project_root);
-    let excludes = checker_excludes(project_root);
+    let base_excludes = globs(&crate::specs::base_checker_excludes(project_root));
     let mut files = walk(
         project_root,
         &WalkOptions {
-            exclude: &[],
+            exclude: &base_excludes,
             vendor: ctx.vendor.as_ref(),
         },
     );
     files.sort_by(|a, b| a.rel.cmp(&b.rel));
+    let mut sources = vec![];
+    let mut languages: Vec<String> = vec![];
     for f in files {
         if f.is_symlink {
-            continue;
-        }
-        // filter_paths semantics: [checker] excludes gate the full build.
-        if excludes.iter().any(|g| g.matches(&f.rel)) {
             continue;
         }
         let Some(key) = classify(&f.abs) else {
             continue;
         };
         if !reg.has_adapter(&key) {
+            continue;
+        }
+        if !languages.contains(&key) {
+            languages.push(key.clone());
+        }
+        sources.push((f, key));
+    }
+
+    let mut deps = vec![];
+    for language in &languages {
+        deps.extend(reg.for_language(language)?.project_dependencies()?);
+    }
+    let (include, exclude) = crate::specs::checker_scope(project_root, &deps);
+    let (include, exclude) = (globs(&include), globs(&exclude));
+    for (f, key) in sources {
+        // filter_paths: dot-path components never index; include/exclude
+        // patterns gate the rest.
+        if f.rel.split('/').any(|part| part.starts_with('.')) {
+            continue;
+        }
+        if !include.is_empty() && !include.iter().any(|g| g.matches(&f.rel)) {
+            continue;
+        }
+        if excluded_with_ancestors(&f.rel, &exclude) {
             continue;
         }
         idx.walk_file(&f.abs, Some(&key), reg)?;

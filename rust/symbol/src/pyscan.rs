@@ -31,11 +31,18 @@ const FILES: &[(&str, &str)] = embed!(
     "wyolet/symbol/adapters/_python_ast_rename.py",
     "wyolet/symbol/adapters/pyscan.py",
     "wyolet/symbol/adapters/python_ast.py",
+    "wyolet/symbol/adapters/python_deps.py",
     "wyolet/symbol/protocols/__init__.py",
     "wyolet/symbol/protocols/index_query.py",
     "wyolet/symbol/protocols/language.py",
     "wyolet/symbol/protocols/read_cache.py",
     "wyolet/symbol/protocols/types.py",
+    "wyolet/symbol/shared/__init__.py",
+    "wyolet/symbol/shared/deps.py",
+    "wyolet/symbol/shared/findings.py",
+    "wyolet/symbol/shared/pipeline.py",
+    "wyolet/symbol/shared/pkg_registry.py",
+    "wyolet/symbol/shared/spec.py",
     "wyolet/symbol/writes/__init__.py",
     "wyolet/symbol/writes/_blank_lines.py",
 );
@@ -229,9 +236,8 @@ mod tests {
         }
     }
 
-    /// The embedded set alone (no site-packages) must import and serve.
-    #[test]
-    fn embedded_daemon_answers_without_site_packages() {
+    /// One request against the embedded set alone (no site-packages).
+    fn embedded_call(request: &str) -> serde_json::Value {
         let python = find_python(&["python3".to_owned()]).expect("python3 >= 3.10 on PATH");
         let tmp = tempfile::tempdir().unwrap();
         let dir = materialize(tmp.path()).unwrap();
@@ -244,19 +250,43 @@ mod tests {
             .unwrap();
         let mut stdin = child.stdin.take().unwrap();
         let mut stdout = BufReader::new(child.stdout.take().unwrap());
-        writeln!(
-            stdin,
-            r#"{{"jsonrpc":"2.0","id":1,"method":"scan_content","params":{{"source":"class A:\n    def f(self): pass\n"}}}}"#
-        )
-        .unwrap();
+        writeln!(stdin, "{request}").unwrap();
         let mut line = String::new();
         stdout.read_line(&mut line).unwrap();
         drop(stdin);
         let _ = child.wait();
-        let resp: serde_json::Value = serde_json::from_str(&line).unwrap();
+        serde_json::from_str(&line).unwrap_or_else(|e| panic!("{e}: {line}"))
+    }
+
+    #[test]
+    fn embedded_daemon_answers_without_site_packages() {
+        let resp = embedded_call(
+            r#"{"jsonrpc":"2.0","id":1,"method":"scan_content","params":{"source":"class A:\n    def f(self): pass\n"}}"#,
+        );
         assert_eq!(
             resp["result"]["symbols"][0]["qualified_path"], "A",
-            "{line}"
+            "{resp}"
+        );
+    }
+
+    #[test]
+    fn embedded_daemon_reports_project_dependencies() {
+        let project = tempfile::tempdir().unwrap();
+        std::fs::write(
+            project.path().join("pyproject.toml"),
+            "[project]\nname = \"x\"\ndependencies = [\"FastAPI>=0.100\", \"Flask_Login\"]\n",
+        )
+        .unwrap();
+        std::fs::write(project.path().join("requirements.txt"), "requests==2.0\n").unwrap();
+        let request = serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "project_dependencies",
+            "params": {"project_root": project.path()},
+        });
+        let resp = embedded_call(&request.to_string());
+        assert_eq!(
+            resp["result"]["dependencies"],
+            serde_json::json!(["fastapi", "flask-login", "requests"]),
+            "{resp}"
         );
     }
 }
