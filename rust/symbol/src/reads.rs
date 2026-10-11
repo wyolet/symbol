@@ -34,6 +34,38 @@ pub fn callers(index: &Index, name: &str) -> Vec<serde_json::Value> {
 
 // ---------------------------------------------------------- code
 
+/// reads/code.py `CodeNotFound`: nothing matches the address.
+#[derive(Debug)]
+pub enum CodeMiss {
+    NoSymbol(String),
+    FileNotIndexed(String),
+}
+
+impl CodeMiss {
+    /// The Python exception's message.
+    pub fn python_message(&self) -> String {
+        match self {
+            CodeMiss::NoSymbol(path) => format!("no symbol matches {}", crate::pystr::repr(path)),
+            CodeMiss::FileNotIndexed(file) => {
+                format!("file not indexed: {}", crate::pystr::repr(file))
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for CodeMiss {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CodeMiss::NoSymbol(path) => {
+                write!(f, "no symbol matches {path:?}\nTry: symbol search <name>")
+            }
+            CodeMiss::FileNotIndexed(file) => write!(f, "file not indexed: {file:?}"),
+        }
+    }
+}
+
+impl std::error::Error for CodeMiss {}
+
 pub fn code(index: &Index, target: &str, reg: &Registry) -> Result<serde_json::Value> {
     static RANGE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
         regex::Regex::new(r"^(?P<file>.+?):(?P<start>\d+)-(?P<end>\d+)$").unwrap()
@@ -67,7 +99,7 @@ fn resolve_rows(index: &Index, path: &str) -> Vec<i64> {
 fn by_path(index: &Index, path: &str, reg: &Registry) -> Result<serde_json::Value> {
     let rows = resolve_rows(index, path);
     if rows.is_empty() {
-        bail!("no symbol matches {path:?}\nTry: symbol search <name>");
+        bail!(CodeMiss::NoSymbol(path.to_owned()));
     }
     if rows.len() > 1 {
         let candidates: Vec<serde_json::Value> = rows
@@ -115,7 +147,7 @@ fn by_range(
         }
     }
     let Some(file_id) = file_id else {
-        bail!("file not indexed: {file:?}");
+        bail!(CodeMiss::FileNotIndexed(file));
     };
 
     let mut best_row: i64 = -1;

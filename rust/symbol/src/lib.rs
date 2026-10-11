@@ -6,7 +6,9 @@
 pub mod adapters;
 pub mod index;
 pub mod map;
+pub mod mcp;
 pub mod pyscan;
+pub mod pystr;
 pub mod reads;
 pub mod refresh;
 pub mod rpc;

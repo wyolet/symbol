@@ -44,6 +44,8 @@ enum Cmd {
         #[arg(long)]
         keep_transactions: bool,
     },
+    /// Run the MCP server (stdio) exposing symbol as agent tools
+    Mcp,
     /// Narrow candidates by name; signatures only
     Search {
         patterns: Vec<String>,
@@ -253,6 +255,7 @@ fn run(args: Args) -> Result<()> {
                 }
             }
         }
+        Cmd::Mcp => return symbol_core::mcp::serve(&root),
         Cmd::Search {
             patterns,
             kind,
