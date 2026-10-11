@@ -554,6 +554,22 @@ def mcp_sort_hits(result):
     return result
 
 
+def strip_affected(text: str) -> str:
+    """Rename text without its 'affects N interface contract(s)' block."""
+    out, skipping = [], False
+    for line in text.split("\n"):
+        if line.startswith("affects ") and "interface contract(s)" in line:
+            skipping = True
+            if out and out[-1] == "":
+                out.pop()
+            continue
+        if skipping and line.startswith("  "):
+            continue
+        skipping = False
+        out.append(line)
+    return "\n".join(out)
+
+
 def mcp_text(result) -> str:
     if not isinstance(result, dict):
         return json.dumps(result)
@@ -584,9 +600,19 @@ class McpRunner(Runner):
             a, b = mcp_sort_hits(a), mcp_sort_hits(b)
         if a == b:
             self.verdict("match", op_id, op)
+        elif op == "RenameSymbol" and mcp_text(a) == strip_affected(mcp_text(b)):
+            # The Python Go adapter pops its affected-interfaces cache on the
+            # first call and serves later identical renames from a cached
+            # analysis, so a repeat in one session omits the block.
+            self.verdict("known_divergence", op_id, op, "python drops affected interfaces on repeat")
         else:
             self.verdict("MISMATCH", op_id, op, mcp_diff(a, b))
         return a == b
+
+    def report(self):
+        out = super().report()
+        out["failures"] = self.failures[:500]
+        return out
 
     def timed_call(self, server: McpServer, side: str, tool: str, arguments: dict):
         t0 = time.perf_counter()

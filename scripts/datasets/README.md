@@ -133,3 +133,7 @@ copy's root is replaced with `<root>` and transaction ids are masked.
   with the same read-then-retry contract, then an `old`-addressed edit).
 
 Verdicts use the same vocabulary; every compared call counts once.
+`known_divergence` marks a Go `RenameSymbol` where only the Rust text lists
+affected interface contracts: the Python Go adapter clears that list on the
+first call and answers a repeated identical rename (the real call after its
+`dry_run`) from a cached analysis without it.
