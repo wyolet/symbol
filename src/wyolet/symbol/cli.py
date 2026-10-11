@@ -1,4 +1,5 @@
-"""Root CLI — dispatches to subcommands (audit, loc, map, update-linguist)."""
+"""Root CLI — the Python commands (audit, analyze, dump, init, map,
+update-linguist), plus help entries for the commands the binary runs."""
 
 import os
 import sys
@@ -11,21 +12,10 @@ from rich.console import Console
 
 from .commands.analyze import analyze_cmd, analyze_dump
 from .commands.audit import audit_cmd
-from .commands.callers import callers_cmd
-from .commands.code import code_cmd
-from .commands.index import index_cmd
 from .commands.init import init_cmd
-from .commands.search import search_cmd
-from .commands.loc import loc_cmd
-from .shared.linguist.config.load import update_from_github
 from .commands.map import map_cmd
-from .commands.delete_symbol import delete_symbol_cmd
-from .commands.hook import run as hook_run
-from .commands.insert_symbol import insert_symbol_cmd
-from .commands.outline import outline_cmd
-from .commands.patch import patch_cmd
-from .commands.rename_symbol import rename_symbol_cmd
-from .commands.replace_symbol import replace_symbol_cmd
+from .entrypoint import DELEGATED_COMMANDS, run_delegated
+from .shared.linguist.config.load import update_from_github
 
 console = Console()
 
@@ -40,24 +30,11 @@ def _maybe_default_audit() -> None:
     known = {
         "analyze",
         "audit",
-        "callers",
-        "code",
         "dump",
-        "index",
         "init",
-        "loc",
         "map",
-        "mcp",
-        "delete-symbol",
-        "hook",
-        "insert-symbol",
-        "outline",
-        "patch",
-        "rename-parameter",
-        "rename-symbol",
-        "replace-symbol",
-        "search",
         "update-linguist",
+        *DELEGATED_COMMANDS,
         "--help",
         "-h",
         "--verbose",
@@ -160,15 +137,6 @@ def init(
     init_cmd(path)
 
 
-@app.command()
-def loc(
-    path: Annotated[str, typer.Argument(help="Path to the project directory")],
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
-) -> None:
-    """Count lines of code by language — powered by GitHub Linguist."""
-    loc_cmd(path, format=format)
-
-
 @app.command("map")
 def map_command(
     path: Annotated[str, typer.Argument(help="Path to the project directory")],
@@ -195,250 +163,6 @@ def map_command(
     )
 
 
-@app.command()
-def search(
-    patterns: Annotated[list[str], typer.Argument(help="One or more symbol patterns. Multiple patterns = AND (all must match).")],
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    kind: Annotated[str | None, typer.Option("--kind", help="Filter by kind: class, function, async_function")] = None,
-    file: Annotated[str | None, typer.Option("--file", help="Restrict to one file (repo-relative path)")] = None,
-    regex: Annotated[bool, typer.Option("--regex", "-E", help="Treat patterns as Python regex (unanchored)")] = False,
-    fixed: Annotated[bool, typer.Option("--fixed", "-F", help="Treat patterns as literal substrings")] = False,
-    ignore_case: Annotated[bool, typer.Option("--ignore-case", "-i", help="Case-insensitive matching")] = False,
-    limit: Annotated[int, typer.Option("--limit", help="Max candidates to return")] = 100,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
-) -> None:
-    """Narrow candidates by name. Returns signatures, no bodies."""
-    search_cmd(
-        patterns,
-        path=path,
-        kind=kind,
-        file=file,
-        regex=regex,
-        fixed=fixed,
-        ignore_case=ignore_case,
-        limit=limit,
-        format=format,
-    )
-
-
-@app.command()
-def code(
-    target: Annotated[str, typer.Argument(help="file:start-end or fully qualified symbol path")],
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    no_refs: Annotated[bool, typer.Option("--no-refs", help="Skip reference list in output")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
-) -> None:
-    """Retrieve exact body at a known address. Use after symbol search."""
-    code_cmd(target, path=path, include_refs=not no_refs, format=format)
-
-
-@app.command()
-def index(
-    path: Annotated[str, typer.Argument(help="Project root")] = ".",
-) -> None:
-    """Build the symbol lookup table and write to .symbol/symbol_index.msgpack.zst."""
-    index_cmd(path)
-
-
-@app.command()
-def outline(
-    file: Annotated[str, typer.Argument(help="File to outline")],
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
-) -> None:
-    """Show a file's symbols as a parent-child tree."""
-    outline_cmd(file, path=path, format=format)
-
-
-@app.command()
-def callers(
-    name: Annotated[str, typer.Argument(help="Name to search for (last segment matched)")],
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich or json")] = "rich",
-) -> None:
-    """Tier-1 textual reference scan — name-match only, unresolved."""
-    callers_cmd(name, path=path, format=format)
-
-
-@app.command()
-def patch(
-    file: Annotated[str, typer.Argument(help="File to patch")],
-    range_: Annotated[str, typer.Option("--range", "-r", help="Line range A-B (inclusive, 1-indexed)")],
-    content: Annotated[str | None, typer.Option("--content", help="New content (use '' or omit for delete)")] = None,
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    force: Annotated[bool, typer.Option("--force", help="Skip read-cache check")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Compute diff but don't write")] = False,
-    context: Annotated[int, typer.Option("--context", "-C", help="Lines of diff context around the edit")] = 5,
-    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
-) -> None:
-    """Byte-range edit primitive. Replace, delete (empty content), or insert (zero-width range)."""
-    import os as _os
-    if _os.environ.get("SYMBOL_AGENT"):
-        agent = True
-    patch_cmd(
-        file=file,
-        range=range_,
-        content=content,
-        project_root=path,
-        force=force,
-        dry_run=dry_run,
-        context=context,
-        agent=agent,
-        format=format,
-    )
-
-
-@app.command("delete-symbol")
-def delete_symbol(
-    qualified_path: Annotated[str, typer.Argument(help="Fully qualified symbol path (e.g. services.user.UserService)")],
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    force: Annotated[bool, typer.Option("--force", help="Delete even if callers exist")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Compute diff but don't write")] = False,
-    context: Annotated[int, typer.Option("--context", "-C", help="Lines of diff context")] = 5,
-    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
-) -> None:
-    """Remove a named symbol from its file. Refuses if callers exist (use --force)."""
-    import os as _os
-    if _os.environ.get("SYMBOL_AGENT"):
-        agent = True
-    delete_symbol_cmd(
-        qualified_path=qualified_path,
-        project_root=path,
-        force=force,
-        dry_run=dry_run,
-        context=context,
-        agent=agent,
-        format=format,
-    )
-
-
-@app.command("insert-symbol")
-def insert_symbol(
-    anchor: Annotated[str, typer.Argument(help="Anchor symbol qualified path")],
-    position: Annotated[str, typer.Option("--position", help="before | after | start | end")],
-    content: Annotated[str | None, typer.Option("--content", help="New content")] = None,
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    no_reindent: Annotated[bool, typer.Option("--no-reindent", help="Send content as-is, don't auto-indent")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Compute diff but don't write")] = False,
-    context: Annotated[int, typer.Option("--context", "-C", help="Lines of diff context")] = 5,
-    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
-) -> None:
-    """Insert code at a position anchored to a symbol (before/after/start/end)."""
-    import os as _os
-    if _os.environ.get("SYMBOL_AGENT"):
-        agent = True
-    insert_symbol_cmd(
-        anchor=anchor,
-        position=position,
-        content=content,
-        project_root=path,
-        reindent=not no_reindent,
-        dry_run=dry_run,
-        context=context,
-        agent=agent,
-        format=format,
-    )
-
-
-@app.command("rename-symbol")
-def rename_symbol(
-    qualified_path: Annotated[str, typer.Argument(help="Fully qualified symbol path (e.g. services.user.UserService)")],
-    new_name: Annotated[str, typer.Argument(help="New leaf name (no dots)")],
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Plan rename, don't write")] = False,
-    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
-) -> None:
-    """Rename a symbol (tier-1 textual) and update references across the project."""
-    import os as _os
-    if _os.environ.get("SYMBOL_AGENT"):
-        agent = True
-    rename_symbol_cmd(
-        qualified_path=qualified_path,
-        new_name=new_name,
-        project_root=path,
-        dry_run=dry_run,
-        agent=agent,
-        format=format,
-    )
-
-
-@app.command("replace-symbol")
-def replace_symbol(
-    qualified_path: Annotated[str, typer.Argument(help="Fully qualified symbol path to replace")],
-    content: Annotated[str, typer.Option("--content", help="Full new symbol definition")],
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without writing")] = False,
-    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
-) -> None:
-    """Replace a symbol's full definition. If content declares a new name, callers are updated too."""
-    import os as _os
-    if _os.environ.get("SYMBOL_AGENT"):
-        agent = True
-    replace_symbol_cmd(
-        qualified_path=qualified_path,
-        content=content,
-        project_root=path,
-        dry_run=dry_run,
-        agent=agent,
-        format=format,
-    )
-
-
-@app.command()
-def refresh(
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    full: Annotated[bool, typer.Option("--full", help="Force full rebuild instead of incremental refresh")] = False,
-    keep_transactions: Annotated[bool, typer.Option("--keep-transactions", help="Don't clear .symbol/transactions/")] = False,
-    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
-) -> None:
-    """Reindex changed files and clear transaction history."""
-    from wyolet.symbol.commands.refresh import refresh_cmd
-    import os as _os
-    if _os.environ.get("SYMBOL_AGENT"):
-        agent = True
-    refresh_cmd(
-        project_root=path, full=full, keep_transactions=keep_transactions,
-        agent=agent, format=format,
-    )
-
-
-@app.command()
-def undo(
-    path: Annotated[str, typer.Option("--path", "-p", help="Project root")] = ".",
-    agent: Annotated[bool, typer.Option("--agent", help="Enriched plain-text output for LLM consumers")] = False,
-    format: Annotated[str, typer.Option("--format", "-f", help="Output format: rich, agent, or json")] = "rich",
-) -> None:
-    """Revert the most recent rename-symbol / replace-symbol transaction."""
-    from wyolet.symbol.commands.undo import undo_cmd
-    import os as _os
-    if _os.environ.get("SYMBOL_AGENT"):
-        agent = True
-    undo_cmd(project_root=path, agent=agent, format=format)
-
-
-@app.command(hidden=True)
-def hook(
-    enforce: Annotated[bool, typer.Option("--enforce", help="Block tool calls (exit 2) instead of soft-nudging via additionalContext.")] = False,
-) -> None:
-    """Hook entry — reads Claude Code hook JSON from stdin. Default: soft nudge. --enforce: hard block."""
-    hook_run(enforce=enforce)
-
-
-@app.command()
-def mcp(
-    root: Annotated[str, typer.Option("--root", "-r", help="Project root to serve")] = ".",
-) -> None:
-    """Run the MCP server (stdio) exposing symbol as agent tools."""
-    from wyolet.symbol.mcp.server import serve
-    serve(root)
-
-
 @app.command("update-linguist")
 def update_linguist() -> None:
     """Update linguist language definitions from GitHub."""
@@ -448,14 +172,30 @@ def update_linguist() -> None:
 
     def on_progress(filename: str, status: str) -> None:
         if status == "ok":
-            console.print(f"    [green]\u2713[/green] {filename}")
+            console.print(f"    [green]✓[/green] {filename}")
         else:
-            console.print(f"    [red]\u2717[/red] {filename} [dim]({status})[/dim]")
+            console.print(f"    [red]✗[/red] {filename} [dim]({status})[/dim]")
 
     update_from_github(callback=on_progress)
     console.print()
     console.print("  [bold green]Done.[/bold green] Language definitions are up to date.")
     console.print()
+
+
+def _run_on_binary() -> None:
+    raise typer.Exit(run_delegated(sys.argv))
+
+
+# The console entry hands these to the binary before Typer parses; the
+# entries here list them in `symbol --help` and cover argv it did not route.
+for _name, _help in DELEGATED_COMMANDS.items():
+    app.command(
+        _name,
+        help=_help,
+        hidden=_name == "hook",
+        add_help_option=False,
+        context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+    )(_run_on_binary)
 
 
 # Inject default subcommand before Typer parses

@@ -23,19 +23,17 @@ macro_rules! embed {
     };
 }
 
-// adapters/__init__.py is left out on purpose: it eagerly registers every
-// adapter (go_ast, dependency hooks) and drags in non-stdlib modules.
-// Without it the directory imports as a namespace package.
 const FILES: &[(&str, &str)] = embed!(
     "wyolet/symbol/__init__.py",
+    "wyolet/symbol/adapters/__init__.py",
     "wyolet/symbol/adapters/_python_ast_rename.py",
     "wyolet/symbol/adapters/pyscan.py",
     "wyolet/symbol/adapters/python_ast.py",
+    "wyolet/symbol/adapters/python_blank_lines.py",
     "wyolet/symbol/adapters/python_deps.py",
     "wyolet/symbol/protocols/__init__.py",
     "wyolet/symbol/protocols/index_query.py",
     "wyolet/symbol/protocols/language.py",
-    "wyolet/symbol/protocols/read_cache.py",
     "wyolet/symbol/protocols/types.py",
     "wyolet/symbol/shared/__init__.py",
     "wyolet/symbol/shared/deps.py",
@@ -43,8 +41,6 @@ const FILES: &[(&str, &str)] = embed!(
     "wyolet/symbol/shared/pipeline.py",
     "wyolet/symbol/shared/pkg_registry.py",
     "wyolet/symbol/shared/spec.py",
-    "wyolet/symbol/writes/__init__.py",
-    "wyolet/symbol/writes/_blank_lines.py",
 );
 
 const BOOTSTRAP: &str = "import sys; sys.path.insert(0, sys.argv[1]); \

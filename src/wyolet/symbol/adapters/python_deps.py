@@ -2,8 +2,7 @@
 
 Hooks register with the generic ``DEPS`` pipeline so the language-agnostic
 ``detect_deps`` in shared/ picks them up. Importing this module is what
-makes Python deps discoverable; the import happens in ``adapters/registry.py``
-alongside ``PythonAstAdapter`` registration.
+makes Python deps discoverable; ``adapters/__init__.py`` does it.
 """
 
 import tomllib

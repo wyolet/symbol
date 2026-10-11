@@ -159,8 +159,7 @@ def smoke(archive: Path, wheel: Path, version: str, suffix: str) -> None:
         # Only the Rust binary reads SYMBOL_GOSCAN: failing here proves delegation.
         missing_goscan = {**env, "SYMBOL_GOSCAN": str(tmp_path / "missing-go-scan")}
         expect(capture([symbol, "index"], cwd=project, env=missing_goscan), "", ok=False)
-        python_impl = {**missing_goscan, "SYMBOL_IMPL": "python"}
-        expect(capture([symbol, "search", "UserService"], cwd=project, env=python_impl), "UserService")
+        expect(capture([symbol, "map", ".", "--format", "json"], cwd=project, env=missing_goscan), "total_files")
     print(f"smoke ok: {archive.name}, {wheel.name}")
 
 

@@ -34,16 +34,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Build go-scan (dev binary for GoAdapter tests)
+      - name: Build go-scan (dev binary for the Rust tests)
         run: make build-go-scan
       - name: Sync dependencies
         run: uv sync --all-extras
       - name: Lint (ruff)
         run: uv run ruff check .
         continue-on-error: true  # TODO: clean up pre-existing lint debt, then make blocking
-      - name: Build Rust symbol binary
-        # pytest compares the Rust and Python CLIs; without it those tests skip
-        run: cargo build --manifest-path rust/Cargo.toml -p symbol-core
       - name: Test (pytest)
         run: uv run pytest -q
       - name: Lint Rust workspace

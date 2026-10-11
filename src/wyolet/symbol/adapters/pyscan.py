@@ -201,8 +201,8 @@ class _Daemon:
         return {"parameters": list(names) if names is not None else None}
 
     def normalize_blank_gaps(self, params: dict) -> dict:
-        """PEP 8 blank-run normalization (writes/_blank_lines) on raw source."""
-        from wyolet.symbol.writes._blank_lines import normalize_blank_gaps
+        """PEP 8 blank-run normalization (python_blank_lines) on raw source."""
+        from wyolet.symbol.adapters.python_blank_lines import normalize_blank_gaps
 
         source = params["source"].encode("utf-8")
         return {"source": normalize_blank_gaps(source).decode("utf-8", errors="replace")}
@@ -210,7 +210,7 @@ class _Daemon:
     def first_decorator_line(self, params: dict) -> dict:
         """Topmost decorator line of the def/class at `def_line` (insert-symbol).
 
-        Port of writes/insert_symbol.py `_first_decorator_line`: walk the AST
+        Walks the AST
         for the FunctionDef/AsyncFunctionDef/ClassDef whose lineno == def_line
         and return min(decorator linenos). Falls back to def_line itself when
         there are no decorators, no matching node, or the source can't parse
