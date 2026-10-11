@@ -140,6 +140,20 @@ self = this repo at `5f82bcce` (`git archive` copy), fixture-proj
 | self | 2284 / 2284 | 384 (319r/65w) | 494 | 0 | 0 | **0** |
 | fixture-proj (smoke ×2) | 16 / 16 | 3 + 9 | 20 | 0 | 0 | 0 |
 
+MCP mode (`--mcp`, see `scripts/datasets/README.md`) replays the same
+datasets as tool calls against `uv run symbol mcp` and `symbol mcp` and
+compares whole tool results byte-for-byte; `tools/list` is identical.
+
+| corpus | compared calls | match | both_refused | known_divergence | MISMATCH |
+|---|---|---|---|---|---|
+| flask | 1459 | 1458 | 1 | 0 | **0** |
+| gin | 1240 | 1216 | 14 | 10 | **0** |
+| self | 1089 | 1089 | 0 | 0 | **0** |
+
+The gin `known_divergence` calls are Go renames repeated in one session,
+where the Python server omits the affected interface contracts (see
+`scripts/datasets/README.md`).
+
 `both_refused` writes agree on the refusal but exercise no write path. On
 gin they are build-tag duplicates (`symbol_ambiguous`), `needs_review`, and
 symbols defined in `_test.go` files (`nothing_to_rename` — go-scan loads
