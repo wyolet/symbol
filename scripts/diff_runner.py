@@ -388,7 +388,8 @@ class Runner:
 
     def fresh_copy(self, tag) -> Path:
         self._copy_seq += 1
-        dst = Path(f"/tmp/symdiff-{self.target.name}-{tag}-{self._copy_seq}")
+        # The pid keeps concurrent runs on same-named corpora apart.
+        dst = Path(f"/tmp/symdiff-{self.target.name}-{tag}-{os.getpid()}-{self._copy_seq}")
         shutil.rmtree(dst, ignore_errors=True)
         shutil.copytree(self.target, dst, ignore=shutil.ignore_patterns(".symbol"))
         return dst.resolve()  # /tmp is a symlink on macOS; both CLIs canonicalize
