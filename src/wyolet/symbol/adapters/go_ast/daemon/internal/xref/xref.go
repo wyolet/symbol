@@ -110,7 +110,7 @@ func loadTarget(params rpc.SymbolTargetParams) (*project.Project, types.Object, 
 	} else {
 		obj = lookupQualified(proj, params.QualifiedPath)
 	}
-	if obj == nil && slices.Contains(proj.NotAnalyzed, params.DeclaringFile) {
+	if obj == nil && params.DeclaringFile != "" && !proj.IsAnalyzed(params.DeclaringFile) {
 		return nil, nil, &QueryError{"not_analyzed", fmt.Sprintf(
 			"%s is declared in %s, which no loaded package type-checks (build constraints, or a module outside the load)",
 			params.QualifiedPath, params.DeclaringFile)}

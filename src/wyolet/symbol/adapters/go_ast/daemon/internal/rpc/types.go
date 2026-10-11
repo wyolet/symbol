@@ -255,12 +255,19 @@ type ResolvedSymbol struct {
 	SourceSite
 }
 
+// NotAnalyzedFile is a project Go file no loaded package type-checks.
+// Constraint says why: its canonical build constraint, its GOOS/GOARCH
+// filename suffix, or "not in any loaded package".
+type NotAnalyzedFile struct {
+	File       string `json:"file"`
+	Constraint string `json:"constraint"`
+}
+
 // ReferencesResult lists every use of the target, declaration excluded.
-// NotAnalyzed names project Go files no loaded package type-checks.
 type ReferencesResult struct {
-	Target      ResolvedSymbol `json:"target"`
-	References  []SourceSite   `json:"references"`
-	NotAnalyzed []string       `json:"not_analyzed"`
+	Target      ResolvedSymbol    `json:"target"`
+	References  []SourceSite      `json:"references"`
+	NotAnalyzed []NotAnalyzedFile `json:"not_analyzed"`
 }
 
 // Implementation is one side of an implements relation. Pointer is set
@@ -276,6 +283,6 @@ type Implementation struct {
 type ImplementersResult struct {
 	Target       ResolvedSymbol   `json:"target"`
 	Implementers []Implementation `json:"implementers"`
-	Interfaces   []Implementation `json:"interfaces"`
-	NotAnalyzed  []string         `json:"not_analyzed"`
+	Interfaces   []Implementation  `json:"interfaces"`
+	NotAnalyzed  []NotAnalyzedFile `json:"not_analyzed"`
 }

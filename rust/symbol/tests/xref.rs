@@ -71,16 +71,26 @@ fn go_project() -> tempfile::TempDir {
     dir
 }
 
-fn run(root: &Path, args: &[&str]) -> (Output, serde_json::Value) {
+fn symbol(root: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_symbol"));
     if let Some(goscan) = dev_goscan() {
         cmd.env("SYMBOL_GOSCAN", goscan);
     }
-    let out = cmd
-        .env("UV_CACHE_DIR", root.join(".uv-cache"))
+    cmd.env("UV_CACHE_DIR", root.join(".uv-cache"))
         .env("SYMBOL_SESSION_ID", "xref-tests")
         .arg("--root")
-        .arg(root)
+        .arg(root);
+    cmd
+}
+
+fn run_text(root: &Path, args: &[&str]) -> String {
+    let out = symbol(root).args(args).output().expect("spawn symbol");
+    assert!(out.status.success(), "{out:?}");
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+fn run(root: &Path, args: &[&str]) -> (Output, serde_json::Value) {
+    let out = symbol(root)
         .arg("--json")
         .args(args)
         .output()
@@ -197,6 +207,62 @@ fn implementers_of_interface_and_dependency_interface() {
         .map(|i| i["path"].as_str().unwrap())
         .collect();
     assert!(interfaces.contains(&"net/http.Handler"), "{result}");
+}
+
+#[test]
+fn not_analyzed_files_carry_their_constraint() {
+    require_goscan!();
+    let project = go_project();
+    let root = project.path();
+    write(
+        root,
+        "store/store_integration_test.go",
+        "//go:build integration\n\npackage store\n",
+    );
+    write(
+        root,
+        "store/slow_test.go",
+        "//go:build integration\n\npackage store\n",
+    );
+    write(root, "store/store_plan9.go", "package store\n");
+
+    let (out, result) = run(root, &["refs", "store.Store.Save"]);
+    assert!(out.status.success(), "{result}");
+    let mut skipped: Vec<(String, String)> = result["not_analyzed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| {
+            (
+                f["file"].as_str().unwrap().to_owned(),
+                f["constraint"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    skipped.sort();
+    assert_eq!(
+        skipped,
+        [
+            ("store/slow_test.go".into(), "integration".into()),
+            (
+                "store/store_integration_test.go".into(),
+                "integration".into()
+            ),
+            ("store/store_plan9.go".into(), "plan9".into()),
+        ]
+    );
+
+    let text = run_text(root, &["refs", "store.Store.Save"]);
+    assert!(
+        text.contains("note: 3 file(s) not analyzed: integration: 2, plan9: 1\n"),
+        "{text}"
+    );
+    assert!(!text.contains("store/store_plan9.go"), "{text}");
+    let verbose = run_text(root, &["refs", "-v", "store.Store.Save"]);
+    assert!(
+        verbose.contains("  store/store_plan9.go  (plan9)"),
+        "{verbose}"
+    );
 }
 
 #[test]

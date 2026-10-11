@@ -60,9 +60,19 @@ enum Cmd {
     /// Tier-1 textual reference scan
     Callers { name: String },
     /// Type-resolved references to one symbol (adapter-backed)
-    Refs { qualified_path: String },
+    Refs {
+        qualified_path: String,
+        /// List every file that was not analyzed
+        #[arg(short, long)]
+        verbose: bool,
+    },
     /// Implementers of an interface, or interfaces a type implements
-    Implementers { qualified_path: String },
+    Implementers {
+        qualified_path: String,
+        /// List every file that was not analyzed
+        #[arg(short, long)]
+        verbose: bool,
+    },
     /// Byte-range edit primitive (replace / delete via empty content)
     Patch {
         file: String,
@@ -320,15 +330,21 @@ fn run(args: Args) -> Result<()> {
                 }
             }
         }
-        Cmd::Refs { qualified_path } => {
+        Cmd::Refs {
+            qualified_path,
+            verbose,
+        } => {
             let (idx, _) = get_or_build(&root, reg)?;
             let result = symbol_core::xref::references(&idx, &qualified_path, reg);
-            finish_xref(&result, args.json, print_refs)?;
+            finish_xref(&result, args.json, verbose, print_refs)?;
         }
-        Cmd::Implementers { qualified_path } => {
+        Cmd::Implementers {
+            qualified_path,
+            verbose,
+        } => {
             let (idx, _) = get_or_build(&root, reg)?;
             let result = symbol_core::xref::implementers(&idx, &qualified_path, reg);
-            finish_xref(&result, args.json, print_implementers)?;
+            finish_xref(&result, args.json, verbose, print_implementers)?;
         }
         Cmd::Patch {
             file,
@@ -615,6 +631,7 @@ fn record_read(root: &std::path::Path, _idx: &Index, payload: &serde_json::Value
 fn finish_xref(
     result: &serde_json::Value,
     json: bool,
+    verbose: bool,
     print: fn(&serde_json::Value),
 ) -> Result<()> {
     let failed = result["status"] == "error";
@@ -648,6 +665,7 @@ fn finish_xref(
         }
     } else {
         print(result);
+        print_not_analyzed(result, verbose);
     }
     if failed {
         std::process::exit(1);
@@ -666,12 +684,38 @@ fn xref_header(result: &serde_json::Value) -> String {
     )
 }
 
-fn print_not_analyzed(result: &serde_json::Value) {
-    let skipped = result["not_analyzed"].as_array().map_or(0, Vec::len);
-    if skipped > 0 {
-        println!(
-            "note: {skipped} source file(s) were not analyzed (e.g. excluded by build constraints); --json lists them"
-        );
+/// One note line counting skipped files per reason (the adapter's string,
+/// never interpreted here); `-v` lists every file.
+fn print_not_analyzed(result: &serde_json::Value, verbose: bool) {
+    let files = result["not_analyzed"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    if files.is_empty() {
+        return;
+    }
+    let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
+    for f in files {
+        *counts
+            .entry(f["constraint"].as_str().unwrap_or(""))
+            .or_default() += 1;
+    }
+    let mut groups: Vec<(&str, usize)> = counts.into_iter().collect();
+    groups.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    let groups: Vec<String> = groups.iter().map(|(c, n)| format!("{c}: {n}")).collect();
+    println!(
+        "note: {} file(s) not analyzed: {}",
+        files.len(),
+        groups.join(", ")
+    );
+    if verbose {
+        for f in files {
+            println!(
+                "  {}  ({})",
+                f["file"].as_str().unwrap_or(""),
+                f["constraint"].as_str().unwrap_or("")
+            );
+        }
     }
 }
 
@@ -690,7 +734,6 @@ fn print_refs(result: &serde_json::Value) {
             r["source_path"].as_str().unwrap_or("<top level>"),
         );
     }
-    print_not_analyzed(result);
 }
 
 fn print_implementers(result: &serde_json::Value) {
@@ -721,7 +764,6 @@ fn print_implementers(result: &serde_json::Value) {
         };
         println!("  {location}{}{notes}", item["path"].as_str().unwrap_or(""));
     }
-    print_not_analyzed(result);
 }
 
 fn print_tree(node: &serde_json::Value, depth: usize) {

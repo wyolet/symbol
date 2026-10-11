@@ -24,6 +24,50 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+func TestNotAnalyzedReasons(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"go.mod":                 "module example.com/m\n\ngo 1.22\n",
+		"a.go":                   "package m\n",
+		"it_test.go":             "//go:build integration\n\npackage m\n",
+		"either.go":              "//go:build   (foo||bar)  &&!baz\n\npackage m\n",
+		"legacy.go":              "// +build foo,bar\n// +build !baz\n\npackage m\n",
+		"sys_plan9.go":           "package m\n",
+		"sys_solaris_sparc64.go": "package m\n",
+		"tagged_plan9.go":        "//go:build foo || bar\n\npackage m\n",
+	}
+	for rel, src := range files {
+		if err := os.WriteFile(filepath.Join(root, rel), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, f := range p.NotAnalyzed {
+		got[f.File] = f.Constraint
+	}
+	want := map[string]string{
+		"it_test.go":             "integration",
+		"either.go":              "(foo || bar) && !baz",
+		"legacy.go":              "foo && bar && !baz",
+		"sys_plan9.go":           "plan9",
+		"sys_solaris_sparc64.go": "solaris && sparc64",
+		"tagged_plan9.go":        "plan9 && (foo || bar)",
+	}
+	for file, reason := range want {
+		if got[file] != reason {
+			t.Errorf("%s: constraint %q, want %q", file, got[file], reason)
+		}
+	}
+	if reason := exclusionReason(filepath.Join(root, "a.go")); reason != notInLoadedPackage {
+		t.Errorf("unconstrained file: %q, want %q", reason, notInLoadedPackage)
+	}
+}
+
 func TestLoadReusesUntilSourcesChange(t *testing.T) {
 	root := t.TempDir()
 	write := func(rel, src string) {

@@ -160,13 +160,21 @@ pub struct ResolvedSymbol {
     pub site: SourceSite,
 }
 
+/// A project file the adapter could not analyze. `constraint` is the
+/// adapter's own wording of why; callers only group and display it.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct NotAnalyzedFile {
+    pub file: String,
+    pub constraint: String,
+}
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct ReferencesResult {
     pub target: ResolvedSymbol,
     #[serde(default, deserialize_with = "null_as_default")]
     pub references: Vec<SourceSite>,
     #[serde(default, deserialize_with = "null_as_default")]
-    pub not_analyzed: Vec<String>,
+    pub not_analyzed: Vec<NotAnalyzedFile>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -187,7 +195,7 @@ pub struct ImplementersResult {
     #[serde(default, deserialize_with = "null_as_default")]
     pub interfaces: Vec<Implementation>,
     #[serde(default, deserialize_with = "null_as_default")]
-    pub not_analyzed: Vec<String>,
+    pub not_analyzed: Vec<NotAnalyzedFile>,
 }
 
 /// Names the declaration a cross-reference query is about: an index row

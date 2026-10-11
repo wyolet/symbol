@@ -12,6 +12,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"go/ast"
+	"go/build/constraint"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"io/fs"
@@ -25,6 +27,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/wyolet/symbol/go-scan/internal/rpc"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -37,7 +40,7 @@ type Project struct {
 	Packages []*packages.Package
 	// NotAnalyzed lists Go files under Root that no loaded package
 	// type-checks (build constraints, modules outside the load).
-	NotAnalyzed []string
+	NotAnalyzed []rpc.NotAnalyzedFile
 	errors      []string
 	stamp       string
 }
@@ -286,18 +289,115 @@ func sourceStamp(root string) (string, []string, error) {
 	return hex.EncodeToString(h.Sum(nil)), goFiles, nil
 }
 
-func notAnalyzed(p *Project, goFiles []string) []string {
+func notAnalyzed(p *Project, goFiles []string) []rpc.NotAnalyzedFile {
 	seen := map[string]bool{}
 	for _, pkg := range p.Packages {
 		for _, file := range pkg.Syntax {
 			seen[pkg.Fset.File(file.Pos()).Name()] = true
 		}
 	}
-	out := []string{}
+	out := []rpc.NotAnalyzedFile{}
 	for _, abs := range goFiles {
 		if !seen[abs] {
-			out = append(out, Rel(p.Root, abs))
+			out = append(out, rpc.NotAnalyzedFile{File: Rel(p.Root, abs), Constraint: exclusionReason(abs)})
 		}
+	}
+	return out
+}
+
+// IsAnalyzed reports whether a loaded package type-checks the file at rel.
+func (p *Project) IsAnalyzed(rel string) bool {
+	return !slices.ContainsFunc(p.NotAnalyzed, func(f rpc.NotAnalyzedFile) bool { return f.File == rel })
+}
+
+const notInLoadedPackage = "not in any loaded package"
+
+// exclusionReason names what keeps a file out of the build: its GOOS/GOARCH
+// filename suffix and its build constraint, in canonical form.
+func exclusionReason(path string) string {
+	var parts []string
+	if suffix := filenameConstraint(filepath.Base(path)); suffix != "" {
+		parts = append(parts, suffix)
+	}
+	if expr := buildConstraint(path); expr != nil {
+		text := expr.String()
+		if _, isOr := expr.(*constraint.OrExpr); isOr && len(parts) > 0 {
+			text = "(" + text + ")"
+		}
+		parts = append(parts, text)
+	}
+	if len(parts) == 0 {
+		return notInLoadedPackage
+	}
+	return strings.Join(parts, " && ")
+}
+
+// buildConstraint parses the file's //go:build line, else its legacy
+// // +build lines (ANDed), from the comments above the package clause.
+func buildConstraint(path string) constraint.Expr {
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.PackageClauseOnly|parser.ParseComments)
+	if f == nil || err != nil {
+		return nil
+	}
+	var plus constraint.Expr
+	for _, group := range f.Comments {
+		if group.Pos() >= f.Package {
+			break
+		}
+		for _, c := range group.List {
+			switch {
+			case constraint.IsGoBuild(c.Text):
+				if expr, err := constraint.Parse(c.Text); err == nil {
+					return expr
+				}
+			case constraint.IsPlusBuild(c.Text):
+				expr, err := constraint.Parse(c.Text)
+				if err != nil {
+					continue
+				}
+				if plus == nil {
+					plus = expr
+				} else {
+					plus = &constraint.AndExpr{X: plus, Y: expr}
+				}
+			}
+		}
+	}
+	return plus
+}
+
+// filenameConstraint mirrors go/build's *_GOOS, *_GOARCH and
+// *_GOOS_GOARCH filename rules (with or without _test).
+func filenameConstraint(name string) string {
+	name = strings.TrimSuffix(strings.TrimSuffix(name, ".go"), "_test")
+	i := strings.Index(name, "_")
+	if i < 0 {
+		return ""
+	}
+	l := strings.Split(name[i:], "_")
+	n := len(l)
+	if n >= 2 && knownOS[l[n-2]] && knownArch[l[n-1]] {
+		return l[n-2] + " && " + l[n-1]
+	}
+	if knownOS[l[n-1]] || knownArch[l[n-1]] {
+		return l[n-1]
+	}
+	return ""
+}
+
+// GOOS and GOARCH values go/build recognizes as filename suffixes.
+var (
+	knownOS = stringSet("aix", "android", "darwin", "dragonfly", "freebsd", "hurd", "illumos", "ios",
+		"js", "linux", "nacl", "netbsd", "openbsd", "plan9", "solaris", "wasip1", "windows", "zos")
+	knownArch = stringSet("386", "amd64", "amd64p32", "arm", "armbe", "arm64", "arm64be", "loong64",
+		"mips", "mipsle", "mips64", "mips64le", "mips64p32", "mips64p32le", "ppc", "ppc64", "ppc64le",
+		"riscv", "riscv64", "s390", "s390x", "sparc", "sparc64", "wasm")
+)
+
+func stringSet(xs ...string) map[string]bool {
+	out := make(map[string]bool, len(xs))
+	for _, x := range xs {
+		out[x] = true
 	}
 	return out
 }
