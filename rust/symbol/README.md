@@ -49,8 +49,8 @@ run as:
 the embedded modules.
 
 The interpreter is `SYMBOL_PYTHON` if set, else the first of `python3` /
-`python` on `PATH` that reports Python >= 3.10. 3.10 is the floor because the
-code evaluates PEP 604 `X | None` annotations at runtime. If nothing qualifies,
+`python` on `PATH` that reports Python >= 3.11. 3.11 is the floor because
+dependency detection reads `pyproject.toml` with `tomllib`. If nothing qualifies,
 the index build fails with a JSON error (`error_code: python_unavailable`,
 `required_python`, `override_env`, and each interpreter tried) rather than
 indexing zero Python files.
@@ -86,11 +86,22 @@ analysis it asks the caller `index/find_declaration`, `index/class_bases` and
 - **multi-patch** atomically applies multiple non-overlapping range-addressed
   or exact-old edits to one file. Range edits use the same read-cache preflight
   as `patch`; exact-old edits must match once and prove their own context.
-- **audit / map / analyze / MCP server not ported** — out of scope by
-  design; they're the Python-specific engine documented in CLAUDE.md.
+- **audit / analyze not ported** — out of scope by design; they're the
+  Python-specific engine documented in CLAUDE.md.
+- **`symbol mcp`** serves the Python server's twelve tools over stdio with
+  the same schemas, descriptions (embedded from
+  `src/wyolet/symbol/data/mcp_tools.toml`), result payloads and session
+  read-cache rules, and honors the same `SYMBOL_MCP_*` resource-bound env
+  vars (POSIX-only; the RSS ceiling covers the server process, not the
+  language daemons). Where it differs: `Refresh` re-parses files changed
+  out of band (the Python server only reloads a newer on-disk index);
+  `Patch` resolves relative paths against the project root rather than the
+  working directory; `MultiPatch` range edits also require the covering read
+  to be mtime-fresh and refuse ranges past end of file; argument validation
+  errors omit pydantic's documentation link.
 - Index build applies linguist classification (heuristics off = Python
-  chain), the adapter gate, and global/project `[checker]` excludes. It does
-  not yet load per-package spec excludes.
+  chain), the adapter gate, and global/project `[checker]` excludes, plus
+  the per-package spec excludes of each dependency the adapters report.
 - Blank-gap normalization after delete/replace goes through the daemon
   (`normalize_blank_gaps` RPC), preserving the PEP 8 behavior for Python;
   other languages skip it.
@@ -105,6 +116,9 @@ src/index.rs      shared/symbol_index.py — v8 format, staleness, refresh
 src/reads.rs      reads/ — search, code, outline, callers
 src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename,
                   index_query (daemon index/* queries)
+src/refresh.rs    commands/refresh.py — incremental/full reindex + tx clear
+src/mcp/          mcp/server.py — stdio MCP server, tool table
+src/render/       commands/ output; agent.rs is shared by --agent and MCP
 src/main.rs       clap CLI (the `symbol` binary)
 ```
 
@@ -126,6 +140,20 @@ self = this repo at `5f82bcce` (`git archive` copy), fixture-proj
 | gin | 1614 / 1614 | 383 (290r/93w) | 432 | 37 | 0 | **0** |
 | self | 2284 / 2284 | 384 (319r/65w) | 494 | 0 | 0 | **0** |
 | fixture-proj (smoke ×2) | 16 / 16 | 3 + 9 | 20 | 0 | 0 | 0 |
+
+MCP mode (`--mcp`, see `scripts/datasets/README.md`) replays the same
+datasets as tool calls against `uv run symbol mcp` and `symbol mcp` and
+compares whole tool results byte-for-byte; `tools/list` is identical.
+
+| corpus | compared calls | match | both_refused | known_divergence | MISMATCH |
+|---|---|---|---|---|---|
+| flask | 1459 | 1458 | 1 | 0 | **0** |
+| gin | 1240 | 1216 | 14 | 10 | **0** |
+| self | 1089 | 1089 | 0 | 0 | **0** |
+
+The gin `known_divergence` calls are Go renames repeated in one session,
+where the Python server omits the affected interface contracts (see
+`scripts/datasets/README.md`).
 
 `both_refused` writes agree on the refusal but exercise no write path. On
 gin they are build-tag duplicates (`symbol_ambiguous`), `needs_review`, and

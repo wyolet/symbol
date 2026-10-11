@@ -13,6 +13,7 @@ Methods:
   preview          {body, signature, max_lines?} -> {preview}
   rename_member / rename_field / rename_module_binding / rename_parameter -> RenameAnalysis dict
   function_parameters -> {parameters: [str] | null}
+  project_dependencies {project_root?} -> {dependencies: [str]}
   shutdown         (notification) -> exits
 
 Rename analysis asks the client index questions mid-call (the IndexQuery
@@ -20,7 +21,7 @@ protocol): the daemon writes `index/find_declaration` {qpath},
 `index/class_bases` {qpath} or `index/owners_of_leaf` {leaf} requests and
 reads each reply before continuing. The daemon never loads the index itself.
 
-Stdlib only, Python 3.10+: the Rust core embeds this module's import closure
+Stdlib only, Python 3.11+: the Rust core embeds this module's import closure
 and runs it with whatever `python3` is on PATH.
 
 Run: python -m wyolet.symbol.adapters.pyscan
@@ -228,6 +229,15 @@ class _Daemon:
                 if node.lineno == def_line and node.decorator_list:
                     return {"line": min(d.lineno for d in node.decorator_list)}
         return {"line": def_line}
+
+    def project_dependencies(self, params: dict) -> dict:
+        """Declared dependencies of the project, normalized — the DEPS
+        pipeline that selects which per-package specs apply."""
+        from wyolet.symbol.adapters import python_deps  # noqa: F401 — registers the DEPS hooks
+        from wyolet.symbol.shared.deps import detect_deps
+
+        root = params.get("project_root") or self.project_root
+        return {"dependencies": detect_deps(Path(root)) if root else []}
 
     def scan_content(self, params: dict) -> dict:
         """Scan in-memory content (replace-symbol validation path)."""

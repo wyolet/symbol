@@ -56,7 +56,7 @@ cache, and LOC. A new language is a new daemon, not new branches in the engine.
 `pyscan` is compiled into the binary. Its modules are stdlib-only and are
 unpacked once into the user cache dir (`~/Library/Caches/symbol` on macOS,
 `$XDG_CACHE_HOME/symbol` or `~/.cache/symbol` elsewhere). They then run on the
-first Python >= 3.10 found as `python3` or `python` on `PATH`; set
+first Python >= 3.11 found as `python3` or `python` on `PATH`; set
 `SYMBOL_PYTHON` to choose the interpreter. Parity with the Python CLI is
 verified with both on the same Python minor version. An older interpreter
 can't parse newer syntax, and files that fail to parse are skipped.
@@ -72,8 +72,40 @@ and leave the index and files untouched.
 
 ## Install
 
-> Distribution for the Rust binary is not finalized yet. For now, build from
-> source; a packaged release (`symbol` on your `PATH`) will land here.
+### PyPI
+
+```bash
+uv tool install wyolet-symbol    # or: pipx install wyolet-symbol
+```
+
+Wheels for macOS 13+ (arm64, x86_64), Linux (x86_64, arm64; glibc or musl),
+and Windows (x86_64) bundle the Rust `symbol` binary and `go-scan`. Commands
+the binary implements run it directly, with `pyscan` on the interpreter the
+package is installed into; `audit`, `analyze`, `dump`, `init`, `map`, and
+`update-linguist` run the Python implementation. `SYMBOL_IMPL=python` forces
+the Python implementation for every command. Other platforms get the
+pure-Python wheel.
+
+### Standalone binary
+
+Each [GitHub release](https://github.com/wyolet/symbol/releases) has
+`symbol-<version>-<target>.tar.gz` (`.zip` for Windows) for `darwin-arm64`,
+`darwin-amd64`, `linux-amd64`, `linux-arm64`, and `windows-amd64`, plus
+`SHA256SUMS`. The archive holds `symbol` and `go-scan`; keep them in the same
+directory.
+
+```bash
+version=0.2.5 target=linux-amd64
+base=https://github.com/wyolet/symbol/releases/download/v$version
+curl -fsSLO "$base/symbol-$version-$target.tar.gz" -O "$base/SHA256SUMS"
+grep " symbol-$version-$target.tar.gz" SHA256SUMS | sha256sum -c   # macOS: shasum -a 256 -c
+tar -xzf "symbol-$version-$target.tar.gz" -C ~/.local/bin
+```
+
+Linux binaries are statically linked. On macOS, archives downloaded through a
+browser are quarantined: `xattr -d com.apple.quarantine symbol go-scan`.
+
+### From source
 
 ```bash
 git clone https://github.com/wyolet/symbol
@@ -87,12 +119,15 @@ Put `target/release` on your `PATH`, or alias it while building from source:
 alias symbol="$PWD/target/release/symbol"
 ```
 
+`make dist` builds the host platform's wheel and archive into `dist/` and
+`build/archives/`.
+
 The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
 lets you build it locally via `make build-go-scan`. For Go projects without
 Python, place a `go-scan` binary next to `symbol`. Go renames also need the Go
 toolchain (`go`) on `PATH`, since go-scan's rename loads packages through
 `packages.Load`; indexing and reads don't. Python analysis needs only a
-Python >= 3.10 interpreter: no pip install and no repo checkout.
+Python >= 3.11 interpreter: no pip install and no repo checkout.
 
 ## Usage
 

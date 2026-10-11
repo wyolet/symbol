@@ -65,7 +65,7 @@ pub struct LocArgs {
 }
 
 /// One classified file, in walk order.
-struct Outcome {
+pub struct Outcome {
     pub rel: String,
     pub abs: String,
     pub mtime_ns: i64,
@@ -75,7 +75,29 @@ struct Outcome {
     pub sloc: u64,
 }
 
+/// Everything one scan produced, for callers that render it themselves.
+pub struct LocReport {
+    pub root: PathBuf,
+    pub stats: Statistics,
+    pub outcomes: Vec<Outcome>,
+}
+
 pub fn run(args: LocArgs) -> Result<()> {
+    let report = collect(&args)?;
+    if args.classify {
+        output_classify(&report.outcomes, args.json);
+    } else if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json_value(&report, args.files)?)?
+        );
+    } else {
+        output_table(&report.stats, &report.root);
+    }
+    Ok(())
+}
+
+pub fn collect(args: &LocArgs) -> Result<LocReport> {
     let t0 = Instant::now();
 
     let root = std::fs::canonicalize(&args.path)
@@ -214,14 +236,11 @@ pub fn run(args: LocArgs) -> Result<()> {
         );
     }
 
-    if args.classify {
-        output_classify(&outcomes, args.json);
-    } else if args.json {
-        output_json(&stats, &outcomes, args.files)?;
-    } else {
-        output_table(&stats, &root);
-    }
-    Ok(())
+    Ok(LocReport {
+        root,
+        stats,
+        outcomes,
+    })
 }
 
 fn output_classify(outcomes: &[Outcome], json: bool) {
@@ -247,7 +266,8 @@ fn output_classify(outcomes: &[Outcome], json: bool) {
 }
 
 /// Same JSON shape as commands/loc.py `--format json`.
-fn output_json(stats: &Statistics, outcomes: &[Outcome], with_files: bool) -> Result<()> {
+pub fn json_value(report: &LocReport, with_files: bool) -> Result<serde_json::Value> {
+    let (stats, outcomes) = (&report.stats, &report.outcomes);
     let languages: Vec<_> = stats.iter().map(|s| s.dict()).collect();
     let (mut sloc, mut loc, mut files, mut size) = (0u64, 0u64, 0u64, 0u64);
     let mut code_languages = 0u64;
@@ -318,8 +338,7 @@ fn output_json(stats: &Statistics, outcomes: &[Outcome], with_files: bool) -> Re
             .collect();
         data["files"] = serde_json::to_value(all)?;
     }
-    println!("{}", serde_json::to_string_pretty(&data)?);
-    Ok(())
+    Ok(data)
 }
 
 fn output_table(stats: &Statistics, root: &std::path::Path) {

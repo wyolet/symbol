@@ -4,6 +4,14 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 
 ## [Unreleased]
 
+### Added
+- **Platform wheels with the Rust binary** for macOS 13+ (arm64, x86_64), Linux (x86_64, arm64; static, glibc or musl), and Windows (x86_64), each carrying only its own `symbol` and `go-scan`. Other platforms get a pure `py3-none-any` wheel without binaries.
+- **Standalone archives** on each GitHub release: `symbol-<version>-<target>.tar.gz` (`.zip` on Windows) with `symbol` and `go-scan`, plus `SHA256SUMS`.
+
+### Changed
+- **`symbol` delegates to the bundled Rust binary** for `index`, `refresh`, `search`, `code`, `outline`, `callers`, `patch`, `delete-symbol`, `insert-symbol`, `rename-symbol`, `replace-symbol`, `undo`, `loc`, `mcp`, and `hook`, with `SYMBOL_PYTHON` defaulting to the installed interpreter. `SYMBOL_IMPL=python` forces the Python implementation.
+- **The Rust binary's version follows the package version**; CI fails when `pyproject.toml`, `rust/symbol/Cargo.toml`, and the release tag disagree.
+
 ## [0.2.5] — 2026-06-14
 
 ### Fixed

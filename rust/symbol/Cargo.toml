@@ -1,6 +1,6 @@
 [package]
 name = "symbol-core"
-version = "0.1.0"
+version = "0.2.5"
 edition = "2021"
 description = "Rust port of symbol's core: index, reads, writes. Language analysis stays in native-AST daemons (pyscan, go-scan)."
 license = "Apache-2.0"
@@ -19,11 +19,13 @@ clap = { version = "4", features = ["derive"] }
 regex = "1"
 rmp-serde = "1"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-similar = "2"
+serde_json = { version = "1", features = ["preserve_order"] }
 symbol-linguist = { path = "../linguist" }
 toml = "1.1.2"
 zstd = "0.13"
 
 [dev-dependencies]
 tempfile = "3"
+
+[target."cfg(unix)".dependencies]
+libc = "0.2.190"

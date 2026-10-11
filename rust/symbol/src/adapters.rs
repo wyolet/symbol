@@ -434,6 +434,11 @@ impl Adapter {
     }
 
     pub fn preview(&self, body: &str, signature: &str, max_lines: usize) -> Result<String> {
+        if self.language == "go" {
+            // go-scan has no preview method; go_ast/__init__.py computes it
+            // client-side, so this mirrors that.
+            return Ok(go_preview(body, signature, max_lines));
+        }
         let result = self.daemon.call(
             "preview",
             serde_json::json!({ "body": body, "signature": signature, "max_lines": max_lines }),
@@ -640,6 +645,20 @@ impl Adapter {
         Ok(result["line"].as_i64().unwrap_or(def_line))
     }
 
+    /// Dependencies the project declares in this language's manifests —
+    /// they select which per-package specs apply. A daemon that cannot
+    /// answer (no such method, manifest parse failure) declares none.
+    pub fn project_dependencies(&self) -> Result<Vec<String>> {
+        let params = serde_json::json!({ "project_root": self.project_root.to_string_lossy() });
+        match self.daemon.call("project_dependencies", params) {
+            Ok(result) => {
+                Ok(serde_json::from_value(result["dependencies"].clone()).unwrap_or_default())
+            }
+            Err(err) if err.downcast_ref::<DaemonError>().is_some() => Ok(vec![]),
+            Err(err) => Err(err),
+        }
+    }
+
     pub fn normalize_blank_gaps(&self, source: &str) -> Result<String> {
         let result = self.daemon.call(
             "normalize_blank_gaps",
@@ -684,6 +703,34 @@ impl DaemonUnavailable {
             "message": self.to_string(),
         })
     }
+}
+
+/// GoAstAdapter.preview: the first `max_lines` body lines after the
+/// signature, skipping blank lines and `//` comments.
+fn go_preview(body: &str, signature: &str, max_lines: usize) -> String {
+    let lines = crate::pystr::splitlines(body, false);
+    let sig_compact = signature.replace(' ', "");
+    let mut consumed = 0;
+    let mut joined = String::new();
+    for (i, line) in lines.iter().enumerate() {
+        joined = format!("{joined} {}", line.trim()).trim().to_owned();
+        if !sig_compact.is_empty() && joined.replace(' ', "").ends_with(&sig_compact) {
+            consumed = i + 1;
+            break;
+        }
+    }
+    let mut out: Vec<&str> = vec![];
+    for line in &lines[consumed..] {
+        let stripped = line.trim();
+        if stripped.is_empty() || stripped.starts_with("//") {
+            continue;
+        }
+        out.push(line);
+        if out.len() >= max_lines {
+            break;
+        }
+    }
+    out.join("\n")
 }
 
 /// Structured form of an adapter/index error for JSON-reporting callers.
@@ -808,6 +855,12 @@ impl Registry {
     /// DaemonUnavailable from for_language instead of skipping files.
     pub fn has_adapter(&self, lang_key: &str) -> bool {
         matches!(lang_key, "python" | "go")
+    }
+
+    /// Python's `supports`/`for_file` resolution without starting a daemon:
+    /// the file's linguist language key when some adapter handles it.
+    pub fn language_for_file(&self, path: &Path) -> Option<String> {
+        crate::index::classify(path).filter(|key| self.has_adapter(key))
     }
 
     /// Get (spawning lazily) the daemon adapter for a language key.
