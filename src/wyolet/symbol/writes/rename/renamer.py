@@ -38,6 +38,20 @@ from wyolet.symbol.writes.transaction import FileEdit, commit_edits
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
 
 
+def _may_import_from(source: str, module_qpath: str) -> bool:
+    """Whether an import's recorded source can name `module_qpath`: the
+    module itself, a relative spelling of it (stored without the package
+    prefix), or a parent package that may re-export it. Catches aliased
+    imports (`from m import leaf as x`), which leave no ref to the leaf."""
+    if not source:
+        return False
+    return (
+        source == module_qpath
+        or module_qpath.endswith("." + source)
+        or module_qpath.startswith(source + ".")
+    )
+
+
 class _DeclResolved:
     __slots__ = ("row", "declaring_file", "old_leaf", "qpath", "new_qpath", "kind",
                  "owner_qpath", "decl_byte_range")
@@ -133,10 +147,13 @@ class SymbolRenamer:
     def _run_per_file(
         self, decl, new_name, *, dry_run, invoke,
         op_name: str = "rename-symbol", subject: str | None = None,
+        module_qpath: str | None = None,
     ) -> RenameResult:
         """Shared per-kind orchestrator: enumerate files, invoke the
         adapter analysis, aggregate buckets, commit, build result."""
-        candidate_files = self._candidate_files(decl.old_leaf, decl.declaring_file)
+        candidate_files = self._candidate_files(
+            decl.old_leaf, decl.declaring_file, module_qpath,
+        )
         all_rewrites: list[Rewrite] = []
         all_skipped: list[SkippedMismatch] = []
         all_unresolved: list[Unresolved] = []
@@ -290,7 +307,7 @@ class SymbolRenamer:
 
     def _rename_module_binding(self, decl, new_name, *, dry_run) -> RenameResult:
         return self._run_per_file(
-            decl, new_name, dry_run=dry_run,
+            decl, new_name, dry_run=dry_run, module_qpath=decl.owner_qpath,
             invoke=lambda adapter, abs_path, rel, source: adapter.rename_module_binding(
                 path=abs_path,
                 project_root=self.project_root,
@@ -418,7 +435,9 @@ class SymbolRenamer:
             owner_qpath=owner_qpath, decl_byte_range=(s_byte, e_byte),
         )
 
-    def _candidate_files(self, leaf: str, declaring_file: str) -> set[str]:
+    def _candidate_files(
+        self, leaf: str, declaring_file: str, module_qpath: str | None = None,
+    ) -> set[str]:
         files = {declaring_file}
         # In-body references (call sites, attribute accesses).
         for src_row, _line, _kind in self.index.callers_of(leaf):
@@ -428,8 +447,10 @@ class SymbolRenamer:
         # this pass, re-export sites in `__init__.py` and bare imports
         # in modules with no symbols would not be rewritten.
         for file_id in range(len(self.index.files)):
-            for local, _source, _line in self.index.imports_for(file_id):
-                if local == leaf:
+            for local, source, _line in self.index.imports_for(file_id):
+                if local == leaf or (
+                    module_qpath and _may_import_from(source, module_qpath)
+                ):
                     files.add(self.index.files[file_id])
                     break
         return files

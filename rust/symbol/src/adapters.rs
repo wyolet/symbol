@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 use anyhow::{bail, Result};
 use serde::Deserialize;
 
+use crate::index::Index;
 use crate::rpc::Daemon;
 
 // ---------------------------------------------------------- wire types
@@ -370,6 +371,19 @@ impl Adapter {
         Ok(result["preview"].as_str().unwrap_or_default().to_owned())
     }
 
+    /// Daemon call that may ask `index` questions before it answers.
+    fn call_with_index(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+        index: &Index,
+    ) -> Result<serde_json::Value> {
+        let root = &self.project_root;
+        self.daemon.call_serving(method, params, &|query, args| {
+            crate::writes::index_query::serve(index, root, query, args)
+        })
+    }
+
     /// v2 engine rename analysis for one file. `method` is one of
     /// "rename_member" / "rename_field" / "rename_module_binding";
     /// `owner_or_module_qpath` maps to target_owner_qpath (member/field) or
@@ -385,6 +399,7 @@ impl Adapter {
         is_declaring_file: bool,
         decl_byte_range: Option<(i64, i64)>,
         new_name: &str,
+        index: &Index,
     ) -> Result<RenameAnalysis> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -405,7 +420,7 @@ impl Adapter {
             }
             other => bail!("unknown rename method {other:?}"),
         }
-        let result = self.daemon.call(method, params)?;
+        let result = self.call_with_index(method, params, index)?;
         Ok(serde_json::from_value(result)?)
     }
 
@@ -427,6 +442,7 @@ impl Adapter {
         new_name: &str,
         kwargs_only: bool,
         source: Option<&str>,
+        index: &Index,
     ) -> Result<RenameAnalysis> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -443,7 +459,7 @@ impl Adapter {
         if let Some(src) = source {
             params["source"] = src.into();
         }
-        let result = self.daemon.call("rename_parameter", params)?;
+        let result = self.call_with_index("rename_parameter", params, index)?;
         Ok(serde_json::from_value(result)?)
     }
 
@@ -577,7 +593,10 @@ impl DaemonUnavailable {
 /// Structured form of an adapter/index error for JSON-reporting callers;
 /// errors other than DaemonUnavailable get `fallback_code`.
 pub fn error_json(err: &anyhow::Error, fallback_code: &str) -> serde_json::Value {
-    match err.downcast_ref::<DaemonUnavailable>() {
+    if let Some(unavailable) = err.downcast_ref::<DaemonUnavailable>() {
+        return unavailable.to_json();
+    }
+    match err.downcast_ref::<crate::pyscan::PythonUnavailable>() {
         Some(unavailable) => unavailable.to_json(),
         None => serde_json::json!({
             "status": "error",
@@ -592,7 +611,7 @@ pub struct Registry {
     adapters: std::sync::Mutex<HashMap<String, &'static Adapter>>,
 }
 
-/// The symbol repo checkout that provides pyscan (via uv) and go-scan.
+/// A symbol checkout providing dev or wheel-bundled go-scan builds.
 /// Override with SYMBOL_REPO; defaults to this crate's own repo (dev mode).
 fn symbol_repo() -> PathBuf {
     std::env::var("SYMBOL_REPO")
@@ -605,20 +624,8 @@ fn symbol_repo() -> PathBuf {
         })
 }
 
-fn pyscan_argv() -> Vec<String> {
-    if let Ok(cmd) = std::env::var("SYMBOL_PYSCAN") {
-        return cmd.split_whitespace().map(str::to_owned).collect();
-    }
-    let repo = symbol_repo();
-    vec![
-        "uv".into(),
-        "run".into(),
-        "--project".into(),
-        repo.to_string_lossy().into_owned(),
-        "python".into(),
-        "-m".into(),
-        "wyolet.symbol.adapters.pyscan".into(),
-    ]
+fn pyscan_argv() -> Result<Vec<String>> {
+    crate::pyscan::argv()
 }
 
 /// `go-scan-<os>-<arch>`, the per-platform name CI cross-compiles to.
@@ -692,7 +699,7 @@ impl Registry {
             }
         }
         let (name, env_var, argv) = match lang_key {
-            "python" => ("pyscan", "SYMBOL_PYSCAN", Some(pyscan_argv())),
+            "python" => ("pyscan", "SYMBOL_PYSCAN", Some(pyscan_argv()?)),
             "go" => ("go-scan", "SYMBOL_GOSCAN", goscan_argv()),
             other => bail!("no adapter for language {other:?}"),
         };

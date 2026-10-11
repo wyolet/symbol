@@ -618,9 +618,6 @@ pub fn replace_symbol(
                     }
                 }
                 Some(renames) if !renames.is_empty() => {
-                    // The daemon resolves against the ON-DISK index; sync it.
-                    let _ = index.save();
-
                     let mut candidates: std::collections::BTreeSet<String> =
                         std::collections::BTreeSet::from([declaring_file_rel.clone()]);
                     for (src_row, _l, _k) in index.callers_of(&old_leaf) {
@@ -674,6 +671,7 @@ pub fn replace_symbol(
                                 n,
                                 true,
                                 Some(&src_str),
+                                index,
                             ) {
                                 Ok(a) => a,
                                 Err(e) => {

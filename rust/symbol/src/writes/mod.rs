@@ -1,6 +1,7 @@
 //! Port of writes/ — the language-neutral byte-surgery layer.
 
 pub mod content;
+pub mod index_query;
 pub mod ops;
 pub mod patch;
 pub mod read_cache;
