@@ -18,6 +18,10 @@ use symbol_core::writes::read_cache::ReadCache;
 use symbol_core::writes::rename::rename_symbol;
 use symbol_core::writes::tx::{clear_transactions, undo_last};
 
+#[cfg(test)]
+#[path = "cli_surface_tests.rs"]
+mod cli_surface_tests;
+
 /// symbol — AST-native code intelligence for Python and Go.
 ///
 /// Accepts the Python CLI's spelling (`--path`, `--format json`, options
