@@ -35,8 +35,15 @@ struct Args {
 enum Cmd {
     /// Build the symbol index and write .symbol/symbol_index.msgpack.zst
     Index,
-    /// Reindex changed files in place
-    Refresh,
+    /// Reindex changed files in place and clear .symbol/transactions/
+    Refresh {
+        /// Force a full rebuild instead of an incremental refresh
+        #[arg(long)]
+        full: bool,
+        /// Don't clear .symbol/transactions/
+        #[arg(long)]
+        keep_transactions: bool,
+    },
     /// Narrow candidates by name; signatures only
     Search {
         patterns: Vec<String>,
@@ -218,16 +225,32 @@ fn run(args: Args) -> Result<()> {
                 );
             }
         }
-        Cmd::Refresh => {
-            let (idx, source) = get_or_build(&root, reg)?;
+        Cmd::Refresh {
+            full,
+            keep_transactions,
+        } => {
+            let (idx, result) = symbol_core::refresh::refresh(&root, reg, full, keep_transactions)?;
             let stats = idx.stats();
             if args.json {
-                println!("{}", serde_json::json!({"source": source, "stats": stats}));
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "status": "ok",
+                        "source": result.source,
+                        "symbols": idx.symbols.len(),
+                        "files": idx.files.len(),
+                        "transactions_cleared": result.transactions_cleared,
+                        "stats": stats,
+                    })
+                );
             } else {
                 println!(
-                    "{source}: {} files, {} live symbols",
-                    stats["files"], stats["live_symbols"]
+                    "{}: {} files, {} live symbols",
+                    result.source, stats["files"], stats["live_symbols"]
                 );
+                if result.transactions_cleared > 0 {
+                    println!("cleared {} transaction(s)", result.transactions_cleared);
+                }
             }
         }
         Cmd::Search {

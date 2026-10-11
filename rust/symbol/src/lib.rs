@@ -8,6 +8,7 @@ pub mod index;
 pub mod map;
 pub mod pyscan;
 pub mod reads;
+pub mod refresh;
 pub mod rpc;
 pub mod writes;
 pub mod xref;

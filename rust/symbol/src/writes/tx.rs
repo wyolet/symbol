@@ -174,6 +174,19 @@ fn prune_transactions(tx_root: &Path, keep: usize) {
     }
 }
 
+/// Remove every transaction directory (undone ones included); returns how
+/// many were removed. Mirrors commands/refresh.py `_clear_transactions`.
+pub fn clear_transactions(project_root: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(project_root.join(TX_DIR)) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir() && std::fs::remove_dir_all(p).is_ok())
+        .count()
+}
+
 // ---------------------------------------------------------- undo
 
 #[derive(Serialize)]
