@@ -143,4 +143,6 @@ def test_root_format_rejected_like_python(tmp_path: Path):
             [str(binary), "--format", "json", "index"], cwd=root, capture_output=True, text=True
         )
         assert out.returncode == 2
-        assert "'index' has no --format option" in out.stderr
+        # Click's error panel is colored and wrapped in CI; match the flattened text.
+        text = re.sub(r"[│╭╮╰╯─]", " ", re.sub(r"\x1b\[[0-9;]*m", "", out.stderr))
+        assert "'index' has no --format option" in " ".join(text.split())

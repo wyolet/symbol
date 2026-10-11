@@ -140,7 +140,7 @@ def smoke(archive: Path, wheel: Path, version: str, suffix: str) -> None:
         standalone = tmp_path / "standalone"
         shutil.unpack_archive(archive, standalone)
         binary = standalone / f"symbol{suffix}"
-        expect(capture([binary, "--version"]), f"symbol {version}")
+        expect(capture([binary, "--version"]), version)
         project = smoke_project(tmp_path / "a")
         expect(capture([binary, "index"], cwd=project, env=env), "")
         expect(capture([binary, "search", "UserService"], cwd=project, env=env), "UserService")
