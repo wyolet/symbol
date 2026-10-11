@@ -14,7 +14,7 @@ use symbol_core::writes::read_cache::ReadCache;
 use symbol_core::writes::rename::rename_symbol;
 use symbol_core::writes::tx::undo_last;
 
-/// symbol-rs — Rust port of symbol's core (index, reads, writes).
+/// symbol — AST-native code intelligence (index, reads, writes, loc).
 /// Language analysis runs in native-AST daemons (pyscan / go-scan).
 #[derive(Parser)]
 #[command(version, about)]
@@ -218,7 +218,7 @@ fn main() -> Result<()> {
                     println!("{}", "─".repeat(78));
                 }
                 if !hits.is_empty() {
-                    println!("Use symbol-rs code <file:start-end> to fetch a body.");
+                    println!("Use symbol code <file:start-end> to fetch a body.");
                 }
             }
         }

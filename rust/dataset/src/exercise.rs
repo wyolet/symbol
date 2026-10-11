@@ -353,10 +353,10 @@ fn actor_prompt(task: &TaskSpec, calls: &[RecordedCall]) -> Result<String> {
         .filter(|op| READ_OPS.contains(op))
         .count();
     Ok(format!(
-        r#"You are the decision component in a Rust-controlled symbol-rs loop.
+        r#"You are the decision component in a Rust-controlled symbol loop.
 Do not invoke tools yourself. Your entire response is structured controller data selecting one argv call for Rust to execute, or finish.
 
-Complete this real refactoring task using only mediated symbol-rs calls:
+Complete this real refactoring task using only mediated symbol calls:
 
 {title}
 {objective}
@@ -366,13 +366,13 @@ Suggested initial symbol reads: {pre_reads}
 
 STRICT TOOL CONTRACT
 - The project is already indexed.
-- Select exactly one symbol-rs call for Rust to execute by returning action="call" and its argv tokens, or action="finish".
+- Select exactly one symbol call for Rust to execute by returning action="call" and its argv tokens, or action="finish".
 - You have no shell, filesystem, native read/edit, web, or other tools.
 - Discover code with search, code, outline, callers, stats, or loc before changing it.
 - You have a strict budget of {max_reads} read calls; {reads_used} have already been used. When the budget is exhausted, your next call must be the write.
 - search finds symbol declarations by one name/pattern. Do not combine alternatives with `|`; use code on a discovered qualified path or the suggested file range.
 - Make exactly the requested change using one write operation.
-- args must be argv tokens beginning with the operation, without symbol-rs, --root, or --json.
+- args must be argv tokens beginning with the operation, without symbol, --root, or --json.
 - Use outputs from prior calls below. Never invent output.
 - Do not return finish until the requested write has succeeded.
 

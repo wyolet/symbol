@@ -34,7 +34,7 @@ const HARNESS_OPS: &[&str] = &["append-file", "write-file"];
 struct Cli {
     /// JSON scenario configuration
     config: PathBuf,
-    /// symbol-rs binary to exercise
+    /// symbol binary to exercise
     #[arg(long)]
     bin: Option<PathBuf>,
     /// Bare corpus mirror directory for external scenarios
@@ -206,9 +206,9 @@ fn main() -> Result<()> {
     let sources = validate_config(&config, &config_path, cli.repo_cache.as_deref(), &repo)?;
     let binary = cli
         .bin
-        .unwrap_or_else(|| repo.join("rust/target/debug/symbol-rs"))
+        .unwrap_or_else(|| repo.join("rust/target/debug/symbol"))
         .canonicalize()
-        .context("resolve symbol-rs binary; build it with `cargo build -p symbol-core`")?;
+        .context("resolve symbol binary; build it with `cargo build -p symbol-core`")?;
 
     let selected: HashSet<&str> = cli.scenario.iter().map(String::as_str).collect();
     let available: HashSet<&str> = config.scenarios.iter().map(|s| s.id.as_str()).collect();

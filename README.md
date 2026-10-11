@@ -29,7 +29,7 @@ unfamiliar codebase:
 
 Static analysis only — `symbol` never imports or executes the target code.
 
-> **Status.** This is the Rust rewrite (`symbol-rs`), the future of the
+> **Status.** This is the Rust rewrite (`rust/`), the future of the
 > project. Its core — the symbol index, the read surface, the write surface,
 > and `loc` — is differentially verified **byte-for-byte** against the mature
 > Python implementation across real corpora (flask, gin, this repo). The Python
@@ -63,14 +63,13 @@ the full command; `SYMBOL_REPO` points at a checkout that provides both.
 ```bash
 git clone https://github.com/wyolet/symbol
 cd symbol/rust
-cargo build --release          # → target/release/symbol-rs
+cargo build --release          # → target/release/symbol
 ```
 
-The built binary is `symbol-rs`; it takes the canonical `symbol` name once
-packaged. Alias it while building from source:
+Put `target/release` on your `PATH`, or alias it while building from source:
 
 ```bash
-alias symbol="$PWD/target/release/symbol-rs"
+alias symbol="$PWD/target/release/symbol"
 ```
 
 The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
@@ -171,7 +170,7 @@ state, so a mixed agent session is safe:
 
 ```
 rust/
-├── symbol/     symbol-core → the `symbol-rs` binary (index, reads, writes, loc)
+├── symbol/     symbol-core → the `symbol` binary (index, reads, writes, loc)
 ├── linguist/   symbol-linguist → GitHub-Linguist port + LOC counting
 ├── dataset/    differential-test dataset mining and verification
 └── harness/    black-box feature harness

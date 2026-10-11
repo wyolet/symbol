@@ -36,12 +36,12 @@ lint-rust: ## Check Rust formatting and clippy warnings
 	cargo fmt --manifest-path rust/Cargo.toml --all --check
 	cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 
-test-features: ## Run configured black-box scenarios against symbol-rs
+test-features: ## Run configured black-box scenarios against the Rust symbol binary
 	cargo build --manifest-path rust/Cargo.toml -p symbol-core
 	cargo run --manifest-path rust/Cargo.toml -p symbol-harness -- \
 		scripts/feature_cases/python_core.json --report .tmp/feature-report.json
 
-test-real-world: ## Replay pinned external-corpus scenarios against symbol-rs
+test-real-world: ## Replay pinned external-corpus scenarios against the Rust symbol binary
 	cargo build --manifest-path rust/Cargo.toml -p symbol-core
 	cargo run --manifest-path rust/Cargo.toml -p symbol-dataset -- \
 		fetch scripts/feature_cases/real_world_pilot_corpora.json

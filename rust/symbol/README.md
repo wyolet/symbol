@@ -4,7 +4,7 @@ Rust port of symbol's language-neutral core: the symbol index, the read
 surface (search / code / outline / callers), and the write surface (patch /
 multi-patch / delete-symbol / insert-symbol / replace-symbol / rename-symbol /
 undo), plus
-LOC counting, behind the `symbol-rs` binary. Language analysis never happens
+LOC counting, behind the `symbol` binary. Language analysis never happens
 in-process — it runs in native-AST daemons speaking newline-delimited JSON-RPC
 2.0 over stdio (`schemas/symbol.rpc.schema.json`):
 
@@ -23,8 +23,8 @@ Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
   `index.rs`: Python's `zstandard.decompress()` requires the frame content
   size, so saves use `zstd::bulk::compress`.)
 - **Transactions**: `.symbol/transactions/<id>/manifest.json` matches
-  Python's format — `symbol undo` (Python) rolls back Rust-committed writes
-  and `symbol-rs undo` rolls back Python's.
+  Python's format — Python `symbol undo` rolls back Rust-committed writes
+  and Rust `symbol undo` rolls back Python's.
 - **Read cache**: `.symbol/cache/sessions/<SYMBOL_SESSION_ID>.json`, same
   JSON shape as caches/disk.py, so patch preflight works across both CLIs
   in one agent session.
@@ -58,7 +58,7 @@ src/adapters.rs   registry + daemon adapters + wire types (protocols/types.py)
 src/index.rs      shared/symbol_index.py — v8 format, staleness, refresh
 src/reads.rs      reads/ — search, code, outline, callers
 src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename
-src/main.rs       clap CLI (symbol-rs)
+src/main.rs       clap CLI (the `symbol` binary)
 ```
 
 ## Differential verification
@@ -121,7 +121,7 @@ All fixed and re-swept to zero:
 
 Timing medians per op (seconds; write ops are fair CLI-vs-CLI comparisons;
 read ops are not — Python reads run in-process on a pre-loaded index while
-`symbol-rs` pays full process startup per invocation):
+the Rust binary pays full process startup per invocation):
 
 | op | flask py / rs | gin py / rs | self py / rs |
 |---|---|---|---|

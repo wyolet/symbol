@@ -1,4 +1,4 @@
-"""Differential test RUNNER: Python symbol vs symbol-rs, driven by an ops
+"""Differential test RUNNER: Python symbol vs Rust symbol, driven by an ops
 dataset. The dataset is authored elsewhere (generated per-repo by a model);
 this runner only executes, diffs, times, and reports.
 
@@ -45,7 +45,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-RUST_BIN = REPO / "rust/target/release/symbol-rs"
+RUST_BIN = REPO / "rust/target/release/symbol"
 
 READ_OPS = {"code", "callers", "outline", "search"}
 WRITE_OPS = {"rename-symbol", "replace-symbol", "delete-symbol", "insert-symbol", "patch"}
