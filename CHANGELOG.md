@@ -2,15 +2,25 @@
 
 All notable changes to `symbol` are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] — 2026-10-12
 
 ### Added
+- **Rust `symbol` binary** for index, reads, writes, `loc`, the MCP server, and the Claude Code hook. Python and Go analysis run in native-AST daemons it starts: `pyscan` (embedded; needs Python >= 3.11 on `PATH` or `SYMBOL_PYTHON`) and `go-scan` (shipped beside it). Missing daemons fail with structured `daemon_unavailable` / `python_unavailable` errors instead of indexing zero files.
+- **`symbol refs` and `symbol implementers`** (Go) — references and interface satisfaction resolved by `go/types`, across packages, test files, `go.work` workspaces, and nested modules. Files left out by build constraints are reported as not analyzed, with the reason. Over MCP as `SymbolRefs` and `SymbolImplementers`.
 - **Platform wheels with the Rust binary** for macOS 13+ (arm64, x86_64), Linux (x86_64, arm64; static, glibc or musl), and Windows (x86_64), each carrying only its own `symbol` and `go-scan`. Other platforms get a pure `py3-none-any` wheel without binaries.
 - **Standalone archives** on each GitHub release: `symbol-<version>-<target>.tar.gz` (`.zip` on Windows) with `symbol` and `go-scan`, plus `SHA256SUMS`.
 
 ### Changed
 - **`symbol` runs every command except `audit`, `analyze`, `dump`, `init`, `map`, and `update-linguist` on the Rust binary**, with `SYMBOL_PYTHON` defaulting to the installed interpreter. The binary is `SYMBOL_BIN`, else the wheel's bundled copy, else `rust/target/{release,debug}/symbol` in a source checkout, else a `symbol` on `PATH` that is not a Python entry point; without one those commands exit 1 and name these options. `symbol --help` still lists them.
-- **The Rust binary's version follows the package version**; CI fails when `pyproject.toml`, `rust/symbol/Cargo.toml`, and the release tag disagree.
+- **The Rust binary's version follows the package version**; CI fails when `pyproject.toml`, `rust/symbol/Cargo.toml`, the plugin manifest, its `wyolet-symbol` pins, and the release tag disagree.
+- **The Claude Code plugin runs the published wheel** (`uvx --from wyolet-symbol==<version>`) instead of the plugin checkout. The hook answers in about 5 ms (was about 380 ms).
+
+### Fixed
+- **`symbol mcp` failed to start on fresh installs of 0.2.5**: the unpinned `mcp` dependency resolved to 2.x, which renamed `FastMCP`. The server no longer depends on it.
+- **`symbol map .` found no files**; a relative root now resolves.
+- **`audit` and `map` crashed when a file disappeared during the scan** (e.g. build output); such files are skipped.
+- **Go renames and reads skipped `_test.go` files**; test packages are now loaded.
+- **Python renames missed relatively imported uses** (`from .mod import name`).
 
 ### Removed
 - **The Python implementations of `index`, `refresh`, `search`, `code`, `outline`, `callers`, `patch`, `delete-symbol`, `insert-symbol`, `rename-symbol`, `replace-symbol`, `undo`, `loc`, `mcp`, and `hook`**, and `SYMBOL_IMPL`. The `mcp`, `msgpack`, and `zstandard` dependencies go with them.

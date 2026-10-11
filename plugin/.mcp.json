@@ -2,7 +2,7 @@
   "mcpServers": {
     "symbol": {
       "command": "uvx",
-      "args": ["--from", "wyolet-symbol==0.2.5", "--with", "mcp<2", "symbol", "mcp"]
+      "args": ["--from", "wyolet-symbol==0.3.0", "symbol", "mcp"]
     }
   }
 }

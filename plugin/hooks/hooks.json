@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from wyolet-symbol==0.2.5 symbol hook"
+            "command": "uvx --from wyolet-symbol==0.3.0 symbol hook"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from wyolet-symbol==0.2.5 symbol hook"
+            "command": "uvx --from wyolet-symbol==0.3.0 symbol hook"
           }
         ]
       }
