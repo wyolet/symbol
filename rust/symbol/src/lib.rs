@@ -8,3 +8,4 @@ pub mod index;
 pub mod reads;
 pub mod rpc;
 pub mod writes;
+pub mod xref;

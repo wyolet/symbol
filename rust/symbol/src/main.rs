@@ -59,6 +59,10 @@ enum Cmd {
     Outline { query: String },
     /// Tier-1 textual reference scan
     Callers { name: String },
+    /// Type-resolved references to one symbol (adapter-backed)
+    Refs { qualified_path: String },
+    /// Implementers of an interface, or interfaces a type implements
+    Implementers { qualified_path: String },
     /// Byte-range edit primitive (replace / delete via empty content)
     Patch {
         file: String,
@@ -295,6 +299,16 @@ fn run(args: Args) -> Result<()> {
                     );
                 }
             }
+        }
+        Cmd::Refs { qualified_path } => {
+            let (idx, _) = get_or_build(&root, reg)?;
+            let result = symbol_core::xref::references(&idx, &qualified_path, reg);
+            finish_xref(&result, args.json, print_refs)?;
+        }
+        Cmd::Implementers { qualified_path } => {
+            let (idx, _) = get_or_build(&root, reg)?;
+            let result = symbol_core::xref::implementers(&idx, &qualified_path, reg);
+            finish_xref(&result, args.json, print_implementers)?;
         }
         Cmd::Patch {
             file,
@@ -552,6 +566,120 @@ fn record_read(root: &std::path::Path, _idx: &Index, payload: &serde_json::Value
             tool_call_idx: 0,
         });
     }
+}
+
+/// Print a refs/implementers result; errors print as `error [code]` (or
+/// the JSON object) and exit 1.
+fn finish_xref(
+    result: &serde_json::Value,
+    json: bool,
+    print: fn(&serde_json::Value),
+) -> Result<()> {
+    let failed = result["status"] == "error";
+    if json {
+        println!("{}", serde_json::to_string_pretty(result)?);
+    } else if failed {
+        eprintln!(
+            "error [{}]: {}",
+            result["error_code"].as_str().unwrap_or(""),
+            result["message"].as_str().unwrap_or("")
+        );
+        for c in result["candidates"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+        {
+            eprintln!(
+                "  {}  {}:{}-{}",
+                c["path"].as_str().unwrap_or(""),
+                c["file"].as_str().unwrap_or(""),
+                c["start_line"],
+                c["end_line"]
+            );
+        }
+        for e in result["errors"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+        {
+            eprintln!("  {}", e.as_str().unwrap_or(""));
+        }
+    } else {
+        print(result);
+    }
+    if failed {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+fn xref_header(result: &serde_json::Value) -> String {
+    let target = &result["target"];
+    format!(
+        "{} ({}, {}:{})",
+        result["qualified_path"].as_str().unwrap_or(""),
+        target["kind"].as_str().unwrap_or(""),
+        target["file"].as_str().unwrap_or(""),
+        target["line"],
+    )
+}
+
+fn print_not_analyzed(result: &serde_json::Value) {
+    let skipped = result["not_analyzed"].as_array().map_or(0, Vec::len);
+    if skipped > 0 {
+        println!(
+            "note: {skipped} source file(s) were not analyzed (e.g. excluded by build constraints); --json lists them"
+        );
+    }
+}
+
+fn print_refs(result: &serde_json::Value) {
+    println!("{}: {} reference(s)", xref_header(result), result["count"]);
+    for r in result["references"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
+        println!(
+            "  {}:{}:{}  {}",
+            r["source_file"].as_str().unwrap_or(""),
+            r["ref_line"],
+            r["ref_col"],
+            r["source_path"].as_str().unwrap_or("<top level>"),
+        );
+    }
+    print_not_analyzed(result);
+}
+
+fn print_implementers(result: &serde_json::Value) {
+    let (label, items) = if result["target"]["kind"] == "interface" {
+        ("implementer(s)", &result["implementers"])
+    } else {
+        ("interface(s) implemented", &result["interfaces"])
+    };
+    let items = items.as_array().map(Vec::as_slice).unwrap_or(&[]);
+    println!("{}: {} {label}", xref_header(result), items.len());
+    for item in items {
+        let mut notes = vec![];
+        if item["pointer"] == true {
+            notes.push("pointer receiver");
+        }
+        if item["external"] == true {
+            notes.push("dependency");
+        }
+        let location = if item["external"] == true {
+            String::new()
+        } else {
+            format!("{}:{}  ", item["file"].as_str().unwrap_or(""), item["line"])
+        };
+        let notes = if notes.is_empty() {
+            String::new()
+        } else {
+            format!("  ({})", notes.join(", "))
+        };
+        println!("  {location}{}{notes}", item["path"].as_str().unwrap_or(""));
+    }
+    print_not_analyzed(result);
 }
 
 fn print_tree(node: &serde_json::Value, depth: usize) {
