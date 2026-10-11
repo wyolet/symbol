@@ -34,40 +34,75 @@ pub fn callers(index: &Index, name: &str) -> Vec<serde_json::Value> {
 
 // ---------------------------------------------------------- code
 
+/// Why `code` has no single body to return (CodeNotFound / CodeAmbiguous).
+#[derive(Debug)]
+pub enum CodeMiss {
+    NotFound(String),
+    Ambiguous(Vec<serde_json::Value>),
+}
+
+/// The `{ambiguous, candidates}` payload for an ambiguous target; a target
+/// that matches nothing is an error.
 pub fn code(index: &Index, target: &str, reg: &Registry) -> Result<serde_json::Value> {
+    match lookup_code(index, target, reg) {
+        Ok(payload) => Ok(payload),
+        Err(CodeMiss::Ambiguous(candidates)) => Ok(serde_json::json!({
+            "ambiguous": true,
+            "candidates": candidates,
+        })),
+        Err(CodeMiss::NotFound(message)) => bail!("{message}\nTry: symbol search <name>"),
+    }
+}
+
+pub fn lookup_code(
+    index: &Index,
+    target: &str,
+    reg: &Registry,
+) -> std::result::Result<serde_json::Value, CodeMiss> {
     static RANGE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
         regex::Regex::new(r"^(?P<file>.+?):(?P<start>\d+)-(?P<end>\d+)$").unwrap()
     });
 
     if let Some(m) = RANGE_RE.captures(target) {
-        return by_range(
-            index,
-            &m["file"],
-            m["start"].parse()?,
-            m["end"].parse()?,
-            reg,
-        );
+        if let (Ok(start), Ok(end)) = (m["start"].parse(), m["end"].parse()) {
+            return by_range(index, &m["file"], start, end, reg);
+        }
     }
     by_path(index, target, reg)
+}
+
+/// by_path is a dict in Python: iterate qualified paths in first-seen
+/// order, which is the order of each path's first row.
+fn paths_in_order(index: &Index) -> Vec<&String> {
+    let mut paths: Vec<&String> = index.by_path.keys().collect();
+    paths.sort_by_key(|p| index.by_path[*p].first().copied().unwrap_or(i64::MAX));
+    paths
 }
 
 fn resolve_rows(index: &Index, path: &str) -> Vec<i64> {
     let mut rows: Vec<i64> = index.by_path.get(path).cloned().unwrap_or_default();
     if rows.is_empty() {
         let suffix = format!(".{path}");
-        for (qpath, ids) in &index.by_path {
+        for qpath in paths_in_order(index) {
             if qpath == path || qpath.ends_with(&suffix) {
-                rows.extend(ids);
+                rows.extend(&index.by_path[qpath]);
             }
         }
     }
     rows
 }
 
-fn by_path(index: &Index, path: &str, reg: &Registry) -> Result<serde_json::Value> {
+fn by_path(
+    index: &Index,
+    path: &str,
+    reg: &Registry,
+) -> std::result::Result<serde_json::Value, CodeMiss> {
     let rows = resolve_rows(index, path);
     if rows.is_empty() {
-        bail!("no symbol matches {path:?}\nTry: symbol search <name>");
+        return Err(CodeMiss::NotFound(format!(
+            "no symbol matches {}",
+            crate::pyjson::repr_str(path)
+        )));
     }
     if rows.len() > 1 {
         let candidates: Vec<serde_json::Value> = rows
@@ -83,10 +118,7 @@ fn by_path(index: &Index, path: &str, reg: &Registry) -> Result<serde_json::Valu
                 })
             })
             .collect();
-        return Ok(serde_json::json!({
-            "ambiguous": true,
-            "candidates": candidates,
-        }));
+        return Err(CodeMiss::Ambiguous(candidates));
     }
     Ok(index.row_payload(rows[0], reg))
 }
@@ -97,7 +129,7 @@ fn by_range(
     start: i64,
     end: i64,
     reg: &Registry,
-) -> Result<serde_json::Value> {
+) -> std::result::Result<serde_json::Value, CodeMiss> {
     let mut file = file.to_owned();
     let mut file_id = index.file_id_of(&file);
     if file_id.is_none() {
@@ -115,7 +147,10 @@ fn by_range(
         }
     }
     let Some(file_id) = file_id else {
-        bail!("file not indexed: {file:?}");
+        return Err(CodeMiss::NotFound(format!(
+            "file not indexed: {}",
+            crate::pyjson::repr_str(&file)
+        )));
     };
 
     let mut best_row: i64 = -1;
@@ -221,12 +256,9 @@ impl Default for SearchOpts<'_> {
 
 const PREVIEW_LINES: usize = 3;
 
-pub fn search(
-    index: &Index,
-    patterns: &[String],
-    opts: &SearchOpts,
-    reg: &Registry,
-) -> Result<Vec<serde_json::Value>> {
+/// The rows `search` returns, without rendering signatures or previews —
+/// answerable from the index alone, so no language daemon starts.
+pub fn search_rows(index: &Index, patterns: &[String], opts: &SearchOpts) -> Result<Vec<i64>> {
     if patterns.is_empty() {
         return Ok(vec![]);
     }
@@ -235,14 +267,9 @@ pub fn search(
 
     let mut row_ids: Vec<i64> = vec![];
     let mut seen = std::collections::HashSet::new();
-    // Iteration order must match Python's: by_path is a dict whose insertion
-    // order is first-seen symbol order during ingest. Row ids are identical
-    // across implementations, so ordering by each path's first row id
-    // reproduces it exactly (alphabetical sort diverges once `limit`
-    // truncates — WP7 sweep finding sr058).
-    let mut paths: Vec<&String> = index.by_path.keys().collect();
-    paths.sort_by_key(|p| index.by_path[*p].first().copied().unwrap_or(i64::MAX));
-    for path in paths {
+    // Iteration order must match Python's dict order (alphabetical sort
+    // diverges once `limit` truncates — WP7 sweep finding sr058).
+    for path in paths_in_order(index) {
         if !matchers.iter().all(|m| m(path)) {
             continue;
         }
@@ -255,17 +282,29 @@ pub fn search(
 
     let mut out = vec![];
     for row in row_ids {
-        if let Some(kind) = opts.kind {
-            if index.kind_of(row) != kind {
-                continue;
-            }
+        if opts.kind.is_some_and(|kind| index.kind_of(row) != kind) {
+            continue;
         }
+        if opts.file.is_some_and(|f| f != index.file_of(row)) {
+            continue;
+        }
+        out.push(row);
+        if out.len() >= opts.limit {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+pub fn search(
+    index: &Index,
+    patterns: &[String],
+    opts: &SearchOpts,
+    reg: &Registry,
+) -> Result<Vec<serde_json::Value>> {
+    let mut out = vec![];
+    for row in search_rows(index, patterns, opts)? {
         let file_path = index.file_of(row).to_owned();
-        if let Some(f) = opts.file {
-            if f != file_path {
-                continue;
-            }
-        }
         let (s, e) = index.range_of(row);
         let signature = index.signature(row, reg);
         let body = index.body(row);
@@ -289,9 +328,6 @@ pub fn search(
             "signature": signature,
             "preview": preview,
         }));
-        if out.len() >= opts.limit {
-            break;
-        }
     }
     Ok(out)
 }

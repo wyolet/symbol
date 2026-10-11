@@ -4,6 +4,7 @@
 // speaking the schemas/symbol.rpc.schema.json contract over stdio.
 
 pub mod adapters;
+pub mod hook;
 pub mod index;
 pub mod map;
 pub mod pyjson;
