@@ -57,8 +57,10 @@ const fn p(name: &'static str, ty: Ty, default: ParamDefault) -> Param {
 const DRY_RUN: Param = p("dry_run", Ty::Bool, ParamDefault::Bool(false));
 const FORCE: Param = p("force", Ty::Bool, ParamDefault::Bool(false));
 const TARGET: Param = p("target", Ty::Str, ParamDefault::Required);
+const VERBOSE: Param = p("verbose", Ty::Bool, ParamDefault::Bool(false));
 
-/// Registration order of the Python server, which is tools/list order.
+/// tools/list order; tools the Python server also serves keep its
+/// registration order.
 pub const TOOLS: &[Tool] = &[
     Tool {
         name: "SearchSymbol",
@@ -96,6 +98,18 @@ pub const TOOLS: &[Tool] = &[
         func: "symbol_callers",
         params: &[p("name", Ty::Str, ParamDefault::Required)],
         text_output: false,
+    },
+    Tool {
+        name: "SymbolRefs",
+        func: "symbol_refs",
+        params: &[TARGET, VERBOSE],
+        text_output: true,
+    },
+    Tool {
+        name: "SymbolImplementers",
+        func: "symbol_implementers",
+        params: &[TARGET, VERBOSE],
+        text_output: true,
     },
     Tool {
         name: "Patch",

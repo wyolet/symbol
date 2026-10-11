@@ -112,6 +112,54 @@ type annotations ('UserService'), `from __future__ import annotations` \
 files, or comments and docstrings.
 """
 
+[SymbolRefs]
+description = """
+Find every use of one declaration, resolved by the type checker. \
+Returns file:line sites grouped by file, each under the qualified path \
+of the symbol that contains it, across packages and test files.
+
+USE WHEN you need exact references to a method, function, type, \
+variable, or struct field — before renaming, deleting, or changing a \
+signature. Prefer this over SymbolCallers where supported: every site \
+resolves to this declaration, so a same-named method on another type or \
+a same-named function in another package never appears.
+
+Supported for Go. Other languages return error_code="unsupported" — \
+use SymbolCallers there.
+
+Parameters: target is a qualified path or a unique dotted suffix \
+("store.Store.Save"), or a dependency's declaration \
+("net/http.Handler"). verbose=true lists each not-analyzed file.
+
+A `not_analyzed` line counts project files the type checker skipped, \
+by reason (e.g. a build tag like `integration`, another GOOS); \
+references inside them are missing. Other codes: "symbol_not_found", \
+"symbol_ambiguous" (with candidates), "load_failed" (the project does \
+not type-check; errors listed), "daemon_unavailable".
+"""
+
+[SymbolImplementers]
+description = """
+Show the implements relation of a type, resolved by the type checker. \
+For an interface: every project type that satisfies it, marking \
+pointer-receiver implementations. For a concrete type: every interface \
+it satisfies, from the project and from dependencies. Returns \
+file:line and qualified path per type.
+
+USE WHEN changing an interface's method set or a type's methods, or \
+finding the concrete types behind an interface. Implementations are \
+implicit, so neither SearchSymbol nor SymbolCallers can find them.
+
+Supported for Go. Other languages return error_code="unsupported".
+
+Parameters: target is a qualified path or a unique dotted suffix \
+("store.Saver"), or a dependency's type ("io.Writer"). verbose=true \
+lists each not-analyzed file.
+
+`not_analyzed` and the error codes are as for SymbolRefs, plus \
+"invalid_target" when the target is not a named type.
+"""
+
 [Patch]
 description = """
 Replace a byte range in a file with new content. The primitive edit \

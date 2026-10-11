@@ -1,5 +1,6 @@
-//! The twelve tool bodies — ports of the tool functions in mcp/server.py.
-//! Reads return JSON objects; writes return the agent-format text.
+//! The tool bodies — ports of the tool functions in mcp/server.py, plus
+//! the xref reads. Reads return JSON objects (xref reads and writes return
+//! agent-format text).
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -7,6 +8,8 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 use serde_json::{json, Map, Value};
 
+use crate::adapters::{self, Registry};
+use crate::index::Index;
 use crate::mcp::state::{relative_to, resolve, FileStatus, Session};
 use crate::mcp::tools::Args;
 use crate::pystr;
@@ -19,6 +22,7 @@ use crate::writes::patch::{
 use crate::writes::read_cache::record_served;
 use crate::writes::rename::rename_symbol;
 use crate::writes::tx::undo_last;
+use crate::xref;
 
 pub enum ToolOutput {
     Json(Value),
@@ -36,6 +40,8 @@ pub fn call(name: &str, session: &mut Session, args: &Args) -> Result<ToolOutput
         "SymbolBody" => symbol_body(session, args),
         "SymbolOutline" => symbol_outline(session, args),
         "SymbolCallers" => symbol_callers(session, args),
+        "SymbolRefs" => xref(session, args, xref::references, agent::references),
+        "SymbolImplementers" => xref(session, args, xref::implementers, agent::implementers),
         "Patch" => patch(session, args),
         "MultiPatch" => multi_patch(session, args),
         "DeleteSymbol" => delete(session, args),
@@ -320,6 +326,25 @@ fn symbol_callers(session: &mut Session, args: &Args) -> Result<ToolOutput> {
     Ok(ToolOutput::Json(
         json!({"ok": true, "count": hits.len(), "hits": hits}),
     ))
+}
+
+/// SymbolRefs / SymbolImplementers. An index that can't load (e.g. its
+/// daemon is missing) is reported like any other refusal.
+fn xref(
+    session: &mut Session,
+    args: &Args,
+    query: fn(&Index, &str, &Registry) -> Value,
+    render: fn(&Value, bool) -> String,
+) -> Result<ToolOutput> {
+    let reg = session.reg;
+    let result = match session.index() {
+        Ok(index) => query(index, args.str("target"), reg),
+        Err(err) => adapters::error_json(&err, "index_error"),
+    };
+    Ok(ToolOutput::Text(captured(render(
+        &result,
+        args.bool("verbose"),
+    ))))
 }
 
 // ---------------------------------------------------------- writes

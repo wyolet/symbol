@@ -124,9 +124,9 @@ alias symbol="$PWD/target/release/symbol"
 
 The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
 lets you build it locally via `make build-go-scan`. For Go projects without
-Python, place a `go-scan` binary next to `symbol`. Go renames also need the Go
-toolchain (`go`) on `PATH`, since go-scan's rename loads packages through
-`packages.Load`; indexing and reads don't. Python analysis needs only a
+Python, place a `go-scan` binary next to `symbol`. Go renames, `refs`, and
+`implementers` also need the Go toolchain (`go`) on `PATH`, since go-scan loads
+packages through `packages.Load` for them; indexing and other reads don't. Python analysis needs only a
 Python >= 3.11 interpreter: no pip install and no repo checkout.
 
 ## Usage
@@ -218,6 +218,24 @@ symbol loc                       # colored breakdown by language
 symbol loc path/ --files         # per-file detail
 symbol loc --classify src/app.py # show how each file was classified
 ```
+
+### MCP server
+
+```bash
+symbol --root path/to/project mcp   # stdio MCP server for coding agents
+```
+
+| Tool | Does |
+| --- | --- |
+| `SearchSymbol`, `SymbolOutline`, `SymbolBody` | locate declarations, outline a file, fetch a body or line range |
+| `SymbolCallers` | textual references by name (any language) |
+| `SymbolRefs`, `SymbolImplementers` | type-resolved references and implements relation (Go) |
+| `Patch`, `MultiPatch` | byte-range edits, read-cache gated |
+| `ReplaceSymbol`, `InsertSymbol`, `DeleteSymbol`, `RenameSymbol` | symbol-level writes |
+| `Undo`, `Refresh` | revert the last transaction, reindex |
+
+Tool descriptions live in
+[`src/wyolet/symbol/data/mcp_tools.toml`](src/wyolet/symbol/data/mcp_tools.toml).
 
 ## Configuration
 

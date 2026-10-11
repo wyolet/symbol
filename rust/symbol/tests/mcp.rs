@@ -3,7 +3,7 @@
 //! the resource watchdog.
 
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{json, Value};
@@ -15,9 +15,19 @@ struct Server {
     next_id: i64,
 }
 
+fn dev_goscan() -> Option<PathBuf> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../src/wyolet/symbol/adapters/go_ast/daemon/go-scan");
+    path.is_file().then_some(path)
+}
+
 impl Server {
     fn start(root: &Path) -> Server {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_symbol"))
+        let mut command = Command::new(env!("CARGO_BIN_EXE_symbol"));
+        if let Some(goscan) = dev_goscan() {
+            command.env("SYMBOL_GOSCAN", goscan);
+        }
+        let mut child = command
             .env("UV_CACHE_DIR", root.join(".uv-cache"))
             .env("SYMBOL_MCP_WATCHDOG", "0")
             .env("SYMBOL_MCP_NICE", "0")
@@ -126,6 +136,8 @@ fn tools_list_serves_shared_descriptions() {
             "SymbolBody",
             "SymbolOutline",
             "SymbolCallers",
+            "SymbolRefs",
+            "SymbolImplementers",
             "Patch",
             "MultiPatch",
             "DeleteSymbol",
@@ -152,6 +164,7 @@ fn tools_list_serves_shared_descriptions() {
         let text_tool = ["Patch", "MultiPatch", "DeleteSymbol", "InsertSymbol"]
             .iter()
             .chain(&["RenameSymbol", "ReplaceSymbol"])
+            .chain(&["SymbolRefs", "SymbolImplementers"])
             .any(|t| *t == name);
         assert_eq!(tool.get("outputSchema").is_some(), text_tool, "{name}");
     }
@@ -238,6 +251,202 @@ fn patch_requires_a_read_then_passes_on_retry() {
     );
     let hits = server.json("SearchSymbol", json!({"patterns": ["g"]}));
     assert_eq!(hits["count"], 1, "{hits}");
+}
+
+fn write(root: &Path, rel: &str, src: &str) {
+    let abs = root.join(rel);
+    std::fs::create_dir_all(abs.parent().unwrap()).unwrap();
+    std::fs::write(abs, src).unwrap();
+}
+
+/// An interface with a value- and a pointer-receiver implementer, used from
+/// another package, a test package, and a build-tagged file; `api.Save`
+/// and `Memory.Save` share the method's name but not its declaration.
+fn go_project() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    write(root, "go.mod", "module example.com/shop\n\ngo 1.21\n");
+    write(
+        root,
+        "store/store.go",
+        "package store\n\
+         \n\
+         type Store struct{ Name string }\n\
+         \n\
+         func (s *Store) Save() error { return nil }\n\
+         \n\
+         type Memory struct{}\n\
+         \n\
+         func (Memory) Save() error { return nil }\n\
+         \n\
+         type Saver interface{ Save() error }\n",
+    );
+    write(
+        root,
+        "api/api.go",
+        "package api\n\
+         \n\
+         import \"example.com/shop/store\"\n\
+         \n\
+         func Persist(s *store.Store) error {\n\
+         \tif err := s.Save(); err != nil {\n\
+         \t\treturn err\n\
+         \t}\n\
+         \treturn s.Save()\n\
+         }\n\
+         \n\
+         func Keep(m store.Memory) error { return m.Save() }\n\
+         \n\
+         func Save() {}\n",
+    );
+    write(
+        root,
+        "api/api_test.go",
+        "package api_test\n\
+         \n\
+         import (\n\
+         \t\"testing\"\n\
+         \n\
+         \t\"example.com/shop/store\"\n\
+         )\n\
+         \n\
+         func TestPersist(t *testing.T) { _ = (&store.Store{}).Save() }\n",
+    );
+    write(
+        root,
+        "store/store_integration_test.go",
+        "//go:build integration\n\npackage store\n",
+    );
+    dir
+}
+
+/// A text tool's result, checked against its structuredContent copy.
+fn tool_text(server: &mut Server, tool: &str, arguments: Value) -> String {
+    let result = server.call(tool, arguments);
+    assert_eq!(result["isError"], false, "{result}");
+    let text = result["content"][0]["text"].as_str().unwrap().to_owned();
+    assert_eq!(result["structuredContent"]["result"], text.as_str());
+    text
+}
+
+#[test]
+fn symbol_refs_are_type_resolved() {
+    if dev_goscan().is_none() {
+        eprintln!("skipped: go-scan dev build missing (make build-go-scan)");
+        return;
+    }
+    let project = go_project();
+    let mut server = Server::start(&project.path().canonicalize().unwrap());
+
+    let refs = tool_text(
+        &mut server,
+        "SymbolRefs",
+        json!({"target": "store.Store.Save"}),
+    );
+    assert_eq!(
+        refs,
+        "status: ok\n\
+         target: example.com/shop/store.Store.Save  (method)  store/store.go:5\n\
+         references: 3 in 2 files\n\
+         \n\
+         api/api.go\n  6, 9  example.com/shop/api.Persist\n\
+         \n\
+         api/api_test.go\n  9  example.com/shop/api.TestPersist\n\
+         \n\
+         not_analyzed: 1 file (integration: 1)"
+    );
+    let verbose = tool_text(
+        &mut server,
+        "SymbolRefs",
+        json!({"target": "store.Store.Save", "verbose": true}),
+    );
+    assert!(
+        verbose.ends_with("\n  store/store_integration_test.go  (integration)"),
+        "{verbose}"
+    );
+
+    let ambiguous = tool_text(&mut server, "SymbolRefs", json!({"target": "Save"}));
+    assert!(
+        ambiguous.starts_with("status: error\nerror_code: symbol_ambiguous\n"),
+        "{ambiguous}"
+    );
+    assert_eq!(
+        ambiguous.matches("\n  candidate: ").count(),
+        3,
+        "{ambiguous}"
+    );
+
+    let missing = tool_text(
+        &mut server,
+        "SymbolRefs",
+        json!({"target": "store.Missing"}),
+    );
+    assert!(
+        missing.starts_with("status: error\nerror_code: symbol_not_found\n"),
+        "{missing}"
+    );
+}
+
+#[test]
+fn symbol_implementers_go_both_directions() {
+    if dev_goscan().is_none() {
+        eprintln!("skipped: go-scan dev build missing (make build-go-scan)");
+        return;
+    }
+    let project = go_project();
+    let mut server = Server::start(&project.path().canonicalize().unwrap());
+
+    let implementers = tool_text(
+        &mut server,
+        "SymbolImplementers",
+        json!({"target": "store.Saver"}),
+    );
+    assert_eq!(
+        implementers,
+        "status: ok\n\
+         target: example.com/shop/store.Saver  (interface)  store/store.go:11\n\
+         implementers: 2\n\
+         \n\
+         \x20 store/store.go:7  example.com/shop/store.Memory\n\
+         \x20 store/store.go:3  example.com/shop/store.Store  (pointer receiver)\n\
+         \n\
+         not_analyzed: 1 file (integration: 1)"
+    );
+
+    let interfaces = tool_text(
+        &mut server,
+        "SymbolImplementers",
+        json!({"target": "store.Memory"}),
+    );
+    assert!(
+        interfaces.contains("\n  store/store.go:11  example.com/shop/store.Saver\n"),
+        "{interfaces}"
+    );
+
+    let not_a_type = tool_text(
+        &mut server,
+        "SymbolImplementers",
+        json!({"target": "api.Persist"}),
+    );
+    assert!(
+        not_a_type.starts_with("status: error\nerror_code: invalid_target\n"),
+        "{not_a_type}"
+    );
+}
+
+#[test]
+fn xref_tools_refuse_python_as_unsupported() {
+    let dir = empty_project();
+    let root = dir.path().canonicalize().unwrap();
+    std::fs::write(root.join("app.py"), "def run():\n    pass\n").unwrap();
+    let mut server = Server::start(&root);
+    for tool in ["SymbolRefs", "SymbolImplementers"] {
+        let text = tool_text(&mut server, tool, json!({"target": "app.run"}));
+        assert!(
+            text.starts_with("status: error\nerror_code: unsupported\nmessage: "),
+            "{tool}: {text}"
+        );
+    }
 }
 
 #[cfg(unix)]

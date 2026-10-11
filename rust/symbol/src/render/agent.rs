@@ -2,7 +2,8 @@
 //! ports of the `_render_*_agent` / `_render_error` helpers in commands/.
 //! Each returns exactly what the Python helper prints. Results arrive as
 //! the write engines' JSON; absent fields read as the Python dataclass
-//! defaults.
+//! defaults. The xref renderers (SymbolRefs, SymbolImplementers) have no
+//! Python counterpart.
 
 use serde_json::Value;
 
@@ -486,10 +487,223 @@ pub fn replace_symbol(result: &Value) -> String {
     out.finish()
 }
 
+fn plural(n: usize, word: &str) -> String {
+    format!("{n} {word}{}", if n == 1 { "" } else { "s" })
+}
+
+/// An xref refusal: code and message, then the candidates of an ambiguous
+/// path or the loader's errors.
+fn xref_error(result: &Value) -> String {
+    let mut out = Out::default();
+    out.line("status: error");
+    out.line(format!("error_code: {}", py(&result["error_code"])));
+    out.line(format!("message: {}", py(&result["message"])));
+    for c in list(result, "candidates") {
+        if c["file"].is_string() {
+            out.line(format!(
+                "  candidate: {}  {}:{}-{}",
+                py(&c["path"]),
+                py(&c["file"]),
+                py(&c["start_line"]),
+                py(&c["end_line"])
+            ));
+        } else {
+            out.line(format!("  candidate: {}", py(&c["path"])));
+        }
+    }
+    for e in list(result, "errors") {
+        out.line(format!("  {}", py(e)));
+    }
+    out.finish()
+}
+
+/// `target: path  (kind)  file:line`; a dependency's declaration has no
+/// project location.
+fn xref_target(out: &mut Out, result: &Value) {
+    let target = &result["target"];
+    let location = if target["external"] == true {
+        "dependency".to_owned()
+    } else {
+        format!("{}:{}", py(&target["file"]), py(&target["line"]))
+    };
+    out.line("status: ok");
+    out.line(format!(
+        "target: {}  ({})  {location}",
+        s(result, "qualified_path"),
+        s(target, "kind")
+    ));
+}
+
+/// Files the adapter skipped, counted per reason (its own wording, never
+/// interpreted); `verbose` lists each file.
+fn not_analyzed(out: &mut Out, result: &Value, verbose: bool) {
+    let files = list(result, "not_analyzed");
+    if files.is_empty() {
+        return;
+    }
+    let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
+    for f in files {
+        *counts.entry(s(f, "constraint")).or_default() += 1;
+    }
+    let mut groups: Vec<(&str, usize)> = counts.into_iter().collect();
+    groups.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    let groups: Vec<String> = groups.iter().map(|(c, n)| format!("{c}: {n}")).collect();
+    out.blank();
+    out.line(format!(
+        "not_analyzed: {} ({})",
+        plural(files.len(), "file"),
+        groups.join(", ")
+    ));
+    if verbose {
+        for f in files {
+            out.line(format!("  {}  ({})", s(f, "file"), s(f, "constraint")));
+        }
+    }
+}
+
+/// Reference lines under one enclosing symbol.
+type ScopeLines<'a> = (&'a str, Vec<i64>);
+
+/// SymbolRefs: sites grouped by file, then by enclosing symbol.
+pub fn references(result: &Value, verbose: bool) -> String {
+    if s(result, "status") == "error" {
+        return xref_error(result);
+    }
+    let refs = list(result, "references");
+    let mut files: Vec<(&str, Vec<ScopeLines>)> = vec![];
+    for r in refs {
+        let file = s(r, "source_file");
+        let scope = r["source_path"].as_str().unwrap_or("<top level>");
+        let line = r["ref_line"].as_i64().unwrap_or(0);
+        let pos = match files.iter().position(|(f, _)| *f == file) {
+            Some(pos) => pos,
+            None => {
+                files.push((file, vec![]));
+                files.len() - 1
+            }
+        };
+        let scopes = &mut files[pos].1;
+        match scopes.iter_mut().find(|(path, _)| *path == scope) {
+            Some((_, lines)) if lines.last() == Some(&line) => {}
+            Some((_, lines)) => lines.push(line),
+            None => scopes.push((scope, vec![line])),
+        }
+    }
+    let mut out = Out::default();
+    xref_target(&mut out, result);
+    out.line(format!(
+        "references: {} in {}",
+        refs.len(),
+        plural(files.len(), "file")
+    ));
+    for (file, scopes) in &files {
+        out.blank();
+        out.line(*file);
+        for (scope, lines) in scopes {
+            let lines: Vec<String> = lines.iter().map(i64::to_string).collect();
+            out.line(format!("  {}  {scope}", lines.join(", ")));
+        }
+    }
+    not_analyzed(&mut out, result, verbose);
+    out.finish()
+}
+
+/// SymbolImplementers: implementers of an interface, or the interfaces a
+/// concrete type satisfies.
+pub fn implementers(result: &Value, verbose: bool) -> String {
+    if s(result, "status") == "error" {
+        return xref_error(result);
+    }
+    let (label, key) = if result["target"]["kind"] == "interface" {
+        ("implementers", "implementers")
+    } else {
+        ("interfaces", "interfaces")
+    };
+    let items = list(result, key);
+    let mut out = Out::default();
+    xref_target(&mut out, result);
+    out.line(format!("{label}: {}", items.len()));
+    if !items.is_empty() {
+        out.blank();
+    }
+    for item in items {
+        let mut notes = vec![];
+        if item["pointer"] == true {
+            notes.push("pointer receiver");
+        }
+        let location = if item["external"] == true {
+            notes.push("dependency");
+            String::new()
+        } else {
+            format!("{}:{}  ", py(&item["file"]), py(&item["line"]))
+        };
+        let notes = if notes.is_empty() {
+            String::new()
+        } else {
+            format!("  ({})", notes.join(", "))
+        };
+        out.line(format!("  {location}{}{notes}", s(item, "path")));
+    }
+    not_analyzed(&mut out, result, verbose);
+    out.finish()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn references_group_by_file_and_enclosing_symbol() {
+        let site = |file: &str, line: i64, path: Value| json!({"source_file": file, "ref_line": line, "ref_col": 1, "source_path": path});
+        let text = references(
+            &json!({
+                "status": "ok",
+                "qualified_path": "m/p.T.Save",
+                "target": {"kind": "method", "external": false, "file": "p/t.go", "line": 7},
+                "references": [
+                    site("a.go", 3, json!("m/a.F")),
+                    site("a.go", 3, json!("m/a.F")),
+                    site("a.go", 9, json!("m/a.F")),
+                    site("a.go", 12, Value::Null),
+                    site("b.go", 4, json!("m/b.G")),
+                ],
+                "not_analyzed": [
+                    {"file": "p/x_plan9.go", "constraint": "plan9"},
+                    {"file": "p/y_test.go", "constraint": "integration"},
+                    {"file": "p/z_test.go", "constraint": "integration"},
+                ],
+            }),
+            false,
+        );
+        assert_eq!(
+            text,
+            "status: ok\ntarget: m/p.T.Save  (method)  p/t.go:7\nreferences: 5 in 2 files\n\n\
+             a.go\n  3, 9  m/a.F\n  12  <top level>\n\nb.go\n  4  m/b.G\n\n\
+             not_analyzed: 3 files (integration: 2, plan9: 1)\n"
+        );
+    }
+
+    #[test]
+    fn xref_errors_list_candidates() {
+        let text = implementers(
+            &json!({
+                "status": "error",
+                "error_code": "symbol_ambiguous",
+                "message": "2 symbols match \"Save\"",
+                "candidates": [
+                    {"path": "m/a.Save", "file": "a.go", "start_line": 1, "end_line": 2},
+                    {"path": "m/b.Save"},
+                ],
+            }),
+            false,
+        );
+        assert_eq!(
+            text,
+            "status: error\nerror_code: symbol_ambiguous\nmessage: 2 symbols match \"Save\"\n  \
+             candidate: m/a.Save  a.go:1-2\n  candidate: m/b.Save\n"
+        );
+    }
 
     #[test]
     fn patch_error_spells_none_like_python() {
