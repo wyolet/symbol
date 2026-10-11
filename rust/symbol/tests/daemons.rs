@@ -145,6 +145,32 @@ fn index_fails_when_pyscan_missing() {
 }
 
 #[test]
+fn rename_fails_when_goscan_missing() {
+    let Some(goscan) = dev_goscan() else {
+        eprintln!("skipped: go-scan dev build missing (make build-go-scan)");
+        return;
+    };
+    let (bin_dir, bin) = install(Some(&goscan));
+    let project = go_project();
+    let out = run_isolated(&bin, project.path(), &["index"]);
+    assert!(out.status.success(), "index failed: {out:?}");
+    let source = std::fs::read(project.path().join("demo.go")).unwrap();
+
+    // The index is clean, so the daemon is first needed by the write itself.
+    std::fs::remove_file(bin_dir.path().join("go-scan")).unwrap();
+    let out = run_isolated(
+        &bin,
+        project.path(),
+        &["rename-symbol", "example.com/demo.Hello", "Greet"],
+    );
+    assert_daemon_unavailable(&out, "go", "SYMBOL_GOSCAN");
+    assert_eq!(
+        std::fs::read(project.path().join("demo.go")).unwrap(),
+        source
+    );
+}
+
+#[test]
 fn refresh_keeps_index_when_goscan_missing() {
     let Some(goscan) = dev_goscan() else {
         eprintln!("skipped: go-scan dev build missing (make build-go-scan)");

@@ -574,13 +574,14 @@ impl DaemonUnavailable {
     }
 }
 
-/// Structured form of an index-maintenance error for JSON-reporting callers.
-pub fn error_json(err: &anyhow::Error) -> serde_json::Value {
+/// Structured form of an adapter/index error for JSON-reporting callers;
+/// errors other than DaemonUnavailable get `fallback_code`.
+pub fn error_json(err: &anyhow::Error, fallback_code: &str) -> serde_json::Value {
     match err.downcast_ref::<DaemonUnavailable>() {
         Some(unavailable) => unavailable.to_json(),
         None => serde_json::json!({
             "status": "error",
-            "error_code": "index_error",
+            "error_code": fallback_code,
             "message": format!("{err:#}"),
         }),
     }

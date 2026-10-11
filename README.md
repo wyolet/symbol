@@ -56,9 +56,9 @@ Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` override the full command.
 Without an override, `go-scan` (or `go-scan-<os>-<arch>`) is taken from the
 directory holding the `symbol` executable, then from a source checkout
 (`SYMBOL_REPO`, else the one the binary was built from). If the project has
-files in a language whose daemon can't start, `index`, `refresh`, and commands
-that need a refresh exit non-zero with `error_code: "daemon_unavailable"` and
-leave the existing index untouched.
+files in a language whose daemon can't start, `index`, `refresh`, symbol-level
+writes, and reads that need a refresh exit non-zero with
+`error_code: "daemon_unavailable"` and leave the index and files untouched.
 
 ## Install
 
@@ -79,7 +79,9 @@ alias symbol="$PWD/target/release/symbol"
 
 The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
 lets you build it locally via `make build-go-scan`. For Go projects without
-Python, place a `go-scan` binary next to `symbol`. Python analysis uses the
+Python, place a `go-scan` binary next to `symbol`. Go renames also need the Go
+toolchain (`go`) on `PATH`, since go-scan's rename loads packages through
+`packages.Load`; indexing and reads don't. Python analysis uses the
 `pyscan` adapter from this repo — no separate build.
 
 ## Usage

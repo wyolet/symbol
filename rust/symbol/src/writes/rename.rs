@@ -8,7 +8,7 @@ use std::path::Path;
 
 use crate::adapters::Registry;
 use crate::index::Index;
-use crate::writes::ops::resolve_single as resolve_symbol_row;
+use crate::writes::ops::{require_adapter, resolve_single as resolve_symbol_row};
 use crate::writes::tx::{commit_edits, FileEdit};
 
 const MEMBER_KINDS: [&str; 2] = ["method", "async_method"];
@@ -153,11 +153,9 @@ fn rename_via_engine(
     // any in-memory refresh resolve_single may have done.
     let _ = index.save();
 
-    let Ok(adapter) = reg.for_language("python") else {
-        return serde_json::json!({
-            "status": "error", "error_code": "no_adapter",
-            "message": "pyscan daemon unavailable",
-        });
+    let adapter = match require_adapter(reg, "python") {
+        Ok(adapter) => adapter,
+        Err(e) => return e,
     };
 
     let owner_qpath = prefix.trim_end_matches('.').to_owned();
@@ -320,11 +318,9 @@ fn rename_via_go_engine(
     reg: &Registry,
     dry_run: bool,
 ) -> serde_json::Value {
-    let Ok(adapter) = reg.for_language("go") else {
-        return serde_json::json!({
-            "status": "error", "error_code": "no_adapter",
-            "message": "go-scan daemon unavailable",
-        });
+    let adapter = match require_adapter(reg, "go") {
+        Ok(adapter) => adapter,
+        Err(e) => return e,
     };
 
     let container_qpath = prefix.trim_end_matches('.').to_owned();

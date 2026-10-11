@@ -19,12 +19,17 @@ next to the running executable (symlinks resolved), the dev builds under
 `SYMBOL_REPO` (else the crate's own repo), then that checkout's
 wheel-bundled `src/wyolet/symbol/bin/go-scan-<os>-<arch>`.
 
+Go renames also need the Go toolchain (`go`) on `PATH`: go-scan's rename
+loads the project with `packages.Load`, which shells out to `go`. Indexing
+and reads only parse files and work without it.
+
 A daemon that can't start is an error, not a filter. Python's registry
 reports such a language as unsupported and indexes around it; the Rust
 index build and refresh instead stop with `daemon_unavailable` (language,
 daemon, env var) before saving, so an existing index is never replaced by
-one missing that language. Reads on an index that needs no refresh still
-fall back to first-line signatures and previews.
+one missing that language. Symbol-level writes that need the daemon
+refuse with the same error before touching files. Reads on an index that needs no refresh still fall
+back to first-line signatures and previews.
 
 ## Interop guarantees (verified end-to-end)
 
