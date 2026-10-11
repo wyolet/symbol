@@ -100,8 +100,8 @@ analysis it asks the caller `index/find_declaration`, `index/class_bases` and
   to be mtime-fresh and refuse ranges past end of file; argument validation
   errors omit pydantic's documentation link.
 - Index build applies linguist classification (heuristics off = Python
-  chain), the adapter gate, and global/project `[checker]` excludes. It does
-  not yet load per-package spec excludes.
+  chain), the adapter gate, and global/project `[checker]` excludes, plus
+  the per-package spec excludes of each dependency the adapters report.
 - Blank-gap normalization after delete/replace goes through the daemon
   (`normalize_blank_gaps` RPC), preserving the PEP 8 behavior for Python;
   other languages skip it.
