@@ -86,8 +86,19 @@ analysis it asks the caller `index/find_declaration`, `index/class_bases` and
 - **multi-patch** atomically applies multiple non-overlapping range-addressed
   or exact-old edits to one file. Range edits use the same read-cache preflight
   as `patch`; exact-old edits must match once and prove their own context.
-- **audit / map / analyze / MCP server not ported** — out of scope by
-  design; they're the Python-specific engine documented in CLAUDE.md.
+- **audit / analyze not ported** — out of scope by design; they're the
+  Python-specific engine documented in CLAUDE.md.
+- **`symbol mcp`** serves the Python server's twelve tools over stdio with
+  the same schemas, descriptions (embedded from
+  `src/wyolet/symbol/data/mcp_tools.toml`), result payloads and session
+  read-cache rules, and honors the same `SYMBOL_MCP_*` resource-bound env
+  vars (POSIX-only; the RSS ceiling covers the server process, not the
+  language daemons). Where it differs: `Refresh` re-parses files changed
+  out of band (the Python server only reloads a newer on-disk index);
+  `Patch` resolves relative paths against the project root rather than the
+  working directory; `MultiPatch` range edits also require the covering read
+  to be mtime-fresh and refuse ranges past end of file; argument validation
+  errors omit pydantic's documentation link.
 - Index build applies linguist classification (heuristics off = Python
   chain), the adapter gate, and global/project `[checker]` excludes. It does
   not yet load per-package spec excludes.
@@ -105,6 +116,8 @@ src/index.rs      shared/symbol_index.py — v8 format, staleness, refresh
 src/reads.rs      reads/ — search, code, outline, callers
 src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename,
                   index_query (daemon index/* queries)
+src/refresh.rs    commands/refresh.py — incremental/full reindex + tx clear
+src/mcp/          mcp/server.py — stdio MCP server, tool table, renderers
 src/main.rs       clap CLI (the `symbol` binary)
 ```
 

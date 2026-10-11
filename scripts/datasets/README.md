@@ -105,3 +105,31 @@ python gen.py <name> enum-<name>.json sigs-<name>.json scripts/datasets/<name>.j
 
 Reports land in `scripts/datasets/reports/<name>-report.json`; run via
 `uv run scripts/diff_runner.py <corpus> scripts/datasets/<name>.jsonl --report <out>`.
+
+## MCP mode
+
+```
+uv run scripts/diff_runner.py <corpus> scripts/datasets/<name>.jsonl --mcp [--report <out>]
+```
+
+Starts both MCP servers (`uv run symbol mcp` and `rust/target/release/symbol
+mcp`), each on its own copy of the corpus with the copy as working directory,
+and compares full tool results: the text payload byte-for-byte after each
+copy's root is replaced with `<root>` and transaction ids are masked.
+
+- `initialize` (minus `serverInfo.version`) and `tools/list` (names, order,
+  descriptions, input/output schemas) must be identical.
+- Reads share one server pair: `code` → `SymbolBody` (plain, and again with
+  `include_refs` + `offset`/`limit`), `callers` → `SymbolCallers`, `outline` →
+  `SymbolOutline`, `search` → `SearchSymbol`.
+- Each write gets fresh copies and a fresh pair: a `dry_run` call, then the
+  real call (`patch` runs without `force`, so the first call must come back
+  `needs_read_confirmation` and the retry must pass), then the tree-state
+  verdict as in CLI mode, `SymbolOutline` of the touched files, `Undo` for
+  rename/replace (both trees must return to pristine), and `Refresh`.
+  Searches after a write compare hits as a set: both servers re-index the
+  touched files in set-iteration order, which Python randomizes per process.
+- Every successful `patch` op is replayed as `MultiPatch` (range-addressed,
+  with the same read-then-retry contract, then an `old`-addressed edit).
+
+Verdicts use the same vocabulary; every compared call counts once.

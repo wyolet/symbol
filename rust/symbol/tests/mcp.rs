@@ -1,5 +1,6 @@
 //! `symbol mcp` over real stdio: protocol negotiation, tool listing, tool
-//! results and tool errors, and the session read cache that gates Patch.
+//! results and tool errors, the session read cache that gates Patch, and
+//! the resource watchdog.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
@@ -237,4 +238,76 @@ fn patch_requires_a_read_then_passes_on_retry() {
     );
     let hits = server.json("SearchSymbol", json!({"patterns": ["g"]}));
     assert_eq!(hits["count"], 1, "{hits}");
+}
+
+#[cfg(unix)]
+fn alive(pid: &str) -> bool {
+    Command::new("kill")
+        .args(["-0", pid])
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+#[cfg(unix)]
+#[test]
+fn watchdog_exits_when_the_parent_dies() {
+    let dir = empty_project();
+    let root = dir.path().canonicalize().unwrap();
+    // The shell backgrounds the server on the test's stdin pipe and exits,
+    // orphaning it while its stdin stays open.
+    let mut shell = Command::new("sh")
+        .arg("-c")
+        .arg("\"$0\" --root \"$1\" mcp <&0 >/dev/null 2>&1 & echo $!")
+        .arg(env!("CARGO_BIN_EXE_symbol"))
+        .arg(&root)
+        .env("SYMBOL_MCP_WATCHDOG_INTERVAL", "0.2")
+        .env("SYMBOL_MCP_NICE", "0")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    // Held open for the whole test: `wait` would otherwise close it and the
+    // server would exit on EOF instead of through the watchdog.
+    let server_stdin = shell.stdin.take();
+    let mut pid = String::new();
+    BufReader::new(shell.stdout.take().unwrap())
+        .read_line(&mut pid)
+        .unwrap();
+    let pid = pid.trim().to_owned();
+    shell.wait().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while alive(&pid) && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let survived = alive(&pid);
+    if survived {
+        let _ = Command::new("kill").arg(&pid).status();
+    }
+    drop(server_stdin);
+    assert!(!survived, "orphaned server {pid} did not exit");
+}
+
+#[cfg(unix)]
+#[test]
+fn watchdog_exits_past_the_rss_ceiling() {
+    let dir = empty_project();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_symbol"))
+        .arg("--root")
+        .arg(dir.path())
+        .arg("mcp")
+        .env("SYMBOL_MCP_MEM_LIMIT_MB", "1")
+        .env("SYMBOL_MCP_WATCHDOG_INTERVAL", "0.1")
+        .env("SYMBOL_MCP_NICE", "0")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let _open_stdin = child.stdin.take();
+    let status = child.wait().unwrap();
+    let mut stderr = String::new();
+    std::io::Read::read_to_string(&mut child.stderr.take().unwrap(), &mut stderr).unwrap();
+    assert_eq!(status.code(), Some(137), "{stderr}");
+    assert!(stderr.contains("ceiling"), "{stderr}");
 }

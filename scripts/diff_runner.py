@@ -32,11 +32,19 @@ Verdicts: match | both_refused | known_divergence | MISMATCH. Exit 1 if any
 MISMATCH. both_refused marks a non-expect_error write neither side applied.
 Ground truth is the Python implementation — the runner never invents
 expectations of its own.
+
+MCP mode (--mcp) replays the same dataset as tool calls against both MCP
+servers (`symbol mcp`), each on its own copy of the target, and compares
+the full tool results (text payloads byte-for-byte, after replacing each
+copy's root with <root>), plus tools/list and initialize. See McpRunner.
 """
 
 import argparse
+import difflib
 import hashlib
 import json
+import os
+import select
 import shutil
 import subprocess
 import sys
@@ -400,16 +408,362 @@ class Runner:
         }
 
 
+# ---------------------------------------------------------- MCP mode
+
+MCP_PROTOCOL = "2025-06-18"
+MCP_TIMEOUT_S = 600
+
+
+class McpServer:
+    """One `symbol mcp` process driven over newline-delimited JSON-RPC."""
+
+    def __init__(self, cmd: list[str], root: Path):
+        self.root = root
+        self.proc = subprocess.Popen(
+            cmd, cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True,
+        )
+        self.seq = 0
+        self.initialize = self.request(
+            "initialize",
+            {"protocolVersion": MCP_PROTOCOL, "capabilities": {},
+             "clientInfo": {"name": "diff_runner", "version": "0"}},
+        )
+        self.notify("notifications/initialized")
+
+    def notify(self, method: str):
+        self.proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": method}) + "\n")
+        self.proc.stdin.flush()
+
+    def request(self, method: str, params: dict) -> dict:
+        self.seq += 1
+        msg = {"jsonrpc": "2.0", "id": self.seq, "method": method, "params": params}
+        self.proc.stdin.write(json.dumps(msg) + "\n")
+        self.proc.stdin.flush()
+        ready, _, _ = select.select([self.proc.stdout], [], [], MCP_TIMEOUT_S)
+        line = self.proc.stdout.readline() if ready else ""
+        if not line:
+            raise RuntimeError(f"no reply to {method} (exit={self.proc.poll()})")
+        reply = json.loads(line)
+        if "error" in reply:
+            return {"rpc_error": reply["error"]}
+        return reply["result"]
+
+    def call(self, tool: str, arguments: dict) -> dict:
+        return self.request("tools/call", {"name": tool, "arguments": arguments})
+
+    def close(self):
+        try:
+            self.proc.stdin.close()
+            self.proc.wait(timeout=30)
+        except (OSError, subprocess.TimeoutExpired):
+            self.proc.kill()
+            self.proc.wait()
+
+
+def py_mcp(root: Path) -> McpServer:
+    return McpServer(["uv", "run", "--project", str(REPO), "symbol", "mcp", "--root", str(root)], root)
+
+
+def rs_mcp(root: Path) -> McpServer:
+    return McpServer([str(RUST_BIN), "--root", str(root), "mcp"], root)
+
+
+def mcp_read_calls(op: str, args: dict) -> list[tuple[str, dict]]:
+    if op == "code":
+        target = args["target"]
+        return [
+            ("SymbolBody", {"target": target}),
+            ("SymbolBody", {"target": target, "include_refs": True, "offset": 1, "limit": 3}),
+        ]
+    if op == "callers":
+        return [("SymbolCallers", {"name": args["name"]})]
+    if op == "outline":
+        return [("SymbolOutline", {"target": args["query"]})]
+    if op == "search":
+        return [("SearchSymbol", {
+            "patterns": args.get("patterns", []), "kind": args.get("kind"),
+            "file": args.get("file"), "regex": bool(args.get("regex")),
+            "fixed": bool(args.get("fixed")), "ignore_case": bool(args.get("ignore_case")),
+            "limit": int(args.get("limit", 100)),
+        })]
+    raise ValueError(op)
+
+
+def mcp_write_call(op: str, args: dict) -> tuple[str, dict]:
+    if op == "rename-symbol":
+        return "RenameSymbol", {"target": args["qualified_path"], "new_name": args["new_name"]}
+    if op == "replace-symbol":
+        return "ReplaceSymbol", {"target": args["qualified_path"], "content": args["content"]}
+    if op == "delete-symbol":
+        return "DeleteSymbol", {"target": args["qualified_path"], "force": bool(args.get("force"))}
+    if op == "insert-symbol":
+        return "InsertSymbol", {
+            "target": args["anchor_path"], "position": args["position"],
+            "content": args.get("content", ""), "reindent": not args.get("no_reindent"),
+        }
+    if op == "patch":
+        # No force: the first call must come back needs_read_confirmation
+        # and the retry must pass — the session read-cache contract.
+        return "Patch", {"file": args["file"], "range": args["range"],
+                         "content": args.get("content", "")}
+    raise ValueError(op)
+
+
+def mcp_normalize(result, root: Path):
+    """Replace the copy's root in every string; mask transaction ids."""
+    roots = sorted({str(root), str(root.resolve()), os.path.realpath(root)}, key=len, reverse=True)
+
+    def fix(v):
+        if isinstance(v, str):
+            for r in roots:
+                v = v.replace(r, "<root>")
+            return v
+        if isinstance(v, list):
+            return [fix(x) for x in v]
+        if isinstance(v, dict):
+            return {k: fix(x) for k, x in v.items()}
+        return v
+
+    result = fix(result)
+    for block in result.get("content", []) if isinstance(result, dict) else []:
+        text = block.get("text", "")
+        if text.startswith("{"):
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict) and payload.get("transaction_id"):
+                payload["transaction_id"] = "<tx>"
+                # Re-serialize with the same layout both servers use.
+                block["text"] = json.dumps(payload, indent=2, ensure_ascii=False)
+    return result
+
+
+def mcp_sort_hits(result):
+    """SearchSymbol payload with `hits` in a canonical order."""
+    for block in result.get("content", []) if isinstance(result, dict) else []:
+        try:
+            payload = json.loads(block.get("text", ""))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and isinstance(payload.get("hits"), list):
+            payload["hits"] = sorted(payload["hits"], key=lambda h: json.dumps(h, sort_keys=True))
+            block["text"] = json.dumps(payload, indent=2, ensure_ascii=False)
+    return result
+
+
+def mcp_text(result) -> str:
+    if not isinstance(result, dict):
+        return json.dumps(result)
+    parts = [b.get("text", "") for b in result.get("content", [])]
+    return "\n".join(parts) if parts else json.dumps(result, indent=2)
+
+
+def mcp_diff(a, b) -> str:
+    lines = difflib.unified_diff(
+        mcp_text(a).splitlines(), mcp_text(b).splitlines(), "py", "rs", lineterm="", n=1,
+    )
+    return "\n".join(list(lines)[:40]) or f"envelope py={a} rs={b}"
+
+
+class McpRunner(Runner):
+    """Dataset replay against both MCP servers. Reads share one server pair;
+    every write gets fresh copies and a fresh pair, and runs dry-run → apply
+    → follow-up reads (outline of touched files) → Undo → Refresh."""
+
+    def verdict(self, kind, op_id, op, detail=""):
+        self.verdicts[kind] += 1
+        if kind == "MISMATCH":
+            self.failures.append({"id": op_id, "op": op, "detail": detail[:3000]})
+
+    def compare(self, op_id, op, py_out, rs_out, py_root, rs_root, unordered_hits=False):
+        a, b = mcp_normalize(py_out, py_root), mcp_normalize(rs_out, rs_root)
+        if unordered_hits:
+            a, b = mcp_sort_hits(a), mcp_sort_hits(b)
+        if a == b:
+            self.verdict("match", op_id, op)
+        else:
+            self.verdict("MISMATCH", op_id, op, mcp_diff(a, b))
+        return a == b
+
+    def timed_call(self, server: McpServer, side: str, tool: str, arguments: dict):
+        t0 = time.perf_counter()
+        out = server.call(tool, arguments)
+        self.timings[tool][side].append(time.perf_counter() - t0)
+        return out
+
+    def pair_call(self, op_id, py, rs, tool, arguments, unordered_hits=False):
+        py_out = self.timed_call(py, "py", tool, arguments)
+        rs_out = self.timed_call(rs, "rs", tool, arguments)
+        self.compare(op_id, tool, py_out, rs_out, py.root, rs.root, unordered_hits)
+        return py_out, rs_out
+
+    def tools_check(self):
+        py_copy, rs_copy = self.fresh_copy("toolspy"), self.fresh_copy("toolsrs")
+        py, rs = py_mcp(py_copy), rs_mcp(rs_copy)
+        try:
+            a = dict(py.initialize, serverInfo={"name": py.initialize["serverInfo"]["name"]})
+            b = dict(rs.initialize, serverInfo={"name": rs.initialize["serverInfo"]["name"]})
+            self.compare("initialize", "initialize", a, b, py_copy, rs_copy)
+            py_tools = py.request("tools/list", {})
+            rs_tools = rs.request("tools/list", {})
+            if py_tools == rs_tools:
+                self.verdict("match", "tools/list", "tools/list")
+            else:
+                pt = {t["name"]: t for t in py_tools.get("tools", [])}
+                rt = {t["name"]: t for t in rs_tools.get("tools", [])}
+                for name in sorted(set(pt) | set(rt)):
+                    if pt.get(name) != rt.get(name):
+                        self.verdict("MISMATCH", f"tools/list:{name}", "tools/list",
+                                     f"py={json.dumps(pt.get(name))[:240]} rs={json.dumps(rt.get(name))[:240]}")
+                if [t["name"] for t in py_tools["tools"]] != [t["name"] for t in rs_tools["tools"]]:
+                    self.verdict("MISMATCH", "tools/list:order", "tools/list", "tool order differs")
+        finally:
+            py.close()
+            rs.close()
+            shutil.rmtree(py_copy, ignore_errors=True)
+            shutil.rmtree(rs_copy, ignore_errors=True)
+
+    def run_ops(self, ops: list[dict]):
+        read_ops = [o for o in ops if o["op"] in READ_OPS]
+        write_ops = [o for o in ops if o["op"] in WRITE_OPS]
+        for o in ops:
+            if o["op"] not in READ_OPS | WRITE_OPS:
+                self.verdict("MISMATCH", o.get("id", "?"), o["op"], "unknown op")
+
+        if read_ops:
+            py_copy, rs_copy = self.fresh_copy("mreadpy"), self.fresh_copy("mreadrs")
+            py, rs = py_mcp(py_copy), rs_mcp(rs_copy)
+            try:
+                for o in read_ops:
+                    for i, (tool, arguments) in enumerate(mcp_read_calls(o["op"], o.get("args", {}))):
+                        self.pair_call(f"{o.get('id', '?')}/{i}", py, rs, tool, arguments)
+            finally:
+                py.close()
+                rs.close()
+                shutil.rmtree(py_copy, ignore_errors=True)
+                shutil.rmtree(rs_copy, ignore_errors=True)
+
+        for o in write_ops:
+            self.run_write(o)
+            if o["op"] == "patch" and not o.get("expect_error"):
+                self.run_multi_patch(o)
+
+    def with_pair(self, tag, body):
+        py_copy, rs_copy = self.fresh_copy(f"{tag}py"), self.fresh_copy(f"{tag}rs")
+        pristine = tree_hash(py_copy)
+        py = rs = None
+        try:
+            py, rs = py_mcp(py_copy), rs_mcp(rs_copy)
+            body(py, rs, pristine)
+        finally:
+            for server in (py, rs):
+                if server is not None:
+                    server.close()
+            shutil.rmtree(py_copy, ignore_errors=True)
+            shutil.rmtree(rs_copy, ignore_errors=True)
+
+    def tree_verdict(self, o, py_root, rs_root, pristine):
+        op, op_id = o["op"], o.get("id", "?")
+        after_py, after_rs = tree_hash(py_root), tree_hash(rs_root)
+        py_changed, rs_changed = after_py != pristine, after_rs != pristine
+        if o.get("expect_error"):
+            ok = not py_changed and not rs_changed
+            self.verdict("match" if ok else "MISMATCH", op_id, op,
+                         "" if ok else f"expected refusal; py_changed={py_changed} rs_changed={rs_changed}")
+        elif not py_changed and not rs_changed:
+            self.verdict("both_refused", op_id, op)
+        elif after_py == after_rs:
+            self.verdict("match", op_id, op)
+        else:
+            diff_files = sorted(k for k in set(after_py) | set(after_rs)
+                                if after_py.get(k) != after_rs.get(k))
+            kind = "known_divergence" if ("engine-kind" in set(o.get("tags", []))
+                                          and op == "rename-symbol") else "MISMATCH"
+            self.verdict(kind, op_id, op, f"trees differ: {diff_files[:6]}")
+        changed = sorted(k for k in set(after_py) | set(pristine)
+                         if after_py.get(k) != pristine.get(k))
+        return py_changed or rs_changed, changed
+
+    def run_write(self, o: dict):
+        op, args, op_id = o["op"], o.get("args", {}), o.get("id", "?")
+        tool, arguments = mcp_write_call(op, args)
+
+        def body(py, rs, pristine):
+            if op == "patch":
+                steps = [("needs-read", {**arguments, "dry_run": True}),
+                         ("dry", {**arguments, "dry_run": True}),
+                         ("apply", arguments)]
+            else:
+                steps = [("dry", {**arguments, "dry_run": True}), ("apply", arguments)]
+            for label, a in steps:
+                self.pair_call(f"{op_id}/{label}", py, rs, tool, a)
+            changed, files = self.tree_verdict(o, py.root, rs.root, pristine)
+            if not changed:
+                return
+            # The in-RAM index must reflect the write on both sides.
+            for f in [f for f in files if (py.root / f).is_file()][:3]:
+                self.pair_call(f"{op_id}/outline:{f}", py, rs, "SymbolOutline", {"target": f})
+            # Hit order after a multi-file refresh follows set iteration on
+            # both sides (hash-randomized in Python), so compare as a set.
+            if op == "rename-symbol":
+                self.pair_call(f"{op_id}/search-new", py, rs, "SearchSymbol",
+                               {"patterns": [args["new_name"]]}, unordered_hits=True)
+            if op in {"rename-symbol", "replace-symbol"}:
+                self.pair_call(f"{op_id}/undo", py, rs, "Undo", {})
+                for side, server in (("py", py), ("rs", rs)):
+                    ok = tree_hash(server.root) == pristine
+                    self.verdict("match" if ok else "MISMATCH", f"{op_id}/undo-{side}", op,
+                                 f"{side} undo not pristine")
+                leaf = args["qualified_path"].rsplit(".", 1)[-1]
+                self.pair_call(f"{op_id}/search-old", py, rs, "SearchSymbol",
+                               {"patterns": [leaf]}, unordered_hits=True)
+            self.pair_call(f"{op_id}/refresh", py, rs, "Refresh", {})
+
+        self.with_pair("mw", body)
+
+    def run_multi_patch(self, o: dict):
+        """MultiPatch twins of a patch op: range-addressed (needs a read,
+        then passes on retry), then an `old`-addressed edit of the bytes it
+        wrote (no read needed)."""
+        args, op_id = o.get("args", {}), o.get("id", "?")
+        edit = {"range": args["range"], "content": args.get("content", "")}
+
+        def body(py, rs, pristine):
+            call = {"file": args["file"], "edits": [edit]}
+            self.pair_call(f"{op_id}/mp-needs-read", py, rs, "MultiPatch", call)
+            py_out, _ = self.pair_call(f"{op_id}/mp-range", py, rs, "MultiPatch", call)
+            self.tree_verdict({**o, "id": f"{op_id}/mp-tree"}, py.root, rs.root, pristine)
+            written = edit["content"]
+            if written and "status: applied" in mcp_text(py_out):
+                self.pair_call(f"{op_id}/mp-old", py, rs, "MultiPatch",
+                               {"file": args["file"],
+                                "edits": [{"old": written, "content": "# rewritten\n"}]})
+                ok = tree_hash(py.root) == tree_hash(rs.root)
+                self.verdict("match" if ok else "MISMATCH", f"{op_id}/mp-old-tree", "MultiPatch",
+                             "" if ok else "trees differ after old-addressed edit")
+            self.pair_call(f"{op_id}/mp-outline", py, rs, "SymbolOutline", {"target": args["file"]})
+
+        self.with_pair("mmp", body)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("target")
     ap.add_argument("ops", nargs="?", help="ops dataset (JSONL)")
     ap.add_argument("--index-check", action="store_true")
+    ap.add_argument("--mcp", action="store_true",
+                    help="compare the MCP servers (tools/list + dataset as tool calls)")
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
 
-    runner = Runner(Path(args.target).resolve())
-    if args.index_check or not args.ops:
+    if args.mcp:
+        runner = McpRunner(Path(args.target).resolve())
+        runner.tools_check()
+    else:
+        runner = Runner(Path(args.target).resolve())
+    if not args.mcp and (args.index_check or not args.ops):
         runner.index_check()
     if args.ops:
         ops = [json.loads(l) for l in Path(args.ops).read_text().splitlines() if l.strip()]
