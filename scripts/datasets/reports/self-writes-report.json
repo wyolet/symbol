@@ -1,0 +1,39 @@
+{
+  "target": "/private/tmp/claude-501/-Users-abror/b63e7176-916f-4fc0-8c06-591746cb8815/scratchpad/selfcopy",
+  "verdicts": {
+    "match": 176
+  },
+  "failures": [],
+  "timing_median_s": {
+    "rename-symbol": {
+      "py": 1.4298,
+      "rs": 0.6007,
+      "n": 46
+    },
+    "rename-parameter": {
+      "py": 1.4648,
+      "rs": 0.6236,
+      "n": 11
+    },
+    "insert-symbol": {
+      "py": 1.3857,
+      "rs": 0.5659,
+      "n": 3
+    },
+    "patch": {
+      "py": 0.3303,
+      "rs": 0.0133,
+      "n": 2
+    },
+    "delete-symbol": {
+      "py": 1.3738,
+      "rs": 0.522,
+      "n": 3
+    },
+    "replace-symbol": {
+      "py": 0.3504,
+      "rs": 0.5065,
+      "n": 1
+    }
+  }
+}

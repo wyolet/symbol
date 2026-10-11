@@ -1,0 +1,14 @@
+{
+  "target": "/private/tmp/claude-501/-Users-abror/b63e7176-916f-4fc0-8c06-591746cb8815/scratchpad/gin",
+  "verdicts": {
+    "match": 1614
+  },
+  "failures": [],
+  "timing_median_s": {
+    "index": {
+      "py": 0.4876,
+      "rs": 0.1094,
+      "n": 1
+    }
+  }
+}

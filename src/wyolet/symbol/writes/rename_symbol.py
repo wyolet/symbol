@@ -173,7 +173,8 @@ def resolve_rename_symbol(
         declaring_lang in ("python", "go")
         and kind in (
             # python
-            "method", "async_method", "function", "async_function", "class", "constant",
+            "method", "async_method", "function", "async_function", "class",
+            "constant", "field", "attribute",
             # go (per adapters/go_ast scan output)
             "type", "var", "const",
         )
@@ -253,7 +254,12 @@ def _apply_via_engine(
 
     renamer = SymbolRenamer(index, project_root, default_registry())
     r = renamer.rename(request.qualified_path, request.new_name, dry_run=dry_run)
+    return public_result_from_engine(r)
 
+
+def public_result_from_engine(r) -> RenameSymbolResult:
+    """Map a neutral `RenameResult` (writes/rename/result.py) to the public
+    CLI/MCP surface. Shared by symbol and parameter rename."""
     return RenameSymbolResult(
         status=r.status,
         qualified_path=r.qualified_path,
@@ -264,6 +270,7 @@ def _apply_via_engine(
         declaring_file=r.declaring_file,
         error_code=r.error_code,
         message=r.message,
+        candidates=tuple(r.candidates),
         unresolved=tuple(
             _UnresolvedSitePub(
                 file=u.file, line=u.line, col=u.col,

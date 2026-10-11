@@ -1,0 +1,30 @@
+[package]
+name = "symbol-linguist"
+version = "0.1.0"
+edition = "2021"
+description = "Rust port of symbol's GitHub-Linguist language detection + LOC counting"
+license = "Apache-2.0"
+
+[lib]
+name = "symbol_linguist"
+path = "src/lib.rs"
+
+[[bin]]
+name = "symbol-linguist"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+fancy-regex = "0.14"
+memchr = "2"
+rayon = "1"
+regex = "1"
+rmp-serde = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+zstd = "0.13"
+
+[dev-dependencies]
+tempfile = "3"

@@ -91,6 +91,7 @@ class ScannedSymbol:
     byte_range: tuple[int, int]
     line_range: tuple[int, int]
     refs: tuple[ScannedRef, ...] = ()
+    bases: tuple[str, ...] = ()
     children: tuple["ScannedSymbol", ...] = ()
 
 

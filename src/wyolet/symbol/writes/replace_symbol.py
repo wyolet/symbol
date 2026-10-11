@@ -37,10 +37,25 @@ from wyolet.symbol.writes._blank_lines import normalize_file_blank_gaps
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
 
 
+_FUNC_FAMILY = frozenset({"function", "async_function", "method", "async_method"})
+
+
 @dataclass(frozen=True)
 class PerFileChange:
     file: str
     refs_updated: int
+
+
+@dataclass(frozen=True)
+class ParameterRename:
+    """A parameter rename detected from a signature edit and propagated to
+    keyword-argument call sites. `refs_updated`/`skipped_mismatch`/`unresolved`
+    are aggregate site counts across all candidate files for this one param."""
+    old: str
+    new: str
+    refs_updated: int
+    skipped_mismatch: int
+    unresolved: int
 
 
 @dataclass(frozen=True)
@@ -55,6 +70,10 @@ class ReplaceSymbolRequest:
     per_file_counts: tuple[PerFileChange, ...]
     new_signature: str
     kind: str
+    parameter_renames: tuple[ParameterRename, ...] = ()
+    signature_changed: bool = False
+    old_parameters: tuple[str, ...] = ()
+    new_parameters: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -69,6 +88,10 @@ class ReplaceSymbolResult:
     files_changed: int = 0
     refs_updated: int = 0
     per_file: tuple[PerFileChange, ...] = ()
+    parameter_renames: tuple[ParameterRename, ...] = ()
+    signature_changed: bool = False
+    old_parameters: tuple[str, ...] = ()
+    new_parameters: tuple[str, ...] = ()
     error_code: str | None = None
     message: str | None = None
     candidates: tuple[str, ...] = ()
@@ -265,6 +288,51 @@ def resolve_replace_symbol(
             )
             per_file.append(PerFileChange(file=rel, refs_updated=count))
 
+    # Parameter renames are a CONSEQUENCE of a signature edit, not a verb.
+    # When the target is function-family, compare the OLD def's parameter list
+    # against the NEW content's. A conservative positional pairing detects
+    # unambiguous renames and propagates them to keyword-argument call sites
+    # (folded into the SAME transaction). Arity change / swap / reorder →
+    # no propagation, just `signature_changed` for the caller's awareness.
+    parameter_renames: tuple[ParameterRename, ...] = ()
+    signature_changed = False
+    old_params_out: tuple[str, ...] = ()
+    new_params_out: tuple[str, ...] = ()
+
+    if old_kind in _FUNC_FAMILY and hasattr(adapter, "function_parameters") and hasattr(adapter, "rename_parameter"):
+        mp = adapter.module_prefix(declaring_file_abs, project_root)
+        old_slice = textwrap.dedent(
+            declaring_source[start:end].decode("utf-8", errors="replace")
+        ).encode("utf-8")
+        old_params = adapter.function_parameters(
+            path=declaring_file_abs, project_root=project_root, source=old_slice,
+            func_qpath=f"{mp}.{old_leaf}" if mp else old_leaf, decl_byte_range=None,
+        )
+        new_params = adapter.function_parameters(
+            path=declaring_file_abs, project_root=project_root, source=parse_bytes,
+            func_qpath=f"{mp}.{new_leaf}" if mp else new_leaf, decl_byte_range=None,
+        )
+        detected = _detect_param_renames(old_params, new_params)
+        if detected is None:
+            # arity change or ambiguous pairing (swap/reorder) — decline to
+            # propagate, but tell the caller the signature moved so they know
+            # kwarg sites were NOT touched.
+            if (
+                old_params is not None
+                and new_params is not None
+                and tuple(old_params) != tuple(new_params)
+            ):
+                signature_changed = True
+                old_params_out = tuple(old_params)
+                new_params_out = tuple(new_params)
+        elif detected:
+            edits, parameter_renames = _propagate_param_renames(
+                adapter=adapter, index=index, project_root=project_root,
+                declaring_file_rel=declaring_file_rel, func_leaf=old_leaf,
+                new_leaf=new_leaf, new_qpath=new_qpath, renames=detected,
+                edits=edits,
+            )
+
     # Extract new signature from the parsed (dedented) symbol.
     new_sig = _first_line(parse_bytes, new_sym.signature_line)
 
@@ -279,6 +347,10 @@ def resolve_replace_symbol(
         per_file_counts=tuple(per_file),
         new_signature=new_sig,
         kind=old_kind,
+        parameter_renames=parameter_renames,
+        signature_changed=signature_changed,
+        old_parameters=old_params_out,
+        new_parameters=new_params_out,
     )
 
 
@@ -331,25 +403,154 @@ def apply_replace_symbol(
         files_changed=len(request.edits),
         refs_updated=total_refs,
         per_file=request.per_file_counts,
+        parameter_renames=request.parameter_renames,
+        signature_changed=request.signature_changed,
+        old_parameters=request.old_parameters,
+        new_parameters=request.new_parameters,
     )
+
+
+# ---------------------------------------------------------- parameter renames
+
+
+def _detect_param_renames(
+    old_params: tuple[str, ...] | None,
+    new_params: tuple[str, ...] | None,
+) -> list[tuple[str, str]] | None:
+    """Conservative positional pairing of old→new parameter lists.
+
+    Returns the list of `(old, new)` renames, or None if the edit is NOT a
+    clean set of renames (arity changed, or a swap/reorder where a "new" name
+    already existed in the old list — or vice versa). An empty list means the
+    parameter lists are identical (a pure body edit).
+    """
+    if old_params is None or new_params is None:
+        return None
+    if len(old_params) != len(new_params):
+        return None  # arity changed → not a rename
+    old_set = set(old_params)
+    new_set = set(new_params)
+    renames: list[tuple[str, str]] = []
+    for old, new in zip(old_params, new_params):
+        if old == new:
+            continue
+        # Unambiguous only when the new name is genuinely fresh (never in the
+        # old list) AND the old name is genuinely gone (never in the new list).
+        # This rules out swaps (a,b)->(b,a) and reorders.
+        if new in old_set or old in new_set:
+            return None
+        renames.append((old, new))
+    return renames
+
+
+def _apply_byte_rewrites(source: bytes, rewrites) -> bytes:
+    buf = bytearray(source)
+    for r in sorted(rewrites, key=lambda x: x.byte_start, reverse=True):
+        buf[r.byte_start:r.byte_end] = r.new_text.encode("utf-8")
+    return bytes(buf)
+
+
+def _propagate_param_renames(
+    *,
+    adapter,
+    index: SymbolIndex,
+    project_root: Path,
+    declaring_file_rel: str,
+    func_leaf: str,
+    new_leaf: str,
+    new_qpath: str,
+    renames: list[tuple[str, str]],
+    edits: list[FileEdit],
+) -> tuple[list[FileEdit], tuple[ParameterRename, ...]]:
+    """Run the kwargs_only parameter-rename engine per candidate file and fold
+    the resulting keyword-argument rewrites into the existing FileEdit set.
+
+    The analysis runs against POST-splice content: the declaring file's edit
+    already carries the new signature/body, and any function-name-rename edits
+    on other files are already applied — so callee resolution keys off the
+    POST-rename identity (`new_leaf` / `new_qpath`). Rewrites for each param
+    are applied sequentially per file (content recomputed between params).
+    """
+    from wyolet.symbol.writes.rename.index_query import RenamerIndexQuery
+
+    iq = RenamerIndexQuery(index, project_root)
+
+    # Pending content, seeded from the edits already staged (declaring splice +
+    # cross-file function-name renames). Files not yet edited are read on demand.
+    pending: dict[str, bytes] = {e.file_rel: e.new_content for e in edits}
+    order: list[str] = [e.file_rel for e in edits]
+
+    # Candidate files (reuses the renamer enumeration): declaring file +
+    # in-body callers of the leaf + module-level import-alias files.
+    candidates: set[str] = {declaring_file_rel}
+    for src_row, _line, _kind in index.callers_of(func_leaf):
+        candidates.add(index.file_of(src_row))
+    for file_id in range(len(index.files)):
+        for local, _source, _line in index.imports_for(file_id):
+            if local == func_leaf:
+                candidates.add(index.files[file_id])
+                break
+
+    agg: dict[tuple[str, str], list[int]] = {(o, n): [0, 0, 0] for o, n in renames}
+
+    for rel in sorted(candidates):
+        if index.language_of_file(rel) != "python":
+            continue
+        abs_path = project_root / rel
+        if rel in pending:
+            current = pending[rel]
+        else:
+            try:
+                current = abs_path.read_bytes()
+            except OSError:
+                continue
+        changed = False
+        for old, new in renames:
+            analysis = adapter.rename_parameter(
+                path=abs_path, project_root=project_root, source=current,
+                func_qpath=new_qpath, func_leaf=new_leaf, param=old,
+                index=iq, is_declaring_file=(rel == declaring_file_rel),
+                decl_byte_range=None, new_name=new, kwargs_only=True,
+            )
+            counts = agg[(old, new)]
+            counts[0] += len(analysis.rewrites)
+            counts[1] += len(analysis.skipped_mismatch)
+            counts[2] += len(analysis.unresolved)
+            if analysis.rewrites:
+                current = _apply_byte_rewrites(current, analysis.rewrites)
+                changed = True
+        if changed:
+            pending[rel] = current
+            if rel not in order:
+                order.append(rel)
+
+    new_edits = [
+        FileEdit(file_abs=project_root / rel, file_rel=rel, new_content=pending[rel])
+        for rel in order
+    ]
+    parameter_renames = tuple(
+        ParameterRename(
+            old=o, new=n,
+            refs_updated=c[0], skipped_mismatch=c[1], unresolved=c[2],
+        )
+        for (o, n), c in agg.items()
+    )
+    return new_edits, parameter_renames
 
 
 # ---------------------------------------------------------- helpers
 
 
 def _kinds_compatible(old_kind: str, new_kind: str) -> bool:
-    """Kinds in the same family match. `function` and `async_function` are
-    one family; everything else must match exactly."""
+    """Kinds in the same family match. All callable kinds — `function`,
+    `async_function`, `method`, `async_method` — form ONE family: a method
+    replacement is authored as a bare top-level ``def`` (there is no other way
+    to write a single-symbol body), so the new content scans as a `function`
+    even when the target is a `method`. Non-callable kinds must match exactly."""
     if old_kind == new_kind:
         return True
-    families = [
-        {"function", "async_function"},
-        {"method", "async_method"},
-    ]
-    for fam in families:
-        if old_kind in fam and new_kind in fam:
-            return True
-    return False
+    callable_kinds = {"function", "async_function", "method", "async_method"}
+    return old_kind in callable_kinds and new_kind in callable_kinds
 
 
 def _first_line(data: bytes, line_no: int) -> str:

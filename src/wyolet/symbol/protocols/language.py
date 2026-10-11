@@ -154,6 +154,33 @@ class LanguageAdapter(Protocol):
         """
         ...
 
+    def rename_field(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_owner_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        """Classify every reference to a class field / instance attribute `leaf`.
+
+        - `target_owner_qpath`: qpath of the declaring class. Receiver
+          resolution + static MRO membership are identical to
+          `rename_member` — `self.leaf` reads and writes inside the owner
+          class and its subclasses' methods rewrite; same-leaf attributes
+          on unrelated classes go to skipped_mismatch.
+        - In the declaring file the class-body `Name` declaration
+          (`leaf: T = ...` / `leaf = ...`) is also rewritten; `self.leaf`
+          assignment targets are `Attribute` nodes covered by the shared
+          attribute walk.
+        """
+        ...
+
     def rename_member(
         self,
         path: Path,
@@ -184,6 +211,61 @@ class LanguageAdapter(Protocol):
         - skipped_mismatch — receiver resolves to a different owner
         - unresolved    — receiver cannot be resolved statically
         """
+        ...
+
+    def rename_parameter(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        func_qpath: SymbolPath,
+        func_leaf: str,
+        param: str,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+        kwargs_only: bool = False,
+    ) -> RenameAnalysis:
+        """Classify every reference to parameter `param` of function
+        `func_qpath` in this file.
+
+        `kwargs_only=True` skips the declaring def + in-scope body rewrite
+        and classifies ONLY keyword-argument call sites. replace-symbol uses
+        this to propagate a parameter rename (already applied to the def by
+        the agent's replacement text) to `f(param=...)` call sites.
+
+        A parameter is *signature surface*. In the declaring file the
+        `ast.arg` node in the def signature and every in-scope `Name` use in
+        the body are rewritten — inner scopes that rebind the name (nested
+        def/lambda params, comprehension targets, nested-scope assignments)
+        are excluded, and the def's own default/annotation expressions belong
+        to the enclosing scope and are left alone.
+
+        In ALL files (including the declaring one) keyword-argument call sites
+        — `Call` nodes with a `keyword(arg==param)` whose callee statically
+        resolves to `func_qpath` — are rewritten. Direct `Name` callees
+        (same-module or imported functions) and module-qualified `Attribute`
+        callees resolve by name table; for methods (`func_qpath`'s owner is a
+        class) the receiver resolves through the same MRO membership test as
+        `rename_member`. A same-leaf call to a *different* function is
+        `skipped_mismatch`; an unresolvable callee whose keyword matches is
+        `unresolved`. Positional arguments are never touched.
+        """
+        ...
+
+    def function_parameters(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        func_qpath: SymbolPath,
+        decl_byte_range: tuple[int, int] | None,
+    ) -> tuple[str, ...] | None:
+        """Ordered parameter names of the function at `func_qpath`, or None if
+        the function is not found. Lets the neutral orchestrator validate a
+        parameter rename (param exists, new name doesn't collide) without
+        parsing source itself."""
         ...
 
 

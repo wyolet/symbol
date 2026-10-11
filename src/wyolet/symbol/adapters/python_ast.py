@@ -11,6 +11,7 @@ content-hash keying avoids mtime-based invalidation complexity.
 import ast
 import builtins as _builtins
 import hashlib
+import re
 from pathlib import Path
 
 from wyolet.symbol.adapters import _python_ast_rename as _rename
@@ -36,6 +37,9 @@ _SYMBOL_KINDS: dict[type, str] = {
     ast.AsyncFunctionDef: "async_function",
     ast.ClassDef: "class",
 }
+# UPPER_CASE module-level binding → constant row. Single leading letter,
+# then upper/digit/underscore. Rules out dunders (lowercase) and mixed-case.
+_CONST_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
 class PythonAstAdapter(LanguageAdapter):
@@ -217,6 +221,7 @@ class PythonAstAdapter(LanguageAdapter):
                 end_line, getattr(child, "end_col_offset", 0) or 0, line_offsets
             )
             refs = _scan_refs(child)
+            bases = _scan_bases(child) if isinstance(child, ast.ClassDef) else ()
             children = self._scan_scope(
                 child, path_prefix=qpath, line_offsets=line_offsets,
                 parent_is_class=isinstance(child, ast.ClassDef),
@@ -229,9 +234,48 @@ class PythonAstAdapter(LanguageAdapter):
                     byte_range=(start_byte, end_byte),
                     line_range=(start_line, end_line),
                     refs=tuple(refs),
+                    bases=bases,
                     children=tuple(children),
                 )
             )
+
+        # Module-level constants: UPPER_CASE Assign/AnnAssign targets. Only
+        # at true module scope — _scan_scope recurses into function bodies
+        # with a non-Module node, so this branch never fires for locals.
+        if isinstance(node, ast.Module):
+            for stmt in node.body:
+                for cname in _module_constant_names(stmt):
+                    cqpath = f"{path_prefix}.{cname}" if path_prefix else cname
+                    out.append(_stmt_symbol(stmt, "constant", cname, cqpath, line_offsets))
+
+        # Class fields: class-body Assign/AnnAssign Name targets (any casing)
+        # and `self.<name>` assignment targets in __init__. Deduped by name,
+        # class-body declaration winning over __init__. Attached here so the
+        # index parents them to the class row (siblings of methods).
+        if isinstance(node, ast.ClassDef):
+            seen: set[str] = set()
+            for stmt in node.body:
+                for fname in _classbody_field_names(stmt):
+                    if fname in seen:
+                        continue
+                    seen.add(fname)
+                    fqpath = f"{path_prefix}.{fname}" if path_prefix else fname
+                    out.append(_stmt_symbol(stmt, "field", fname, fqpath, line_offsets))
+            init = next(
+                (
+                    c for c in node.body
+                    if isinstance(c, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and c.name == "__init__"
+                ),
+                None,
+            )
+            if init is not None:
+                for stmt, fname in _self_field_targets(init):
+                    if fname in seen:
+                        continue
+                    seen.add(fname)
+                    fqpath = f"{path_prefix}.{fname}" if path_prefix else fname
+                    out.append(_stmt_symbol(stmt, "field", fname, fqpath, line_offsets))
         return out
 
     def validate_syntax(self, source: bytes) -> ParseResult:
@@ -376,6 +420,70 @@ class PythonAstAdapter(LanguageAdapter):
             is_declaring_file=is_declaring_file,
             decl_byte_range=decl_byte_range,
             module_prefix=self.module_prefix(path, project_root),
+        )
+
+    def rename_field(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        leaf: str,
+        target_qpath: SymbolPath,
+        target_owner_qpath: SymbolPath,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+    ) -> RenameAnalysis:
+        return _rename.rename_field(
+            source=source,
+            leaf=leaf,
+            new_name=new_name,
+            target_qpath=target_qpath,
+            target_owner_qpath=target_owner_qpath,
+            index=index,
+            is_declaring_file=is_declaring_file,
+            decl_byte_range=decl_byte_range,
+            module_prefix=self.module_prefix(path, project_root),
+        )
+
+    def rename_parameter(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        func_qpath: SymbolPath,
+        func_leaf: str,
+        param: str,
+        index: IndexQuery,
+        is_declaring_file: bool,
+        decl_byte_range: tuple[int, int] | None,
+        new_name: str,
+        kwargs_only: bool = False,
+    ) -> RenameAnalysis:
+        return _rename.rename_parameter(
+            source=source,
+            func_qpath=func_qpath,
+            func_leaf=func_leaf,
+            param=param,
+            new_name=new_name,
+            index=index,
+            is_declaring_file=is_declaring_file,
+            decl_byte_range=decl_byte_range,
+            module_prefix=self.module_prefix(path, project_root),
+            kwargs_only=kwargs_only,
+        )
+
+    def function_parameters(
+        self,
+        path: Path,
+        project_root: Path,
+        source: bytes,
+        func_qpath: SymbolPath,
+        decl_byte_range: tuple[int, int] | None,
+    ) -> tuple[str, ...] | None:
+        return _rename.parameter_names(
+            source, self.module_prefix(path, project_root), func_qpath,
         )
 
     def rename_module_binding(
@@ -554,6 +662,109 @@ def _slice(source: bytes, node: ast.AST, line_offsets: list[int]) -> str:
 def _module_name(path: Path) -> str:
     """Best-effort module name from a path (no project-root awareness yet)."""
     return path.stem
+
+
+def _stmt_symbol(
+    stmt: ast.stmt, kind: str, name: str, qpath: str, line_offsets: list[int],
+) -> ScannedSymbol:
+    """A leaf ScannedSymbol whose range spans the whole assignment statement.
+
+    Constants and fields carry no refs/bases/children — they're cheap index
+    rows for search/rename, not scopes to recurse into.
+    """
+    start_line = stmt.lineno
+    end_line = getattr(stmt, "end_lineno", start_line) or start_line
+    start_byte = _line_col_to_byte(start_line, stmt.col_offset, line_offsets)
+    end_byte = _line_col_to_byte(
+        end_line, getattr(stmt, "end_col_offset", 0) or 0, line_offsets
+    )
+    return ScannedSymbol(
+        kind=kind,
+        name=name,
+        qualified_path=qpath,
+        byte_range=(start_byte, end_byte),
+        line_range=(start_line, end_line),
+        refs=(),
+        bases=(),
+        children=(),
+    )
+
+
+def _module_constant_names(stmt: ast.stmt) -> list[str]:
+    """UPPER_CASE names bound by a module-level Assign/AnnAssign, else []."""
+    if isinstance(stmt, ast.AnnAssign):
+        if isinstance(stmt.target, ast.Name) and _CONST_RE.match(stmt.target.id):
+            return [stmt.target.id]
+        return []
+    if isinstance(stmt, ast.Assign):
+        if (
+            len(stmt.targets) == 1
+            and isinstance(stmt.targets[0], ast.Name)
+            and _CONST_RE.match(stmt.targets[0].id)
+        ):
+            return [stmt.targets[0].id]
+    return []
+
+
+def _classbody_field_names(stmt: ast.stmt) -> list[str]:
+    """Field names declared directly in a class body (any casing)."""
+    if isinstance(stmt, ast.AnnAssign):
+        if isinstance(stmt.target, ast.Name):
+            return [stmt.target.id]
+        return []
+    if isinstance(stmt, ast.Assign):
+        return [t.id for t in stmt.targets if isinstance(t, ast.Name)]
+    return []
+
+
+def _self_attr_names(target: ast.expr) -> list[str]:
+    """Attribute names in a `self.<name>` assignment target, unwrapping
+    tuple/list/starred unpacking. Only `self.` receivers count."""
+    if (
+        isinstance(target, ast.Attribute)
+        and isinstance(target.value, ast.Name)
+        and target.value.id == "self"
+    ):
+        return [target.attr]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        out: list[str] = []
+        for elt in target.elts:
+            out.extend(_self_attr_names(elt))
+        return out
+    if isinstance(target, ast.Starred):
+        return _self_attr_names(target.value)
+    return []
+
+
+def _self_field_targets(
+    init: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[tuple[ast.stmt, str]]:
+    """(statement, field_name) for every `self.<name>` assignment in __init__,
+    not crossing into nested def/class/lambda scopes."""
+    out: list[tuple[ast.stmt, str]] = []
+    for sub in _walk_own(init):
+        if isinstance(sub, ast.Assign):
+            for t in sub.targets:
+                for name in _self_attr_names(t):
+                    out.append((sub, name))
+        elif isinstance(sub, ast.AnnAssign):
+            for name in _self_attr_names(sub.target):
+                out.append((sub, name))
+    return out
+
+
+def _scan_bases(node: ast.ClassDef) -> tuple[str, ...]:
+    """Base-class expression strings for a class, keywords ignored.
+
+    Subscripts are unwrapped to their value (``Generic[T]`` → ``Generic``)
+    so the stored string is the bare base name/attribute the index and the
+    renamer resolve against. ``metaclass=``/other keyword bases are dropped.
+    """
+    out: list[str] = []
+    for expr in node.bases:
+        target = expr.value if isinstance(expr, ast.Subscript) else expr
+        out.append(ast.unparse(target))
+    return tuple(out)
 
 
 def _scan_refs(node: ast.AST) -> list[ScannedRef]:

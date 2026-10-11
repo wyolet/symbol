@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "corpora_manifest": "real_world_pilot_corpora.json",
+  "scenarios": [
+    {
+      "id": "cobra_10d4b48a79be",
+      "title": "Avoid process substitution when measuring longest bash completion",
+      "coverage_tags": [
+        "go",
+        "multi-patch",
+        "multi-hunk",
+        "range-preflight",
+        "golden-commit"
+      ],
+      "corpus": "cobra",
+      "parent": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
+      "steps": [
+        {
+          "id": "read_completion_loop",
+          "op": "code",
+          "args": {
+            "target": "bash_completionsV2.go:320-360"
+          },
+          "expect": {
+            "json": {
+              "file": "bash_completionsV2.go",
+              "path": "github.com/spf13/cobra.genBashComp",
+              "kind": "function"
+            }
+          }
+        },
+        {
+          "id": "rewrite_loop_atomically",
+          "op": "multi-patch",
+          "args": {
+            "file": "bash_completionsV2.go",
+            "edits": [
+              {
+                "range": "329-329",
+                "content": "    for compline in \"${completions[@]}\"; do"
+              },
+              {
+                "range": "355-355",
+                "content": "    done"
+              }
+            ]
+          },
+          "expect": {
+            "json": {
+              "status": "applied",
+              "file_rel": "bash_completionsV2.go",
+              "per_edit.length": 2
+            },
+            "tree_changed": true,
+            "golden_commit": "10d4b48a79be3d4e89e6c45cb59f4d32a3d2ae19",
+            "golden_files": [
+              "bash_completionsV2.go"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

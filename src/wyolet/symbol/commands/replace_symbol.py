@@ -82,6 +82,18 @@ def _render_agent(result: ReplaceSymbolResult) -> None:
         print()
         for f in result.per_file:
             print(f"  {f.file}  ({f.refs_updated} change{'s' if f.refs_updated != 1 else ''})")
+    for pr in result.parameter_renames:
+        print(
+            f"parameter: {pr.old} → {pr.new}  "
+            f"({pr.refs_updated} kwarg site(s), {pr.skipped_mismatch} skipped, "
+            f"{pr.unresolved} unresolved)"
+        )
+    if result.signature_changed:
+        print(
+            f"signature_changed: true  "
+            f"(params {', '.join(result.old_parameters) or 'none'} → "
+            f"{', '.join(result.new_parameters) or 'none'}; kwarg sites NOT updated)"
+        )
     if result.status == "applied":
         print()
         print("undo: git reset --hard HEAD~1")
@@ -109,6 +121,20 @@ def _render_rich(result: ReplaceSymbolResult) -> None:
         for f in result.per_file:
             t.add_row(f.file, str(f.refs_updated))
         console.print(t)
+    for pr in result.parameter_renames:
+        console.print(
+            f"  [dim]parameter[/dim] [bold]{pr.old}[/bold] → [bold]{pr.new}[/bold]  "
+            f"[dim]{pr.refs_updated} kwarg site(s)"
+            + (f", {pr.skipped_mismatch} skipped" if pr.skipped_mismatch else "")
+            + (f", {pr.unresolved} unresolved" if pr.unresolved else "")
+            + "[/dim]"
+        )
+    if result.signature_changed:
+        console.print(
+            f"  [yellow]signature changed[/yellow] "
+            f"[dim]({', '.join(result.old_parameters) or 'none'} → "
+            f"{', '.join(result.new_parameters) or 'none'}) — kwarg sites NOT updated[/dim]"
+        )
     if result.status == "applied":
         console.print("\n[dim]Undo:[/dim] [bold]git reset --hard HEAD~1[/bold]")
 

@@ -1,0 +1,14 @@
+{
+  "target": "/private/tmp/claude-501/-Users-abror/b63e7176-916f-4fc0-8c06-591746cb8815/scratchpad/fixture-proj",
+  "verdicts": {
+    "match": 9
+  },
+  "failures": [],
+  "timing_median_s": {
+    "rename-symbol": {
+      "py": 0.3834,
+      "rs": 0.154,
+      "n": 3
+    }
+  }
+}

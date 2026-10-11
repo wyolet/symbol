@@ -26,7 +26,7 @@ from wyolet.symbol.shared.symbol import (
 )
 
 _INDEX_PATH = Path(".symbol") / "symbol_index.msgpack.zst"
-_INDEX_VERSION = 6
+_INDEX_VERSION = 8
 # No real source file is this big; anything larger is a data blob mislabeled as
 # code. Skip rather than read it into memory (defense in depth behind Blob's cap).
 _MAX_INDEX_FILE_BYTES = 20 * 1024 * 1024
@@ -86,6 +86,10 @@ class SymbolIndex:
         # Refs grouped per symbol row. Same length as self.symbols.
         #   refs_of[row] = list[(packed_name_kind, line)]
         self.refs_of: list[list[tuple[int, int]]] = []
+
+        # Base-class string ids per symbol row. Same length as self.symbols.
+        # Non-class rows carry an empty list. Ids intern into self.strings.
+        self.bases_of: list[list[int]] = []
 
         # Resolvers.
         self.by_path: dict[str, list[int]] = {}
@@ -229,6 +233,7 @@ class SymbolIndex:
             kind_bit = REF_NAME if r.kind == "name" else REF_ATTR
             packed_refs.append((_pack_ref(self._str(r.name), kind_bit), r.line))
         self.refs_of.append(packed_refs)
+        self.bases_of.append([self._str(b) for b in sym.bases])
         self.by_path.setdefault(sym.qualified_path, []).append(row_idx)
         self.by_file.setdefault(file_id, []).append(row_idx)
 
@@ -300,6 +305,10 @@ class SymbolIndex:
             name_id, kind = _unpack_ref(packed)
             out.append((self.strings[name_id], REF_LABELS[kind], line))
         return out
+
+    def bases_for(self, row: int) -> list[str]:
+        """Base-class expression strings for a symbol row (empty for non-classes)."""
+        return [self.strings[b] for b in self.bases_of[row]]
 
     def callers_of(self, name: str) -> list[tuple[int, int, str]]:
         """(source_row, line, kind_label) for every ref whose name matches.
@@ -537,12 +546,20 @@ class SymbolIndex:
 
         from wyolet.symbol.adapters import default_registry
         from wyolet.symbol.shared.linguist.blob import Blob
+        from wyolet.symbol.shared.linguist.config.load import load_vendor_regex
         from wyolet.symbol.shared.linguist.linguist import Linguist
 
         linguist = Linguist()
         registry = default_registry()
+        vendor_re = load_vendor_regex()
         out: set[str] = set()
         for rel in rels:
+            # Vendored paths are pruned in full builds (classify_project's
+            # walk); without the same filter here, incremental refresh
+            # smuggles testdata/ and friends back in and index content
+            # depends on which path built it.
+            if vendor_re.search(rel):
+                continue
             abs_path = self.project_root / rel
             try:
                 blob = Blob(str(abs_path))
@@ -676,6 +693,7 @@ class SymbolIndex:
             # Tombstone symbol row — keep file_id for debugging, zero out the rest.
             self.symbols[row] = (0, fid, 0, 0, 0, 0, 0, 0, -1)
             self.refs_of[row] = []
+            self.bases_of[row] = []
             if path and path in self.by_path:
                 remaining = [r for r in self.by_path[path] if r != row]
                 if remaining:
@@ -705,6 +723,7 @@ class SymbolIndex:
             "symbols": self.symbols,
             "imports": self.imports,
             "refs_of": self.refs_of,
+            "bases_of": self.bases_of,
             "by_path": self.by_path,
             "by_file": self.by_file,
             "imps_by_file": self.imps_by_file,
@@ -762,6 +781,7 @@ class SymbolIndex:
         idx.symbols = [tuple(s) for s in payload["symbols"]]
         idx.imports = [tuple(i) for i in payload["imports"]]
         idx.refs_of = [[tuple(r) for r in rs] for rs in payload["refs_of"]]
+        idx.bases_of = [list(b) for b in payload["bases_of"]]
         idx.by_path = payload["by_path"]
         idx.by_file = {int(k): v for k, v in payload["by_file"].items()}
         idx.imps_by_file = {int(k): v for k, v in payload["imps_by_file"].items()}

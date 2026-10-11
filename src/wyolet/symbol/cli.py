@@ -52,6 +52,7 @@ def _maybe_default_audit() -> None:
         "insert-symbol",
         "outline",
         "patch",
+        "rename-parameter",
         "rename-symbol",
         "replace-symbol",
         "search",

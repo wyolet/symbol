@@ -1,0 +1,384 @@
+{"id": "cd001", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan.handleRenameMember"}}
+{"id": "cd002", "op": "code", "args": {"target": "wyolet.symbol.adapters.python_ast._python_signature"}}
+{"id": "cd003", "op": "code", "args": {"target": "tests.test_unused_deps.test_no_python_files"}}
+{"id": "cd004", "op": "code", "args": {"target": "tests.test_unused_deps._run"}}
+{"id": "cd005", "op": "code", "args": {"target": "tests.test_writes_blank_lines.test_clamps_excess_blanks_to_two_at_module_level"}}
+{"id": "cd006", "op": "code", "args": {"target": "wyolet.symbol.cli.main"}}
+{"id": "cd007", "op": "code", "args": {"target": "wyolet.symbol.checkers.orphans.rich_view"}}
+{"id": "cd008", "op": "code", "args": {"target": "wyolet.symbol.shared.analyzer._count_internal_refs"}}
+{"id": "cd009", "op": "code", "args": {"target": "tests.test_adapter_registry.test_supports_extensionless_python_via_linguist"}}
+{"id": "cd010", "op": "code", "args": {"target": "scripts.diff_runner.canon"}}
+{"id": "cd011", "op": "code", "args": {"target": "wyolet.symbol.cli.patch"}}
+{"id": "cd012", "op": "code", "args": {"target": "tests.test_analyze.test_init_not_counted_as_importer"}}
+{"id": "cd013", "op": "code", "args": {"target": "tests.test_read_cache.test_record_then_lookup"}}
+{"id": "cd014", "op": "code", "args": {"target": "tests.test_replace_symbol.test_rejects_multiple_top_level_defs"}}
+{"id": "cd015", "op": "code", "args": {"target": "wyolet.symbol.checkers.entrypoints.EntryPoint.in_main_guard"}}
+{"id": "cd016", "op": "code", "args": {"target": "wyolet.symbol.checkers.side_effects.SideEffect.filepath"}}
+{"id": "cd017", "op": "code", "args": {"target": "wyolet.symbol.writes.rename.result.RenameResult.status"}}
+{"id": "cd018", "op": "code", "args": {"target": "wyolet.symbol.writes.rename_symbol._AffectedInterfacePub.interface_qpath"}}
+{"id": "cd019", "op": "code", "args": {"target": "wyolet.symbol.shared.linguist.language.Language.fs_name"}}
+{"id": "cd020", "op": "code", "args": {"target": "wyolet.symbol.shared.import_graph.OrphanFile.filepath"}}
+{"id": "cd021", "op": "code", "args": {"target": "wyolet.symbol.shared.graph.Cycle.reason"}}
+{"id": "cd022", "op": "code", "args": {"target": "wyolet.symbol.shared.context.ResolvedConfig.side_effect_package_roles"}}
+{"id": "cd023", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol_index.SymbolIndex._dead_rows"}}
+{"id": "cd024", "op": "code", "args": {"target": "wyolet.symbol.writes.rename.result.SkippedMismatch.receiver_source"}}
+{"id": "cd025", "op": "code", "args": {"target": "scripts.diff_runner.Runner.verdicts"}}
+{"id": "cd026", "op": "code", "args": {"target": "wyolet.symbol.shared.spec.Spec.categories"}}
+{"id": "cd027", "op": "code", "args": {"target": "wyolet.symbol.shared.project_config.CheckerConfig.exclude"}}
+{"id": "cd028", "op": "code", "args": {"target": "wyolet.symbol.writes.delete_symbol.DeleteSymbolResult.callers"}}
+{"id": "cd029", "op": "code", "args": {"target": "wyolet.symbol.protocols.types.ScannedSymbol"}}
+{"id": "cd030", "op": "code", "args": {"target": "wyolet.symbol.shared.spec.PackageOrphanSpec"}}
+{"id": "cd031", "op": "code", "args": {"target": "wyolet.symbol.writes.transaction.FileEdit"}}
+{"id": "cd032", "op": "code", "args": {"target": "wyolet.symbol.shared.workspace.Workspace"}}
+{"id": "cd033", "op": "code", "args": {"target": "wyolet.symbol.shared.linguist.language_stats.FileInfo"}}
+{"id": "cd034", "op": "code", "args": {"target": "wyolet.symbol.protocols.types.SkippedMismatchSite"}}
+{"id": "cd035", "op": "code", "args": {"target": "wyolet.symbol.shared.spec.OrphanSpec"}}
+{"id": "cd036", "op": "code", "args": {"target": "wyolet.symbol.protocols.types.ParseResult"}}
+{"id": "cd037", "op": "code", "args": {"target": "wyolet.symbol.reads.code.CodeNotFound"}}
+{"id": "cd038", "op": "code", "args": {"target": "wyolet.symbol.writes.rename_symbol.RenameSymbolResult"}}
+{"id": "cd039", "op": "code", "args": {"target": "wyolet.symbol.shared.linguist.strategy.heuristics.NegativePattern"}}
+{"id": "cd040", "op": "code", "args": {"target": "wyolet.symbol.writes.replace_symbol.ReplaceSymbolRequest"}}
+{"id": "cd041", "op": "code", "args": {"target": "wyolet.symbol.shared.project_config.CheckerConfig"}}
+{"id": "cd042", "op": "code", "args": {"target": "tests.test_linguist.TestBlob"}}
+{"id": "cd043", "op": "code", "args": {"target": "wyolet.symbol.adapters.go_ast.GoAstAdapter.pop_project_wide_analyses"}}
+{"id": "cd044", "op": "code", "args": {"target": "tests.test_linguist.TestLanguageLoading.test_find_by_extension_unknown"}}
+{"id": "cd045", "op": "code", "args": {"target": "wyolet.symbol.shared.linguist.blob.Blob.image"}}
+{"id": "cd046", "op": "code", "args": {"target": "wyolet.symbol.adapters.pyscan._Daemon.rename_module_binding"}}
+{"id": "cd047", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol_index.SymbolIndex._lang"}}
+{"id": "cd048", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol_index.SymbolIndex.build_tree"}}
+{"id": "cd049", "op": "code", "args": {"target": "tests.test_vendor_pruning.TestBlobMemoryCap.test_large_file_is_not_fully_read"}}
+{"id": "cd050", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol_index.SymbolIndex._in_scope"}}
+{"id": "cd051", "op": "code", "args": {"target": "scripts.diff_runner.Runner.report"}}
+{"id": "cd052", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol_index.SymbolIndex.imports_for"}}
+{"id": "cd053", "op": "code", "args": {"target": "wyolet.symbol.shared.linguist.strategy.heuristics.And.__init__"}}
+{"id": "cd054", "op": "code", "args": {"target": "wyolet.symbol.caches.null.NullReadCache.record"}}
+{"id": "cd055", "op": "code", "args": {"target": "wyolet.symbol.adapters.pyscan._Daemon.rename_field"}}
+{"id": "cd056", "op": "code", "args": {"target": "wyolet.symbol.shared.linguist.blob.Blob.empty"}}
+{"id": "cd057", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol.S_KIND"}}
+{"id": "cd058", "op": "code", "args": {"target": "wyolet.symbol.mcp.descriptions.SYMBOL_OUTLINE"}}
+{"id": "cd059", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol.S_ELINE"}}
+{"id": "cd060", "op": "code", "args": {"target": "tests.test_patch_multi.SOURCE"}}
+{"id": "cd061", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol.REF_NAME"}}
+{"id": "cd062", "op": "code", "args": {"target": "scripts.diff_runner.WRITE_OPS"}}
+{"id": "cd063", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol.REF_ATTR"}}
+{"id": "cd064", "op": "code", "args": {"target": "tests.test_rpc_schema.RPC_METHODS_PATH"}}
+{"id": "cd065", "op": "code", "args": {"target": "scripts.check_pkg_thresholds.SPECS_DIR"}}
+{"id": "cd066", "op": "code", "args": {"target": "scripts.check_pkg_thresholds.ALWAYS_ACCEPT"}}
+{"id": "cd067", "op": "code", "args": {"target": "tests.test_stack.SPEC"}}
+{"id": "cd068", "op": "code", "args": {"target": "tests.test_rpc_schema.ROOT"}}
+{"id": "cd069", "op": "code", "args": {"target": "tests.test_spec_schema.SCHEMA_PATH"}}
+{"id": "cd070", "op": "code", "args": {"target": "wyolet.symbol.shared.symbol.I_FILE"}}
+{"id": "cd071", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.Error"}}
+{"id": "cd072", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ByteRewrite"}}
+{"id": "cd073", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.RenameResult"}}
+{"id": "cd074", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.InitializeResult"}}
+{"id": "cd075", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.UnresolvedSite"}}
+{"id": "cd076", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ScanFileParams"}}
+{"id": "cd077", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ScannedImport"}}
+{"id": "cd078", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.Response"}}
+{"id": "cd079", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ParseResult"}}
+{"id": "cd080", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.Request"}}
+{"id": "cd081", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.RenameFileAnalysis"}}
+{"id": "cd082", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.SkippedMismatchSite"}}
+{"id": "cd083", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.Server"}}
+{"id": "cd084", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.InitializeParams"}}
+{"id": "cd085", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ErrMethodNotFound"}}
+{"id": "cd086", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan.workerVersion"}}
+{"id": "cd087", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ErrParseError"}}
+{"id": "cd088", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.JSONRPCVersion"}}
+{"id": "cd089", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ErrInvalidParams"}}
+{"id": "cd090", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ErrInternal"}}
+{"id": "cd091", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan/internal/rpc.ErrInvalidRequest"}}
+{"id": "cd092", "op": "code", "args": {"target": "github.com/wyolet/symbol/go-scan.capabilities"}}
+{"id": "cd093", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/daemon/main.go:104-110"}}
+{"id": "cd094", "op": "code", "args": {"target": "tests/test_unused_deps.py:15-18"}}
+{"id": "cd095", "op": "code", "args": {"target": "src/wyolet/symbol/checkers/orphans.py:102-122"}}
+{"id": "cd096", "op": "code", "args": {"target": "scripts/diff_runner.py:170-201"}}
+{"id": "cd097", "op": "code", "args": {"target": "tests/test_read_cache.py:63-72"}}
+{"id": "cd098", "op": "code", "args": {"target": "src/wyolet/symbol/checkers/side_effects.py:38-38"}}
+{"id": "cd099", "op": "code", "args": {"target": "src/wyolet/symbol/shared/linguist/language.py:32-32"}}
+{"id": "cd100", "op": "code", "args": {"target": "src/wyolet/symbol/shared/context.py:40-40"}}
+{"id": "cd101", "op": "code", "args": {"target": "scripts/diff_runner.py:210-210"}}
+{"id": "cd102", "op": "code", "args": {"target": "src/wyolet/symbol/writes/delete_symbol.py:51-51"}}
+{"id": "cd103", "op": "code", "args": {"target": "src/wyolet/symbol/writes/transaction.py:31-37"}}
+{"id": "cd104", "op": "code", "args": {"target": "src/wyolet/symbol/protocols/types.py:180-190"}}
+{"id": "cd105", "op": "code", "args": {"target": "src/wyolet/symbol/reads/code.py:28-29"}}
+{"id": "cd106", "op": "code", "args": {"target": "src/wyolet/symbol/writes/replace_symbol.py:46-57"}}
+{"id": "cd107", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/__init__.py:474-490"}}
+{"id": "cd108", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/pyscan.py:115-118"}}
+{"id": "cd109", "op": "code", "args": {"target": "tests/test_vendor_pruning.py:88-102"}}
+{"id": "cd110", "op": "code", "args": {"target": "src/wyolet/symbol/shared/symbol_index.py:291-299"}}
+{"id": "cd111", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/pyscan.py:110-113"}}
+{"id": "cd112", "op": "code", "args": {"target": "src/wyolet/symbol/mcp/descriptions.py:64-84"}}
+{"id": "cd113", "op": "code", "args": {"target": "src/wyolet/symbol/shared/symbol.py:31-31"}}
+{"id": "cd114", "op": "code", "args": {"target": "tests/test_rpc_schema.py:26-26"}}
+{"id": "cd115", "op": "code", "args": {"target": "tests/test_stack.py:9-9"}}
+{"id": "cd116", "op": "code", "args": {"target": "src/wyolet/symbol/shared/symbol.py:19-19"}}
+{"id": "cd117", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/types.go:217-219"}}
+{"id": "cd118", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/types.go:59-63"}}
+{"id": "cd119", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/types.go:121-125"}}
+{"id": "cd120", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/types.go:171-178"}}
+{"id": "cd121", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/types.go:39-39"}}
+{"id": "cd122", "op": "code", "args": {"target": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/types.go:10-10"}}
+{"id": "cd123", "op": "code", "args": {"target": "handleRenameMember"}}
+{"id": "cd124", "op": "code", "args": {"target": "com/wyolet/symbol/go-scan.handleRenameMember"}}
+{"id": "cd125", "op": "code", "args": {"target": "main"}}
+{"id": "cd126", "op": "code", "args": {"target": "cli.main"}}
+{"id": "cd127", "op": "code", "args": {"target": "patch"}}
+{"id": "cd128", "op": "code", "args": {"target": "cli.patch"}}
+{"id": "cd129", "op": "code", "args": {"target": "filepath"}}
+{"id": "cd130", "op": "code", "args": {"target": "SideEffect.filepath"}}
+{"id": "cd131", "op": "code", "args": {"target": "reason"}}
+{"id": "cd132", "op": "code", "args": {"target": "Cycle.reason"}}
+{"id": "cd133", "op": "code", "args": {"target": "categories"}}
+{"id": "cd134", "op": "code", "args": {"target": "Spec.categories"}}
+{"id": "cd135", "op": "code", "args": {"target": "FileEdit"}}
+{"id": "cd136", "op": "code", "args": {"target": "transaction.FileEdit"}}
+{"id": "cd137", "op": "code", "args": {"target": "ParseResult"}}
+{"id": "cd138", "op": "code", "args": {"target": "types.ParseResult"}}
+{"id": "cd139", "op": "code", "args": {"target": "CheckerConfig"}}
+{"id": "cd140", "op": "code", "args": {"target": "project_config.CheckerConfig"}}
+{"id": "cd141", "op": "code", "args": {"target": "rename_module_binding"}}
+{"id": "cd142", "op": "code", "args": {"target": "_Daemon.rename_module_binding"}}
+{"id": "cd143", "op": "code", "args": {"target": "report"}}
+{"id": "cd144", "op": "code", "args": {"target": "Runner.report"}}
+{"id": "cd145", "op": "code", "args": {"target": "empty"}}
+{"id": "cd146", "op": "code", "args": {"target": "Blob.empty"}}
+{"id": "cd147", "op": "code", "args": {"target": "REF_NAME"}}
+{"id": "cd148", "op": "code", "args": {"target": "symbol.REF_NAME"}}
+{"id": "cd149", "op": "code", "args": {"target": "ALWAYS_ACCEPT"}}
+{"id": "cd150", "op": "code", "args": {"target": "check_pkg_thresholds.ALWAYS_ACCEPT"}}
+{"id": "cd151", "op": "code", "args": {"target": "Error"}}
+{"id": "cd152", "op": "code", "args": {"target": "com/wyolet/symbol/go-scan/internal/rpc.Error"}}
+{"id": "cd153", "op": "code", "args": {"target": "ScanFileParams"}}
+{"id": "cd154", "op": "code", "args": {"target": "com/wyolet/symbol/go-scan/internal/rpc.ScanFileParams"}}
+{"id": "cd155", "op": "code", "args": {"target": "RenameFileAnalysis"}}
+{"id": "cd156", "op": "code", "args": {"target": "com/wyolet/symbol/go-scan/internal/rpc.RenameFileAnalysis"}}
+{"id": "cd157", "op": "code", "args": {"target": "workerVersion"}}
+{"id": "cd158", "op": "code", "args": {"target": "com/wyolet/symbol/go-scan.workerVersion"}}
+{"id": "cd159", "op": "code", "args": {"target": "ErrInvalidRequest"}}
+{"id": "cd160", "op": "code", "args": {"target": "com/wyolet/symbol/go-scan/internal/rpc.ErrInvalidRequest"}}
+{"id": "kl001", "op": "callers", "args": {"name": "get"}}
+{"id": "kl002", "op": "callers", "args": {"name": "name"}}
+{"id": "kl003", "op": "callers", "args": {"name": "status"}}
+{"id": "kl004", "op": "callers", "args": {"name": "Severity"}}
+{"id": "kl005", "op": "callers", "args": {"name": "project_root"}}
+{"id": "kl006", "op": "callers", "args": {"name": "lineno"}}
+{"id": "kl007", "op": "callers", "args": {"name": "_make_project"}}
+{"id": "kl008", "op": "callers", "args": {"name": "file_rel"}}
+{"id": "kl009", "op": "callers", "args": {"name": "add"}}
+{"id": "kl010", "op": "callers", "args": {"name": "index"}}
+{"id": "kl011", "op": "callers", "args": {"name": "error_code"}}
+{"id": "kl012", "op": "callers", "args": {"name": "id"}}
+{"id": "kl013", "op": "callers", "args": {"name": "ConfigFile"}}
+{"id": "kl014", "op": "callers", "args": {"name": "vendored"}}
+{"id": "kl015", "op": "callers", "args": {"name": "_is_type_checking_block"}}
+{"id": "kl016", "op": "callers", "args": {"name": "criticals"}}
+{"id": "kl017", "op": "callers", "args": {"name": "indexable_files"}}
+{"id": "kl018", "op": "callers", "args": {"name": "MethodInfo"}}
+{"id": "kl019", "op": "callers", "args": {"name": "SignatureResult"}}
+{"id": "kl020", "op": "callers", "args": {"name": "has_adapter"}}
+{"id": "kl021", "op": "callers", "args": {"name": "_enclosing_class"}}
+{"id": "kl022", "op": "callers", "args": {"name": "_find_calls_in_block"}}
+{"id": "kl023", "op": "callers", "args": {"name": "arg_coverage_pct"}}
+{"id": "kl024", "op": "callers", "args": {"name": "_rename_cache"}}
+{"id": "kl025", "op": "callers", "args": {"name": "test_detects_main_guard"}}
+{"id": "kl026", "op": "callers", "args": {"name": "test_nested_def_rebinding_shadows"}}
+{"id": "kl027", "op": "callers", "args": {"name": "test_counts_methods"}}
+{"id": "kl028", "op": "callers", "args": {"name": "test_all_bundled_specs_match_schema"}}
+{"id": "kl029", "op": "callers", "args": {"name": "test_no_swallowed"}}
+{"id": "kl030", "op": "callers", "args": {"name": "test_dedents_uniform_extra_indent"}}
+{"id": "kl031", "op": "callers", "args": {"name": "test_mcp_search_finds_go_symbol"}}
+{"id": "kl032", "op": "callers", "args": {"name": "test_supports_python_file"}}
+{"id": "kl033", "op": "callers", "args": {"name": "__repr__"}}
+{"id": "kl034", "op": "callers", "args": {"name": "test_python_exists"}}
+{"id": "kl035", "op": "callers", "args": {"name": "github.com/wyolet/symbol/go-scan.handleRenameMember"}}
+{"id": "kl036", "op": "callers", "args": {"name": "wyolet.symbol.shared.analyzer._count_internal_refs"}}
+{"id": "kl037", "op": "callers", "args": {"name": "wyolet.symbol.checkers.entrypoints.EntryPoint.in_main_guard"}}
+{"id": "kl038", "op": "callers", "args": {"name": "wyolet.symbol.shared.context.ResolvedConfig.side_effect_package_roles"}}
+{"id": "kl039", "op": "callers", "args": {"name": "wyolet.symbol.protocols.types.ScannedSymbol"}}
+{"id": "kl040", "op": "callers", "args": {"name": "wyolet.symbol.protocols.types.ParseResult"}}
+{"id": "kl041", "op": "callers", "args": {"name": "wyolet.symbol.adapters.go_ast.GoAstAdapter.pop_project_wide_analyses"}}
+{"id": "kl042", "op": "callers", "args": {"name": "wyolet.symbol.shared.symbol_index.SymbolIndex._in_scope"}}
+{"id": "kl043", "op": "callers", "args": {"name": "wyolet.symbol.shared.symbol.S_KIND"}}
+{"id": "kl044", "op": "callers", "args": {"name": "tests.test_rpc_schema.RPC_METHODS_PATH"}}
+{"id": "ol001", "op": "outline", "args": {"query": "scripts/check_pkg_thresholds.py"}}
+{"id": "ol002", "op": "outline", "args": {"query": "scripts/diff_runner.py"}}
+{"id": "ol003", "op": "outline", "args": {"query": "scripts/linguist_parity.py"}}
+{"id": "ol004", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/_python_ast_rename.py"}}
+{"id": "ol005", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/go_ast/__init__.py"}}
+{"id": "ol006", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rename/rename.go"}}
+{"id": "ol007", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/handler.go"}}
+{"id": "ol008", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rpc/types.go"}}
+{"id": "ol009", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/go_ast/daemon/internal/scan/scan.go"}}
+{"id": "ol010", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/go_ast/daemon/main.go"}}
+{"id": "ol011", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/pyscan.py"}}
+{"id": "ol012", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/python_ast.py"}}
+{"id": "ol013", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/python_deps.py"}}
+{"id": "ol014", "op": "outline", "args": {"query": "src/wyolet/symbol/adapters/registry.py"}}
+{"id": "ol015", "op": "outline", "args": {"query": "src/wyolet/symbol/caches/__init__.py"}}
+{"id": "ol016", "op": "outline", "args": {"query": "src/wyolet/symbol/caches/disk.py"}}
+{"id": "ol017", "op": "outline", "args": {"query": "src/wyolet/symbol/caches/in_memory.py"}}
+{"id": "ol018", "op": "outline", "args": {"query": "src/wyolet/symbol/caches/instrument.py"}}
+{"id": "ol019", "op": "outline", "args": {"query": "src/wyolet/symbol/caches/null.py"}}
+{"id": "ol020", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/code_structure.py"}}
+{"id": "ol021", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/entrypoints.py"}}
+{"id": "ol022", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/orphans.py"}}
+{"id": "ol023", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/side_effects.py"}}
+{"id": "ol024", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/stack.py"}}
+{"id": "ol025", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/swallowed.py"}}
+{"id": "ol026", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/todos.py"}}
+{"id": "ol027", "op": "outline", "args": {"query": "src/wyolet/symbol/checkers/unused_deps.py"}}
+{"id": "ol028", "op": "outline", "args": {"query": "src/wyolet/symbol/cli.py"}}
+{"id": "ol029", "op": "outline", "args": {"query": "src/wyolet/symbol/commands/analyze.py"}}
+{"id": "ol030", "op": "outline", "args": {"query": "src/wyolet/symbol/commands/audit.py"}}
+{"id": "ol031", "op": "outline", "args": {"query": "src/wyolet/symbol/commands/callers.py"}}
+{"id": "ol032", "op": "outline", "args": {"query": "src/wyolet/symbol/commands/code.py"}}
+{"id": "ol033", "op": "outline", "args": {"query": "src/wyolet/symbol/commands/delete_symbol.py"}}
+{"id": "ol034", "op": "outline", "args": {"query": "src/wyolet/symbol/commands/hook.py"}}
+{"id": "ol035", "op": "outline", "args": {"query": "src/wyolet/symbol/commands/index.py"}}
+{"id": "ol036", "op": "outline", "args": {"query": "wyolet.symbol.protocols.types.ScannedSymbol"}}
+{"id": "ol037", "op": "outline", "args": {"query": "wyolet.symbol.shared.spec.PackageOrphanSpec"}}
+{"id": "ol038", "op": "outline", "args": {"query": "wyolet.symbol.writes.transaction.FileEdit"}}
+{"id": "ol039", "op": "outline", "args": {"query": "wyolet.symbol.shared.workspace.Workspace"}}
+{"id": "ol040", "op": "outline", "args": {"query": "wyolet.symbol.shared.linguist.language_stats.FileInfo"}}
+{"id": "ol041", "op": "outline", "args": {"query": "wyolet.symbol.protocols.types.SkippedMismatchSite"}}
+{"id": "ol042", "op": "outline", "args": {"query": "wyolet.symbol.shared.spec.OrphanSpec"}}
+{"id": "ol043", "op": "outline", "args": {"query": "wyolet.symbol.protocols.types.ParseResult"}}
+{"id": "ol044", "op": "outline", "args": {"query": "wyolet.symbol.reads.code.CodeNotFound"}}
+{"id": "ol045", "op": "outline", "args": {"query": "wyolet.symbol.writes.rename_symbol.RenameSymbolResult"}}
+{"id": "ol046", "op": "outline", "args": {"query": "wyolet.symbol.shared.linguist.strategy.heuristics.NegativePattern"}}
+{"id": "ol047", "op": "outline", "args": {"query": "wyolet.symbol.writes.replace_symbol.ReplaceSymbolRequest"}}
+{"id": "ol048", "op": "outline", "args": {"query": "wyolet.symbol.shared.project_config.CheckerConfig"}}
+{"id": "ol049", "op": "outline", "args": {"query": "tests.test_linguist.TestBlob"}}
+{"id": "ol050", "op": "outline", "args": {"query": "wyolet.symbol.shared.spec.ScannerSpec"}}
+{"id": "ol051", "op": "outline", "args": {"query": "wyolet.symbol.writes.insert_symbol.InsertSymbolRequest"}}
+{"id": "ol052", "op": "outline", "args": {"query": "wyolet.symbol.adapters.registry.UnsupportedLanguage"}}
+{"id": "ol053", "op": "outline", "args": {"query": "wyolet.symbol.shared.graph.Cycle"}}
+{"id": "ol054", "op": "outline", "args": {"query": "wyolet.symbol.shared.ast_cache.ASTCache"}}
+{"id": "ol055", "op": "outline", "args": {"query": "wyolet.symbol.shared.spec.CheckerSpec"}}
+{"id": "sr001", "op": "search", "args": {"patterns": ["handleRenameMember"]}}
+{"id": "sr002", "op": "search", "args": {"patterns": ["test_clamps_excess_blanks_to_two_at_module_level"]}}
+{"id": "sr003", "op": "search", "args": {"patterns": ["test_supports_extensionless_python_via_linguist"]}}
+{"id": "sr004", "op": "search", "args": {"patterns": ["test_record_then_lookup"]}}
+{"id": "sr005", "op": "search", "args": {"patterns": ["status"]}}
+{"id": "sr006", "op": "search", "args": {"patterns": ["reason"]}}
+{"id": "sr007", "op": "search", "args": {"patterns": ["verdicts"]}}
+{"id": "sr008", "op": "search", "args": {"patterns": ["ScannedSymbol"]}}
+{"id": "sr009", "op": "search", "args": {"patterns": ["FileInfo"]}}
+{"id": "sr010", "op": "search", "args": {"patterns": ["CodeNotFound"]}}
+{"id": "sr011", "op": "search", "args": {"patterns": ["CheckerConfig"]}}
+{"id": "sr012", "op": "search", "args": {"patterns": ["image"]}}
+{"id": "sr013", "op": "search", "args": {"patterns": ["test_large_file_is_not_fully_read"]}}
+{"id": "sr014", "op": "search", "args": {"patterns": ["__init__"]}}
+{"id": "sr015", "op": "search", "args": {"patterns": ["S_KIND"]}}
+{"id": "sr016", "op": "search", "args": {"patterns": ["REF_NAME"]}}
+{"id": "sr017", "op": "search", "args": {"patterns": ["SPECS_DIR"]}}
+{"id": "sr018", "op": "search", "args": {"patterns": ["SCHEMA_PATH"]}}
+{"id": "sr019", "op": "search", "args": {"patterns": ["RenameResult"]}}
+{"id": "sr020", "op": "search", "args": {"patterns": ["ScannedImport"]}}
+{"id": "sr021", "op": "search", "args": {"patterns": ["handleRenameMember"], "ignore_case": true}}
+{"id": "sr022", "op": "search", "args": {"patterns": ["test_clamps_excess_blanks_to_two_at_module_level"], "ignore_case": true}}
+{"id": "sr023", "op": "search", "args": {"patterns": ["test_supports_extensionless_python_via_linguist"], "ignore_case": true}}
+{"id": "sr024", "op": "search", "args": {"patterns": ["test_record_then_lookup"], "ignore_case": true}}
+{"id": "sr025", "op": "search", "args": {"patterns": ["status"], "ignore_case": true}}
+{"id": "sr026", "op": "search", "args": {"patterns": ["reason"], "ignore_case": true}}
+{"id": "sr027", "op": "search", "args": {"patterns": ["verdicts"], "ignore_case": true}}
+{"id": "sr028", "op": "search", "args": {"patterns": ["ScannedSymbol"], "ignore_case": true}}
+{"id": "sr029", "op": "search", "args": {"patterns": ["handleRenameMember"], "fixed": true}}
+{"id": "sr030", "op": "search", "args": {"patterns": ["test_clamps_excess_blanks_to_two_at_module_level"], "fixed": true}}
+{"id": "sr031", "op": "search", "args": {"patterns": ["test_supports_extensionless_python_via_linguist"], "fixed": true}}
+{"id": "sr032", "op": "search", "args": {"patterns": ["test_record_then_lookup"], "fixed": true}}
+{"id": "sr033", "op": "search", "args": {"patterns": ["status"], "fixed": true}}
+{"id": "sr034", "op": "search", "args": {"patterns": ["reason"], "fixed": true}}
+{"id": "sr035", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "function", "limit": 50}}
+{"id": "sr036", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "field", "limit": 50}}
+{"id": "sr037", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "class", "limit": 50}}
+{"id": "sr038", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "method", "limit": 50}}
+{"id": "sr039", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "constant", "limit": 50}}
+{"id": "sr040", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "type", "limit": 50}}
+{"id": "sr041", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "const", "limit": 50}}
+{"id": "sr042", "op": "search", "args": {"patterns": ["handleRenameMember"], "kind": "var", "limit": 50}}
+{"id": "sr043", "op": "search", "args": {"patterns": ["handleRenameMember"], "file": "scripts/check_pkg_thresholds.py"}}
+{"id": "sr044", "op": "search", "args": {"patterns": ["handleRenameMember"], "file": "scripts/diff_runner.py"}}
+{"id": "sr045", "op": "search", "args": {"patterns": ["handleRenameMember"], "file": "scripts/linguist_parity.py"}}
+{"id": "sr046", "op": "search", "args": {"patterns": ["handleRenameMember"], "file": "src/wyolet/symbol/adapters/_python_ast_rename.py"}}
+{"id": "sr047", "op": "search", "args": {"patterns": ["handleRenameMember"], "file": "src/wyolet/symbol/adapters/go_ast/__init__.py"}}
+{"id": "sr048", "op": "search", "args": {"patterns": ["handleRenameMember"], "file": "src/wyolet/symbol/adapters/go_ast/daemon/internal/rename/rename.go"}}
+{"id": "sr049", "op": "search", "args": {"patterns": ["handleRenameMember", "test_clamps_excess_blanks_to_two_at_module_level"]}}
+{"id": "sr050", "op": "search", "args": {"patterns": ["test_supports_extensionless_python_via_linguist", "test_record_then_lookup"]}}
+{"id": "sr051", "op": "search", "args": {"patterns": ["status", "reason"]}}
+{"id": "sr052", "op": "search", "args": {"patterns": ["verdicts", "ScannedSymbol"]}}
+{"id": "sr053", "op": "search", "args": {"patterns": ["FileInfo", "CodeNotFound"]}}
+{"id": "sr054", "op": "search", "args": {"patterns": ["CheckerConfig", "image"]}}
+{"id": "sr055", "op": "search", "args": {"patterns": ["test_large_file_is_not_fully_read", "__init__"]}}
+{"id": "sr056", "op": "search", "args": {"patterns": ["S_KIND", "REF_NAME"]}}
+{"id": "sr057", "op": "search", "args": {"patterns": ["SPECS_DIR", "SCHEMA_PATH"]}}
+{"id": "sr058", "op": "search", "args": {"patterns": ["RenameResult", "ScannedImport"]}}
+{"id": "sr059", "op": "search", "args": {"patterns": ["get.*"], "regex": true, "limit": 30}}
+{"id": "sr060", "op": "search", "args": {"patterns": ["^__"], "regex": true, "limit": 30}}
+{"id": "rn001", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.python_ast._python_signature", "new_name": "_python_signature_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn002", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.analyzer._count_internal_refs", "new_name": "_count_internal_refs_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn003", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.commands.init._generate_toml", "new_name": "_generate_toml_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn004", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.python_ast._slice", "new_name": "_slice_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn005", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.import_graph._is_type_checking_block", "new_name": "_is_type_checking_block_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn006", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.commands.undo._to_dict", "new_name": "_to_dict_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn007", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes._blank_lines._blank_run_above", "new_name": "_blank_run_above_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn008", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.mcp.server._dc", "new_name": "_dc_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn009", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.graph._init_has_code", "new_name": "_init_has_code_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn010", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.side_effects._get_dotted_name", "new_name": "_get_dotted_name_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn011", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.spec._load_package_spec", "new_name": "_load_package_spec_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn012", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.mcp.server._mem_limit_mb", "new_name": "_mem_limit_mb_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn013", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.unused_deps._collect_all_imports", "new_name": "_collect_all_imports_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn014", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.go_ast._rawsymbol_from_scanned", "new_name": "_rawsymbol_from_scanned_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn015", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._lang", "new_name": "_lang_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn016", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._in_scope", "new_name": "_in_scope_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn017", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._file_id", "new_name": "_file_id_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn018", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename.renamer.SymbolRenamer._rename_class", "new_name": "_rename_class_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn019", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.linguist.Linguist.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn020", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters._python_ast_rename._PerFileResolver.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn021", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._walk_file", "new_name": "_walk_file_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn022", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.go_ast.GoAstAdapter._find_go_module", "new_name": "_find_go_module_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn023", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._kind", "new_name": "_kind_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn024", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.language.Language.__init__", "new_name": "__init___wp7"}, "tags": ["engine-kind"]}
+{"id": "rn025", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.adapters._python_ast_rename._PerFileResolver._class_chain", "new_name": "_class_chain_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn026", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.protocols.types.ScannedSymbol", "new_name": "ScannedSymbol_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn027", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.spec.PackageOrphanSpec", "new_name": "PackageOrphanSpec_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn028", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.transaction.FileEdit", "new_name": "FileEdit_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn029", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.workspace.Workspace", "new_name": "Workspace_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn030", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.language_stats.FileInfo", "new_name": "FileInfo_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn031", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.protocols.types.SkippedMismatchSite", "new_name": "SkippedMismatchSite_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn032", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol.S_KIND", "new_name": "S_KIND_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn033", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.mcp.descriptions.SYMBOL_OUTLINE", "new_name": "SYMBOL_OUTLINE_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn034", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol.S_ELINE", "new_name": "S_ELINE_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn035", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol.REF_NAME", "new_name": "REF_NAME_wp7"}, "tags": ["engine-kind"]}
+{"id": "rn036", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.entrypoints.EntryPoint.in_main_guard", "new_name": "in_main_guard_wp7"}}
+{"id": "rn037", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.side_effects.SideEffect.filepath", "new_name": "filepath_wp7"}}
+{"id": "rn038", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename.result.RenameResult.status", "new_name": "status_wp7"}}
+{"id": "rn039", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename_symbol._AffectedInterfacePub.interface_qpath", "new_name": "interface_qpath_wp7"}}
+{"id": "rn040", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.linguist.language.Language.fs_name", "new_name": "fs_name_wp7"}}
+{"id": "rn041", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.import_graph.OrphanFile.filepath", "new_name": "filepath_wp7"}}
+{"id": "rn042", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.graph.Cycle.reason", "new_name": "reason_wp7"}}
+{"id": "rn043", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.context.ResolvedConfig.side_effect_package_roles", "new_name": "side_effect_package_roles_wp7"}}
+{"id": "rn044", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._dead_rows", "new_name": "_dead_rows_wp7"}}
+{"id": "rn045", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.writes.rename.result.SkippedMismatch.receiver_source", "new_name": "receiver_source_wp7"}}
+{"id": "rp001", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.python_ast._python_signature", "content": "def _python_signature(node_wp7: ast.AST) -> str:\n    \"\"\"Canonical signature string for a top-level Python declaration.\n\n    Built from AST fields directly via ``ast.unparse`` on the relevant\n    subtrees \u2014 no string parsing of the source. Output matches what\n    ``inspect.signature`` / typical IDE hover shows: declaration only,\n    no trailing colon, no decorators.\n    \"\"\"\n    if isinstance(node_wp7, ast.ClassDef):\n        parts: list[str] = [ast.unparse(b) for b in node_wp7.bases]\n        parts.extend(\n            f\"**{ast.unparse(k.value)}\" if k.arg is None else f\"{k.arg}={ast.unparse(k.value)}\"\n            for k in node_wp7.keywords\n        )\n        if parts:\n            return f\"class {node_wp7.name}({', '.join(parts)})\"\n        return f\"class {node_wp7.name}\"\n    if isinstance(node_wp7, (ast.FunctionDef, ast.AsyncFunctionDef)):\n        prefix = \"async def\" if isinstance(node_wp7, ast.AsyncFunctionDef) else \"def\"\n        args = ast.unparse(node_wp7.args)\n        sig = f\"{prefix} {node_wp7.name}({args})\"\n        if node_wp7.returns is not None:\n            sig += f\" -> {ast.unparse(node_wp7.returns)}\"\n        return sig\n    return \"\""}}
+{"id": "rp002", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.cli.main", "content": "@app.callback(invoke_without_command=True)\ndef main(\n    verbose_wp7: Annotated[bool, typer.Option(\"-v\", \"--verbose\", help=\"Show full detail\")] = False,\n    format: Annotated[str, typer.Option(\"--format\", help=\"Output format: rich or json\")] = \"rich\",\n    version: Annotated[\n        bool,\n        typer.Option(\n            \"--version\",\n            help=\"Show the installed symbol version and exit\",\n            callback=_version_callback,\n            is_eager=True,\n        ),\n    ] = False,\n) -> None:\n    \"\"\"symbol \u2014 AST-native code intelligence for Python and Go.\"\"\"\n    if format not in (\"rich\", \"json\"):\n        raise typer.BadParameter(f\"Invalid format '{format}'. Choose from: rich, json\")\n    state[\"verbose\"] = verbose_wp7\n    state[\"format\"] = format"}}
+{"id": "rp003", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.checkers.orphans.rich_view", "content": "def rich_view(items_wp7: list[OrphanFile], ctx: AnalysisContext, console: Console) -> None:\n    console.print()\n    console.print(Text(f\"{I1}\\U0001f47b ORPHAN FILES ({len(items_wp7)})\", style=\"bold yellow\"))\n    console.print()\n\n    if not items_wp7:\n        console.print(f\"{I2}[dim](none found \u2014 all files are reachable)[/dim]\")\n        return\n\n    console.print(f\"{I2}[dim]Files not imported by anything \u2014 may be dead code[/dim]\")\n    console.print()\n\n    limit = None if ctx.verbose else 20\n    shown = items_wp7[:limit] if limit else items_wp7\n\n    for orphan in shown:\n        rel = str(orphan.filepath.relative_to(ctx.project_root))\n        console.print(f\"{I2}[yellow]![/yellow] [bold]{rel}[/bold]  [dim]{orphan.reason}[/dim]\")\n\n    if limit and len(items_wp7) > limit:\n        console.print(f\"{I2}[dim]... and {len(items_wp7) - limit} more (use -v to see all)[/dim]\")"}}
+{"id": "rp004", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.shared.analyzer._count_internal_refs", "content": "def _count_internal_refs(tree_wp7: ast.Module, exports: list[ExportedName]) -> None:\n    \"\"\"Count how many times each exported name is referenced within the file.\"\"\"\n    export_names = {e.name: e for e in exports}\n\n    for node in ast.walk(tree_wp7):\n        if isinstance(node, ast.Name) and node.id in export_names:\n            export_names[node.id].internal_refs += 1\n        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):\n            # catches things like Settings.model_config but not Settings itself\n            pass\n\n    # Subtract 1 for variable definitions \u2014 assignments produce an ast.Name\n    # in the target. ClassDef/FunctionDef don't produce ast.Name for their own name.\n    for exp in exports:\n        if exp.kind == \"variable\" and exp.internal_refs > 0:\n            exp.internal_refs -= 1"}}
+{"id": "rp005", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.cli.patch", "content": "@app.command()\ndef patch(\n    file_wp7: Annotated[str, typer.Argument(help=\"File to patch\")],\n    range_: Annotated[str, typer.Option(\"--range\", \"-r\", help=\"Line range A-B (inclusive, 1-indexed)\")],\n    content: Annotated[str | None, typer.Option(\"--content\", help=\"New content (use '' or omit for delete)\")] = None,\n    path: Annotated[str, typer.Option(\"--path\", \"-p\", help=\"Project root\")] = \".\",\n    force: Annotated[bool, typer.Option(\"--force\", help=\"Skip read-cache check\")] = False,\n    dry_run: Annotated[bool, typer.Option(\"--dry-run\", help=\"Compute diff but don't write\")] = False,\n    context: Annotated[int, typer.Option(\"--context\", \"-C\", help=\"Lines of diff context around the edit\")] = 5,\n    agent: Annotated[bool, typer.Option(\"--agent\", help=\"Enriched plain-text output for LLM consumers\")] = False,\n    format: Annotated[str, typer.Option(\"--format\", \"-f\", help=\"Output format: rich, agent, or json\")] = \"rich\",\n) -> None:\n    \"\"\"Byte-range edit primitive. Replace, delete (empty content), or insert (zero-width range).\"\"\"\n    import os as _os\n    if _os.environ.get(\"SYMBOL_AGENT\"):\n        agent = True\n    patch_cmd(\n        file=file_wp7,\n        range=range_,\n        content=content,\n        project_root=path,\n        force=force,\n        dry_run=dry_run,\n        context=context,\n        agent=agent,\n        format=format,\n    )"}}
+{"id": "rp006", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.cli.mcp", "content": "@app.command()\ndef mcp(\n    root_wp7: Annotated[str, typer.Option(\"--root\", \"-r\", help=\"Project root to serve\")] = \".\",\n) -> None:\n    \"\"\"Run the MCP server (stdio) exposing symbol as agent tools.\"\"\"\n    from wyolet.symbol.mcp.server import serve\n    serve(root_wp7)"}}
+{"id": "rp007", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.pyscan._Daemon.rename_module_binding", "content": "def rename_module_binding(self, params_wp7: dict) -> dict:\n    kwargs = self._rename_common(params_wp7)\n    kwargs[\"target_module_qpath\"] = params_wp7[\"target_module_qpath\"]\n    return asdict(self.adapter.rename_module_binding(**kwargs))"}}
+{"id": "rp008", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex._lang", "content": "def _lang(self, l_wp7: str) -> int:\n    lid = self._lang_ids.get(l_wp7)\n    if lid is None:\n        lid = len(self.langs)\n        self.langs.append(l_wp7)\n        self._lang_ids[l_wp7] = lid\n    return lid"}}
+{"id": "rp009", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.commands.init._generate_toml", "content": "def _generate_toml(\n    ignore_side_effects_wp7: list[str],\n    ignore_deps: list[str],\n) -> str:\n    \"\"\"Build a TOML config string from the discovered patterns.\"\"\"\n    lines: list[str] = []\n    lines.append(\"[tool.symbol]\")\n\n    lines.append(\"\")\n    lines.append(\"[tool.symbol.checkers.orphans]\")\n    lines.append('severity = \"warning\"')\n\n    lines.append(\"\")\n    lines.append(\"[tool.symbol.checkers.side_effects]\")\n    lines.append('severity = \"info\"')\n    if ignore_side_effects_wp7:\n        items = \", \".join(f'\"{p}\"' for p in ignore_side_effects_wp7)\n        lines.append(f\"ignore = [{items}]\")\n\n    lines.append(\"\")\n    lines.append(\"[tool.symbol.checkers.unused_deps]\")\n    if ignore_deps:\n        items = \", \".join(f'\"{d}\"' for d in ignore_deps)\n        lines.append(f\"ignore = [{items}]\")\n\n    return \"\\n\".join(lines) + \"\\n\""}}
+{"id": "rp010", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.shared.symbol_index.SymbolIndex.build_tree", "content": "def build_tree(self, row_ids_wp7: list[int], root_row: int | None = None) -> list[dict]:\n    \"\"\"Turn a flat list of row ids into nested dicts via parent pointers.\"\"\"\n    nodes: dict[int, dict] = {}\n    roots: list[dict] = []\n    for row in row_ids_wp7:\n        s, e = self.range_of(row)\n        node = {\n            \"path\": self.path_of(row),\n            \"kind\": self.kind_of(row),\n            \"signature\": self.signature(row),\n            \"start_line\": s,\n            \"end_line\": e,\n            \"children\": [],\n        }\n        nodes[row] = node\n        parent_row = self.parent_of(row)\n        parent = nodes.get(parent_row)\n        if parent is None or row == root_row:\n            roots.append(node)\n        else:\n            parent[\"children\"].append(node)\n    return roots"}}
+{"id": "is001", "op": "insert-symbol", "args": {"anchor_path": "wyolet.symbol.adapters.python_ast._python_signature", "position": "after", "content": "# wp7 marker\n"}}
+{"id": "is002", "op": "insert-symbol", "args": {"anchor_path": "wyolet.symbol.protocols.types.ScannedSymbol", "position": "end", "content": "WP7_MARKER = 1\n"}}
+{"id": "pt001", "op": "patch", "args": {"file": "scripts/check_pkg_thresholds.py", "range": "1-1", "content": "# wp7 hdr"}}
+{"id": "pt002", "op": "patch", "args": {"file": "scripts/diff_runner.py", "range": "1-1", "content": "# wp7 hdr"}}
+{"id": "ds001", "op": "delete-symbol", "args": {"qualified_path": "wyolet.symbol.caches.instrument._line_start_byte", "force": true}}
+{"id": "ds002", "op": "delete-symbol", "args": {"qualified_path": "wyolet.symbol.adapters.python_ast._python_signature"}, "expect_error": true}
+{"id": "rn046", "op": "rename-symbol", "args": {"qualified_path": "wyolet.symbol.no.such.symbol", "new_name": "x"}, "expect_error": true}
+{"id": "ds003", "op": "delete-symbol", "args": {"qualified_path": "wyolet.symbol.no.such", "force": true}, "expect_error": true}
+{"id": "rs001", "op": "replace-symbol", "args": {"qualified_path": "wyolet.symbol.no.such", "content": "def x():\n    pass\n"}, "expect_error": true}
+{"id": "is003", "op": "insert-symbol", "args": {"anchor_path": "wyolet.symbol.no.anchor", "position": "after", "content": "x"}, "expect_error": true}
