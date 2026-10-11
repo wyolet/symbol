@@ -1,13 +1,13 @@
 .DEFAULT_GOAL := help
 .PHONY: help install sync test test-fast test-rust lint-rust test-features test-real-world lint validate \
-        validate-specs audit clean build-go-scan build-go-scan-all
+        validate-specs audit clean build-go-scan build-go-scan-all dist
 
 UV ?= uv
 GO ?= go
 GO_SCAN_DIR := src/wyolet/symbol/adapters/go_ast/daemon
 BIN_DIR := src/wyolet/symbol/bin
-# Cross-compile targets shipped in wheels. Keep this list in sync with
-# the CI workflow under .github/workflows/ci.yml.
+# Targets shipped in platform wheels. Keep this list in sync with the
+# matrix in .github/workflows/build.yml.
 GO_SCAN_TARGETS := \
   darwin-arm64 \
   darwin-amd64 \
@@ -75,3 +75,6 @@ build-go-scan-all: ## Cross-compile go-scan for every shipped target → src/wyo
 	  GOOS=$${target%-*} GOARCH=$${target#*-} \
 	    $(GO) -C $(GO_SCAN_DIR) build -o ../../../../../../$(BIN_DIR)/go-scan-$$target$$suffix .; \
 	done
+
+dist: ## Build the host platform wheel + standalone archive and smoke-test both
+	$(UV) run --no-project scripts/build_dist.py --smoke

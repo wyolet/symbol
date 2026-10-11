@@ -92,6 +92,18 @@ extra_specs = [
 
 Each file follows the same format as built-in specs. Extra specs are loaded after built-ins and override them if the package name matches — so you can also use this to patch a built-in spec without touching the `symbol` source.
 
+## Releasing
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`: it builds the platform wheels, the pure wheel, the sdist, and the standalone archives, publishes to PyPI, and creates the GitHub release. The build fails unless the tag, `pyproject.toml`, and `rust/symbol/Cargo.toml` carry the same version (`symbol --version` of the Rust binary reports the Cargo version).
+
+1. `uv version X.Y.Z` — updates `pyproject.toml` and `uv.lock`.
+2. Set `version = "X.Y.Z"` in `rust/symbol/Cargo.toml`, then `cargo build --manifest-path rust/Cargo.toml -p symbol-core` to update `rust/Cargo.lock`.
+3. Set `version` in `plugin/.claude-plugin/plugin.json`.
+4. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] — YYYY-MM-DD`; the release notes come from that section.
+5. `uv run scripts/check_version.py`, commit `release: vX.Y.Z`, then tag `vX.Y.Z` and push the commit and the tag.
+
+`make dist` builds and smoke-tests the host platform's wheel and archive locally.
+
 ## Other contributions
 
 - **Checker improvements** — see `src/wyolet/symbol/checkers/`

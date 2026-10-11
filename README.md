@@ -72,8 +72,40 @@ and leave the index and files untouched.
 
 ## Install
 
-> Distribution for the Rust binary is not finalized yet. For now, build from
-> source; a packaged release (`symbol` on your `PATH`) will land here.
+### PyPI
+
+```bash
+uv tool install wyolet-symbol    # or: pipx install wyolet-symbol
+```
+
+Wheels for macOS 13+ (arm64, x86_64), Linux (x86_64, arm64; glibc or musl),
+and Windows (x86_64) bundle the Rust `symbol` binary and `go-scan`. Commands
+the binary implements run it directly, with `pyscan` on the interpreter the
+package is installed into; `audit`, `analyze`, `dump`, `init`, `map`, and
+`update-linguist` run the Python implementation. `SYMBOL_IMPL=python` forces
+the Python implementation for every command. Other platforms get the
+pure-Python wheel.
+
+### Standalone binary
+
+Each [GitHub release](https://github.com/wyolet/symbol/releases) has
+`symbol-<version>-<target>.tar.gz` (`.zip` for Windows) for `darwin-arm64`,
+`darwin-amd64`, `linux-amd64`, `linux-arm64`, and `windows-amd64`, plus
+`SHA256SUMS`. The archive holds `symbol` and `go-scan`; keep them in the same
+directory.
+
+```bash
+version=0.2.5 target=linux-amd64
+base=https://github.com/wyolet/symbol/releases/download/v$version
+curl -fsSLO "$base/symbol-$version-$target.tar.gz" -O "$base/SHA256SUMS"
+grep " symbol-$version-$target.tar.gz" SHA256SUMS | sha256sum -c   # macOS: shasum -a 256 -c
+tar -xzf "symbol-$version-$target.tar.gz" -C ~/.local/bin
+```
+
+Linux binaries are statically linked. On macOS, archives downloaded through a
+browser are quarantined: `xattr -d com.apple.quarantine symbol go-scan`.
+
+### From source
 
 ```bash
 git clone https://github.com/wyolet/symbol
@@ -86,6 +118,9 @@ Put `target/release` on your `PATH`, or alias it while building from source:
 ```bash
 alias symbol="$PWD/target/release/symbol"
 ```
+
+`make dist` builds the host platform's wheel and archive into `dist/` and
+`build/archives/`.
 
 The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
 lets you build it locally via `make build-go-scan`. For Go projects without

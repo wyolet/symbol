@@ -1,6 +1,6 @@
 [package]
 name = "symbol-core"
-version = "0.1.0"
+version = "0.2.5"
 edition = "2021"
 description = "Rust port of symbol's core: index, reads, writes. Language analysis stays in native-AST daemons (pyscan, go-scan)."
 license = "Apache-2.0"
