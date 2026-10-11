@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from click.core import ParameterSource
 from rich.console import Console
 
 from .commands.analyze import analyze_cmd, analyze_dump
@@ -79,7 +78,10 @@ def main(
         raise typer.BadParameter(f"Invalid format '{format}'. Choose from: rich, json")
     state["verbose"] = verbose
     state["format"] = format
-    if ctx.get_parameter_source("format") == ParameterSource.COMMANDLINE and ctx.invoked_subcommand:
+    # By name: newer typer vendors click, so click's own enum is a different
+    # class (and click may not be installed at all).
+    source = ctx.get_parameter_source("format")
+    if source is not None and source.name == "COMMANDLINE" and ctx.invoked_subcommand:
         # Subcommands own their --format; hand the global value down as their
         # default so an explicit subcommand --format still wins.
         sub = ctx.command.get_command(ctx, ctx.invoked_subcommand)
