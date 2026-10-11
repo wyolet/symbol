@@ -10,6 +10,7 @@ pub mod map;
 pub mod pyjson;
 pub mod pyscan;
 pub mod reads;
+pub mod render;
 pub mod rpc;
 pub mod specs;
 pub mod writes;

@@ -1,64 +1,143 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Args as ClapArgs, CommandFactory, FromArgMatches, Parser, Subcommand};
+use serde_json::Value;
 
 use symbol_core::adapters::{default_registry, DaemonUnavailable};
 use symbol_core::index::{full_build, get_or_build, Index};
-use symbol_core::reads;
-use symbol_core::writes::ops::{delete_symbol, insert_symbol, replace_symbol};
+use symbol_core::reads::{self, CodeMiss};
+use symbol_core::render;
+use symbol_core::writes::ops::{
+    delete_symbol_with_context, insert_symbol_with_context, replace_symbol,
+};
 use symbol_core::writes::patch::{
     apply_multi_patch, apply_patch, preflight, validate_args, MultiPatchEdit,
 };
 use symbol_core::writes::read_cache::ReadCache;
 use symbol_core::writes::rename::rename_symbol;
-use symbol_core::writes::tx::undo_last;
+use symbol_core::writes::tx::{clear_transactions, undo_last};
 
-/// symbol — AST-native code intelligence (index, reads, writes, loc).
-/// Language analysis runs in native-AST daemons (pyscan / go-scan).
+/// symbol — AST-native code intelligence for Python and Go.
+///
+/// Accepts the Python CLI's spelling (`--path`, `--format json`, options
+/// for range/content/position) and its own (`--root`, `--json`, positional
+/// range/content/position). `--json` keeps this binary's own JSON shapes;
+/// `--format json` prints exactly what the Python CLI prints.
 #[derive(Parser)]
-#[command(version, about)]
-struct Args {
+#[command(name = "symbol", about, disable_version_flag = true)]
+struct Cli {
     /// Project root
-    #[arg(long, default_value = ".", global = true)]
+    #[arg(
+        long = "root",
+        visible_alias = "path",
+        short = 'p',
+        default_value = ".",
+        global = true
+    )]
     root: PathBuf,
 
-    /// JSON output
+    /// JSON output in this binary's own shapes
     #[arg(long, global = true)]
     json: bool,
 
+    /// Output format for the subcommand: rich or json
+    #[arg(long = "format", value_name = "FORMAT")]
+    format: Option<String>,
+
+    /// Show full detail
+    #[arg(short = 'v', long = "verbose")]
+    verbose: bool,
+
+    /// Show the installed symbol version and exit
+    #[arg(long)]
+    version: bool,
+
     #[command(subcommand)]
-    cmd: Cmd,
+    cmd: Option<Cmd>,
+}
+
+/// `--format/-f` (rich | json).
+#[derive(ClapArgs, Default)]
+struct Format {
+    /// Output format: rich or json
+    #[arg(long, short = 'f')]
+    format: Option<String>,
+}
+
+/// `--format/-f` plus `--agent` (or SYMBOL_AGENT) plain-text mode.
+#[derive(ClapArgs, Default)]
+struct WriteFormat {
+    /// Output format: rich, agent, or json
+    #[arg(long, short = 'f')]
+    format: Option<String>,
+    /// Enriched plain-text output for LLM consumers
+    #[arg(long)]
+    agent: bool,
 }
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Build the symbol index and write .symbol/symbol_index.msgpack.zst
-    Index,
-    /// Reindex changed files in place
-    Refresh,
-    /// Narrow candidates by name; signatures only
+    /// Build the symbol lookup table and write to .symbol/symbol_index.msgpack.zst
+    Index {
+        /// Project root (defaults to --root)
+        path: Option<PathBuf>,
+    },
+    /// Reindex changed files and clear transaction history
+    Refresh {
+        #[command(flatten)]
+        out: WriteFormat,
+    },
+    /// Narrow candidates by name. Returns signatures, no bodies.
     Search {
+        /// One or more symbol patterns. Multiple patterns = AND (all must match).
+        #[arg(required = true)]
         patterns: Vec<String>,
+        /// Filter by kind: class, function, async_function
         #[arg(long)]
         kind: Option<String>,
+        /// Restrict to one file (repo-relative path)
         #[arg(long)]
         file: Option<String>,
-        #[arg(long)]
+        /// Treat patterns as regex (unanchored)
+        #[arg(long, short = 'E')]
         regex: bool,
-        #[arg(long)]
+        /// Treat patterns as literal substrings
+        #[arg(long, short = 'F')]
         fixed: bool,
-        #[arg(short = 'i', long)]
+        /// Case-insensitive matching
+        #[arg(long, short = 'i')]
         ignore_case: bool,
+        /// Max candidates to return
         #[arg(long, default_value_t = 100)]
         limit: usize,
+        #[command(flatten)]
+        out: Format,
     },
-    /// Retrieve exact body at a known address (file:A-B or qualified.path)
-    Code { target: String },
-    /// Parent-child symbol tree for a file or symbol
-    Outline { query: String },
-    /// Tier-1 textual reference scan
-    Callers { name: String },
+    /// Retrieve exact body at a known address. Use after symbol search.
+    Code {
+        /// file:start-end or fully qualified symbol path
+        target: String,
+        /// Skip reference list in output
+        #[arg(long)]
+        no_refs: bool,
+        #[command(flatten)]
+        out: Format,
+    },
+    /// Show a file's symbols as a parent-child tree
+    Outline {
+        /// File (or qualified symbol path) to outline
+        file: String,
+        #[command(flatten)]
+        out: Format,
+    },
+    /// Tier-1 textual reference scan — name-match only, unresolved
+    Callers {
+        /// Name to search for (last segment matched)
+        name: String,
+        #[command(flatten)]
+        out: Format,
+    },
     /// Type-resolved references to one symbol (adapter-backed)
     Refs {
         qualified_path: String,
@@ -73,15 +152,33 @@ enum Cmd {
         #[arg(short, long)]
         verbose: bool,
     },
-    /// Byte-range edit primitive (replace / delete via empty content)
+    /// Byte-range edit primitive. Replace, delete (empty content), or insert.
     Patch {
+        /// File to patch
         file: String,
-        range: String,
+        /// Line range A-B (same as --range)
+        #[arg(value_name = "RANGE")]
+        range_arg: Option<String>,
+        /// New content (same as --content)
+        #[arg(value_name = "CONTENT")]
+        content_arg: Option<String>,
+        /// Line range A-B (inclusive, 1-indexed)
+        #[arg(long = "range", short = 'r')]
+        range: Option<String>,
+        /// New content (use '' or omit for delete)
+        #[arg(long = "content")]
         content: Option<String>,
+        /// Skip read-cache check
         #[arg(long)]
         force: bool,
+        /// Compute diff but don't write
         #[arg(long)]
         dry_run: bool,
+        /// Lines of diff context around the edit
+        #[arg(long, short = 'C', default_value_t = 5)]
+        context: usize,
+        #[command(flatten)]
+        out: WriteFormat,
     },
     /// Apply multiple non-overlapping edits to one file atomically
     MultiPatch {
@@ -93,46 +190,91 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Remove a named symbol (refuses if callers exist; --force overrides)
+    /// Remove a named symbol from its file. Refuses if callers exist (use --force).
     DeleteSymbol {
+        /// Fully qualified symbol path (e.g. services.user.UserService)
         qualified_path: String,
+        /// Delete even if callers exist
         #[arg(long)]
         force: bool,
+        /// Compute diff but don't write
         #[arg(long)]
         dry_run: bool,
+        /// Lines of diff context
+        #[arg(long, short = 'C', default_value_t = 5)]
+        context: usize,
+        #[command(flatten)]
+        out: WriteFormat,
     },
-    /// Replace a symbol's full definition (renames callers if the name changes)
+    /// Replace a symbol's full definition. If content declares a new name, callers are updated too.
     ReplaceSymbol {
+        /// Fully qualified symbol path to replace
         qualified_path: String,
-        content: String,
+        /// Full new symbol definition (same as --content)
+        #[arg(value_name = "CONTENT")]
+        content_arg: Option<String>,
+        /// Full new symbol definition
+        #[arg(long = "content")]
+        content: Option<String>,
+        /// Preview without writing
         #[arg(long)]
         dry_run: bool,
+        #[command(flatten)]
+        out: WriteFormat,
     },
-    /// Insert content at a position anchored to a symbol (before/after/start/end)
+    /// Insert code at a position anchored to a symbol (before/after/start/end).
     InsertSymbol {
-        anchor_path: String,
-        position: String,
-        content: String,
+        /// Anchor symbol qualified path
+        anchor: String,
+        /// before | after | start | end (same as --position)
+        #[arg(value_name = "POSITION")]
+        position_arg: Option<String>,
+        /// New content (same as --content)
+        #[arg(value_name = "CONTENT")]
+        content_arg: Option<String>,
+        /// before | after | start | end
+        #[arg(long = "position")]
+        position: Option<String>,
+        /// New content
+        #[arg(long = "content")]
+        content: Option<String>,
+        /// Send content as-is, don't auto-indent
         #[arg(long)]
         no_reindent: bool,
+        /// Compute diff but don't write
         #[arg(long)]
         dry_run: bool,
+        /// Lines of diff context
+        #[arg(long, short = 'C', default_value_t = 5)]
+        context: usize,
+        #[command(flatten)]
+        out: WriteFormat,
     },
-    /// Rename a symbol and its references (AST-aware with tier-1 fallback)
+    /// Rename a symbol and update references across the project.
     RenameSymbol {
+        /// Fully qualified symbol path (e.g. services.user.UserService)
         qualified_path: String,
+        /// New leaf name (no dots)
         new_name: String,
+        /// Plan rename, don't write
         #[arg(long)]
         dry_run: bool,
+        #[command(flatten)]
+        out: WriteFormat,
     },
-    /// Revert the most recent rename/replace/delete transaction
-    Undo,
+    /// Revert the most recent rename-symbol / replace-symbol transaction.
+    Undo {
+        #[command(flatten)]
+        out: WriteFormat,
+    },
     /// Index statistics
     Stats,
-    /// Lines of code by language (GitHub-Linguist port)
+    /// Count lines of code by language — powered by GitHub Linguist.
     Loc {
-        /// Project root to scan (defaults to --root)
+        /// Project directory (defaults to --root)
         path: Option<PathBuf>,
+        #[command(flatten)]
+        out: Format,
         #[arg(long)]
         files: bool,
         #[arg(long)]
@@ -170,64 +312,185 @@ enum Cmd {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Hook entry — reads Claude Code hook JSON from stdin.
+    #[command(hide = true)]
+    Hook {
+        /// Block tool calls (exit 2) instead of soft-nudging via additionalContext.
+        #[arg(long)]
+        enforce: bool,
+    },
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
-    let json = args.json;
-    let Err(err) = run(args) else {
-        return Ok(());
+impl Cmd {
+    /// The subcommand's own `--format`, when it has one.
+    fn format_slot(&mut self) -> Option<&mut Option<String>> {
+        match self {
+            Cmd::Search { out, .. }
+            | Cmd::Code { out, .. }
+            | Cmd::Outline { out, .. }
+            | Cmd::Callers { out, .. }
+            | Cmd::Loc { out, .. } => Some(&mut out.format),
+            Cmd::Refresh { out }
+            | Cmd::Patch { out, .. }
+            | Cmd::DeleteSymbol { out, .. }
+            | Cmd::ReplaceSymbol { out, .. }
+            | Cmd::InsertSymbol { out, .. }
+            | Cmd::RenameSymbol { out, .. }
+            | Cmd::Undo { out } => Some(&mut out.format),
+            _ => None,
+        }
+    }
+
+    /// Commands the Python CLI does not have read the root `--format`
+    /// as their JSON switch.
+    fn native_only(&self) -> bool {
+        matches!(
+            self,
+            Cmd::Refs { .. }
+                | Cmd::Implementers { .. }
+                | Cmd::MultiPatch { .. }
+                | Cmd::Stats
+                | Cmd::Map { .. }
+        )
+    }
+}
+
+/// How a command prints: its own JSON (`--json`), the Python CLI's JSON
+/// (`--format json`), or text — Rich-style, or `--agent` plain.
+#[derive(Clone, Copy)]
+struct Out {
+    native_json: bool,
+    py_json: bool,
+    agent: bool,
+}
+
+impl Out {
+    fn read(native_json: bool, f: &Format) -> Out {
+        Out {
+            native_json,
+            py_json: !native_json && f.format.as_deref() == Some("json"),
+            agent: false,
+        }
+    }
+
+    fn write(native_json: bool, f: &WriteFormat) -> Out {
+        let env_agent = std::env::var("SYMBOL_AGENT").is_ok_and(|v| !v.is_empty());
+        Out {
+            native_json,
+            py_json: !native_json && f.format.as_deref() == Some("json"),
+            agent: f.agent || env_agent,
+        }
+    }
+}
+
+fn main() {
+    let matches = Cli::command().get_matches();
+    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
+    let name = matches.subcommand_name().unwrap_or_default().to_owned();
+    if cli.version {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    let Some(cmd) = cli.cmd.as_mut() else {
+        let _ = Cli::command().print_help();
+        return;
     };
-    let Some(unavailable) = err.downcast_ref::<DaemonUnavailable>() else {
-        return Err(err);
+    if let Some(format) = cli.format.clone() {
+        // The root --format is a default for the subcommand's own --format;
+        // a subcommand without one rejects it (Typer's main callback).
+        if format != "rich" && format != "json" {
+            render::usage_error(&format!(
+                "Invalid value: Invalid format '{format}'. Choose from: rich, json"
+            ));
+        }
+        if cmd.native_only() {
+            cli.json |= format == "json";
+        } else {
+            match cmd.format_slot() {
+                Some(slot) => {
+                    slot.get_or_insert(format);
+                }
+                None => render::usage_error(&format!(
+                    "Invalid value for --format: '{name}' has no --format option"
+                )),
+            }
+        }
+    }
+    if let Some(Cmd::Hook { enforce }) = cli.cmd {
+        std::process::exit(symbol_core::hook::run(enforce));
+    }
+
+    let wants_json = cli.json
+        || cli
+            .cmd
+            .as_mut()
+            .and_then(Cmd::format_slot)
+            .is_some_and(|f| f.as_deref() == Some("json"));
+    let Err(err) = run(cli) else {
+        return;
     };
-    if json {
-        println!("{}", serde_json::to_string_pretty(&unavailable.to_json())?);
-    } else {
-        eprintln!("error [daemon_unavailable]: {unavailable}");
+    match err.downcast_ref::<DaemonUnavailable>() {
+        Some(unavailable) if wants_json => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&unavailable.to_json()).unwrap_or_default()
+            );
+        }
+        Some(unavailable) => eprintln!("error [daemon_unavailable]: {unavailable}"),
+        None => eprintln!("Error: {err:?}"),
     }
     std::process::exit(1);
 }
 
-fn run(args: Args) -> Result<()> {
-    let root = args.root.canonicalize()?;
+fn exit(code: i32) -> ! {
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+    std::process::exit(code)
+}
+
+fn usage_missing(option: &str) -> ! {
+    render::usage_error(&format!("Missing option '{option}'."))
+}
+
+/// A value given positionally (this binary's spelling) or as an option
+/// (the Python CLI's); not both.
+fn either(positional: Option<String>, option: Option<String>, name: &str) -> Option<String> {
+    match (positional, option) {
+        (Some(_), Some(_)) => render::usage_error(&format!(
+            "Got unexpected extra argument (--{name} was also given)"
+        )),
+        (p, o) => p.or(o),
+    }
+}
+
+fn run(cli: Cli) -> Result<()> {
+    let cmd = cli.cmd.expect("subcommand checked in main");
+    let native_json = cli.json;
+    if let Cmd::Index { path } = &cmd {
+        let root = path.clone().unwrap_or(cli.root.clone()).canonicalize()?;
+        return index(&root, native_json);
+    }
+    let root = cli.root.canonicalize()?;
     let reg = default_registry(&root);
 
-    match args.cmd {
-        Cmd::Index => {
-            let t0 = std::time::Instant::now();
-            let idx = full_build(&root, reg)?;
-            let build_ms = t0.elapsed().as_millis();
-            let t1 = std::time::Instant::now();
-            let path = idx.save()?;
-            let save_ms = t1.elapsed().as_millis();
-            let stats = idx.stats();
-            if args.json {
-                println!(
-                    "{}",
-                    serde_json::json!({"stats": stats, "path": path, "build_ms": build_ms, "save_ms": save_ms})
-                );
-            } else {
-                println!(
-                    "indexed {} files → {} symbols, {} imports, {} refs",
-                    stats["files"], stats["symbols"], stats["imports"], stats["refs"]
-                );
-                println!(
-                    "build {build_ms} ms  •  save {save_ms} ms  •  {}",
-                    path.display()
-                );
-            }
-        }
-        Cmd::Refresh => {
+    match cmd {
+        Cmd::Index { .. } | Cmd::Hook { .. } => unreachable!("handled before the registry"),
+        Cmd::Refresh { out } => {
+            let out = Out::write(native_json, &out);
             let (idx, source) = get_or_build(&root, reg)?;
-            let stats = idx.stats();
-            if args.json {
+            let cleared = clear_transactions(&root);
+            if out.native_json {
+                let stats = idx.stats();
                 println!("{}", serde_json::json!({"source": source, "stats": stats}));
             } else {
-                println!(
-                    "{source}: {} files, {} live symbols",
-                    stats["files"], stats["live_symbols"]
-                );
+                let result = serde_json::json!({
+                    "status": "ok",
+                    "source": source,
+                    "symbols": idx.symbols.len(),
+                    "files": idx.files.len(),
+                    "transactions_cleared": cleared,
+                });
+                render::refresh_result(&result, out.py_json, out.agent);
             }
         }
         Cmd::Search {
@@ -238,7 +501,13 @@ fn run(args: Args) -> Result<()> {
             fixed,
             ignore_case,
             limit,
+            out,
         } => {
+            if regex && fixed {
+                render::print("[red]--regex and --fixed are mutually exclusive[/red]");
+                exit(2);
+            }
+            let out = Out::read(native_json, &out);
             let (idx, _) = get_or_build(&root, reg)?;
             let hits = reads::search(
                 &idx,
@@ -253,81 +522,75 @@ fn run(args: Args) -> Result<()> {
                 },
                 reg,
             )?;
-            if args.json {
+            if out.native_json {
                 println!("{}", serde_json::to_string_pretty(&hits)?);
+            } else if out.py_json {
+                render::print_json(&Value::Array(hits));
             } else {
-                println!("{} matches\n", hits.len());
-                for h in &hits {
-                    println!(
-                        "{}:{}-{}",
-                        h["file"].as_str().unwrap_or(""),
-                        h["start_line"],
-                        h["end_line"]
-                    );
-                    println!("{}", h["signature"].as_str().unwrap_or(""));
-                    println!("{}", "─".repeat(78));
-                }
-                if !hits.is_empty() {
-                    println!("Use symbol code <file:start-end> to fetch a body.");
-                }
+                render::search_rich(&patterns, &hits);
             }
         }
-        Cmd::Code { target } => {
+        Cmd::Code {
+            target,
+            no_refs,
+            out,
+        } => {
+            let out = Out::read(native_json, &out);
             let (idx, _) = get_or_build(&root, reg)?;
-            let payload = reads::code(&idx, &target, reg)?;
-            record_read(&root, &idx, &payload);
-            if args.json {
+            if out.native_json {
+                let payload = reads::code(&idx, &target, reg)?;
+                record_read(&root, &payload);
                 println!("{}", serde_json::to_string_pretty(&payload)?);
-            } else if payload["ambiguous"].as_bool() == Some(true) {
-                println!("ambiguous — candidates:");
-                for c in payload["candidates"].as_array().unwrap() {
-                    println!(
-                        "  {}  {}:{}-{}",
-                        c["path"].as_str().unwrap_or(""),
-                        c["file"].as_str().unwrap_or(""),
-                        c["start_line"],
-                        c["end_line"]
-                    );
+                return Ok(());
+            }
+            match reads::lookup_code(&idx, &target, reg) {
+                Err(CodeMiss::NotFound(message)) => render::code_not_found(&message, out.py_json),
+                Err(CodeMiss::Ambiguous(candidates)) => {
+                    render::code_ambiguous(&candidates, out.py_json)
                 }
-            } else {
-                println!(
-                    "{}  {}:{}-{}  ({})",
-                    payload["path"].as_str().unwrap_or("<slice>"),
-                    payload["file"].as_str().unwrap_or(""),
-                    payload["start_line"],
-                    payload["end_line"],
-                    payload["kind"].as_str().unwrap_or(""),
-                );
-                println!("{}", payload["body"].as_str().unwrap_or(""));
+                Ok(hit) => {
+                    record_read(&root, &hit);
+                    if out.py_json {
+                        render::print_json(&hit);
+                    } else {
+                        render::code_rich(&hit, !no_refs);
+                    }
+                }
             }
         }
-        Cmd::Outline { query } => {
+        Cmd::Outline { file, out } => {
+            let out = Out::read(native_json, &out);
             let (idx, _) = get_or_build(&root, reg)?;
-            let tree = reads::outline(&idx, &query, reg);
-            if args.json {
+            // A path on disk is read relative to the project; anything
+            // else is a symbol path.
+            let arg = Path::new(&file)
+                .canonicalize()
+                .ok()
+                .and_then(|abs| {
+                    abs.strip_prefix(&root)
+                        .ok()
+                        .map(|r| r.to_string_lossy().into_owned())
+                })
+                .unwrap_or(file);
+            let tree = reads::outline(&idx, &arg, reg);
+            if out.native_json {
                 println!("{}", serde_json::to_string_pretty(&tree)?);
+            } else if out.py_json {
+                render::print_json(&Value::Array(tree));
             } else {
-                for node in &tree {
-                    print_tree(node, 0);
-                }
+                render::outline_rich(&arg, &tree);
             }
         }
-        Cmd::Callers { name } => {
+        Cmd::Callers { name, out } => {
+            let out = Out::read(native_json, &out);
             let (idx, _) = get_or_build(&root, reg)?;
-            let out = reads::callers(&idx, &name);
-            if args.json {
-                println!("{}", serde_json::to_string_pretty(&out)?);
+            let hits = reads::callers(&idx, &name);
+            if out.native_json {
+                println!("{}", serde_json::to_string_pretty(&hits)?);
+            } else if out.py_json {
+                render::print_json(&Value::Array(hits));
             } else {
-                println!("{} reference(s)", out.len());
-                for c in &out {
-                    println!(
-                        "  {}:{}  {}  ({})",
-                        c["source_file"].as_str().unwrap_or(""),
-                        c["ref_line"],
-                        c["source_path"].as_str().unwrap_or(""),
-                        c["ref_kind"].as_str().unwrap_or(""),
-                    );
-                }
+                render::callers_rich(&name, &hits);
             }
         }
         Cmd::Refs {
@@ -336,7 +599,7 @@ fn run(args: Args) -> Result<()> {
         } => {
             let (idx, _) = get_or_build(&root, reg)?;
             let result = symbol_core::xref::references(&idx, &qualified_path, reg);
-            finish_xref(&result, args.json, verbose, print_refs)?;
+            finish_xref(&result, native_json, verbose, print_refs)?;
         }
         Cmd::Implementers {
             qualified_path,
@@ -344,56 +607,25 @@ fn run(args: Args) -> Result<()> {
         } => {
             let (idx, _) = get_or_build(&root, reg)?;
             let result = symbol_core::xref::implementers(&idx, &qualified_path, reg);
-            finish_xref(&result, args.json, verbose, print_implementers)?;
+            finish_xref(&result, native_json, verbose, print_implementers)?;
         }
         Cmd::Patch {
             file,
+            range_arg,
+            content_arg,
             range,
             content,
             force,
             dry_run,
+            context,
+            out,
         } => {
-            let cache = ReadCache::for_session(&root);
-            let request = match validate_args(
-                &file,
-                &range,
-                content.unwrap_or_default().as_bytes(),
-                &root,
-                force,
-            ) {
-                Ok(r) => r,
-                Err(e) => {
-                    println!("{}", serde_json::to_string_pretty(&e)?);
-                    std::process::exit(1);
-                }
+            let out = Out::write(native_json, &out);
+            let Some(range) = either(range_arg, range, "range") else {
+                usage_missing("--range' / '-r");
             };
-            if let Err(msg) = preflight(&request, &cache) {
-                println!(
-                    "{}",
-                    serde_json::json!({"status": "needs_read_confirmation", "message": msg})
-                );
-                std::process::exit(1);
-            }
-            let result = apply_patch(&request, &cache, dry_run, 5);
-            let failed = result.status == "error";
-            if args.json {
-                println!("{}", serde_json::to_string_pretty(&result)?);
-            } else if failed {
-                println!(
-                    "error [{}]: {}",
-                    result.error_code.as_deref().unwrap_or(""),
-                    result.message.as_deref().unwrap_or("")
-                );
-            } else {
-                println!(
-                    "{} {}  -{} +{}",
-                    result.status, result.file_rel, result.lines_removed, result.lines_added
-                );
-                println!("{}", result.diff);
-            }
-            if failed {
-                std::process::exit(1);
-            }
+            let content = either(content_arg, content, "content").unwrap_or_default();
+            patch(&root, &file, &range, &content, force, dry_run, context, out)?;
         }
         Cmd::MultiPatch {
             file,
@@ -413,7 +645,7 @@ fn run(args: Args) -> Result<()> {
                             "message": format!("edits must be a JSON array: {error}")
                         })
                     );
-                    std::process::exit(1);
+                    exit(1);
                 }
             };
             let cache = ReadCache::for_session(&root);
@@ -421,57 +653,87 @@ fn run(args: Args) -> Result<()> {
             let failed = matches!(result.status, "error" | "needs_read_confirmation");
             println!("{}", serde_json::to_string_pretty(&result)?);
             if failed {
-                std::process::exit(1);
+                exit(1);
             }
         }
         Cmd::DeleteSymbol {
             qualified_path,
             force,
             dry_run,
+            context,
+            out,
         } => {
+            let out = Out::write(native_json, &out);
             let (mut idx, _) = get_or_build(&root, reg)?;
-            let result = delete_symbol(&mut idx, &qualified_path, &root, reg, force, dry_run);
-            finish_write(&root, &mut idx, reg, result, dry_run)?;
+            let result = delete_symbol_with_context(
+                &mut idx,
+                &qualified_path,
+                &root,
+                reg,
+                force,
+                dry_run,
+                context,
+            );
+            finish_write(&result, out, render::delete_result);
         }
         Cmd::ReplaceSymbol {
             qualified_path,
+            content_arg,
             content,
             dry_run,
+            out,
         } => {
+            let out = Out::write(native_json, &out);
+            let Some(content) = either(content_arg, content, "content") else {
+                usage_missing("--content");
+            };
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = replace_symbol(&mut idx, &qualified_path, &content, &root, reg, dry_run);
-            finish_write(&root, &mut idx, reg, result, dry_run)?;
+            finish_write(&result, out, render::replace_result);
         }
         Cmd::InsertSymbol {
-            anchor_path,
+            anchor,
+            position_arg,
+            content_arg,
             position,
             content,
             no_reindent,
             dry_run,
+            context,
+            out,
         } => {
+            let out = Out::write(native_json, &out);
+            let Some(position) = either(position_arg, position, "position") else {
+                usage_missing("--position");
+            };
+            let content = either(content_arg, content, "content").unwrap_or_default();
             let (mut idx, _) = get_or_build(&root, reg)?;
-            let result = insert_symbol(
+            let result = insert_symbol_with_context(
                 &mut idx,
-                &anchor_path,
+                &anchor,
                 &position,
                 &content,
                 !no_reindent,
                 &root,
                 reg,
                 dry_run,
+                context,
             );
-            finish_write(&root, &mut idx, reg, result, dry_run)?;
+            finish_write(&result, out, render::insert_result);
         }
         Cmd::RenameSymbol {
             qualified_path,
             new_name,
             dry_run,
+            out,
         } => {
+            let out = Out::write(native_json, &out);
             let (mut idx, _) = get_or_build(&root, reg)?;
             let result = rename_symbol(&mut idx, &qualified_path, &new_name, &root, reg, dry_run);
-            finish_write(&root, &mut idx, reg, result, dry_run)?;
+            finish_write(&result, out, render::rename_result);
         }
-        Cmd::Undo => {
+        Cmd::Undo { out } => {
+            let out = Out::write(native_json, &out);
             let result = undo_last(&root);
             if result.status == "undone" && !result.files_restored.is_empty() {
                 // Do not rely on mtime detection here: a fast restore can land
@@ -487,13 +749,19 @@ fn run(args: Args) -> Result<()> {
                     }
                 }
             }
-            println!("{}", serde_json::to_string_pretty(&result)?);
+            let value = serde_json::to_value(&result)?;
+            if out.native_json {
+                println!("{}", serde_json::to_string_pretty(&value)?);
+            } else {
+                render::undo_result(&value, out.py_json, out.agent);
+            }
             if result.status == "error" {
-                std::process::exit(1);
+                exit(1);
             }
         }
         Cmd::Loc {
             path,
+            out,
             files,
             classify,
             exclude,
@@ -503,18 +771,41 @@ fn run(args: Args) -> Result<()> {
             config_dir,
             verbose,
         } => {
-            return symbol_linguist::loc::run(symbol_linguist::loc::LocArgs {
+            let out = Out::read(native_json, &out);
+            let native = native_json || files || classify;
+            let mut excludes = exclude;
+            if !native {
+                // commands/loc.py: the spec's [scanner] scope.
+                let scan_root = path.as_deref().unwrap_or(&root);
+                excludes.splice(0..0, symbol_core::specs::scanner_excludes(scan_root));
+            }
+            let project_name = path
+                .as_deref()
+                .unwrap_or(&cli.root)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let args = symbol_linguist::loc::LocArgs {
                 path: path.unwrap_or(root),
-                json: args.json,
+                json: native_json,
                 files,
                 classify,
-                exclude,
+                exclude: excludes,
                 no_vendor_skip,
                 no_heuristics,
                 no_cache,
                 config_dir,
                 verbose,
-            });
+            };
+            if native {
+                return symbol_linguist::loc::run(args);
+            }
+            let report = symbol_linguist::loc::collect(&args)?;
+            if out.py_json {
+                render::print_json(&symbol_linguist::loc::json_value(&report, false)?);
+            } else {
+                render::loc_rich(&report, &project_name);
+            }
         }
         Cmd::Stats => {
             let (idx, source) = get_or_build(&root, reg)?;
@@ -541,59 +832,143 @@ fn run(args: Args) -> Result<()> {
                 limit,
                 exclude,
                 verbose,
-                json: args.json,
+                json: native_json,
             };
             if !symbol_core::map::run(&idx, &options) {
-                std::process::exit(1);
+                exit(1);
             }
         }
     }
     Ok(())
 }
 
-/// After a successful write: refresh the touched files in the index and
-/// persist it, so the next command sees fresh byte ranges.
-fn finish_write(
-    _root: &std::path::Path,
-    idx: &mut Index,
-    reg: &'static symbol_core::adapters::Registry,
-    result: serde_json::Value,
-    dry_run: bool,
-) -> Result<()> {
-    let failed = result["status"] == "error";
-    if !failed && !dry_run {
-        let mut touched: std::collections::HashSet<String> = Default::default();
-        for key in ["file_rel", "declaring_file"] {
-            if let Some(f) = result[key].as_str() {
-                touched.insert(f.to_owned());
-            }
-        }
-        if let Some(per_file) = result["per_file"].as_array() {
-            for f in per_file {
-                if let Some(rel) = f["file"].as_str() {
-                    touched.insert(rel.to_owned());
-                }
-            }
-        }
-        if !touched.is_empty() {
-            match idx.refresh(&touched, &Default::default(), reg) {
-                Ok(()) => {
-                    let _ = idx.save();
-                }
-                Err(err) => eprintln!("warning: index not refreshed after write: {err:#}"),
-            }
-        }
+fn index(root: &Path, native_json: bool) -> Result<()> {
+    let reg = default_registry(root);
+    let t0 = std::time::Instant::now();
+    let idx = full_build(root, reg)?;
+    let build_ms = t0.elapsed().as_millis();
+    let t1 = std::time::Instant::now();
+    let path = idx.save()?;
+    let save_ms = t1.elapsed().as_millis();
+    let stats = idx.stats();
+    if native_json {
+        println!(
+            "{}",
+            serde_json::json!({"stats": stats, "path": path, "build_ms": build_ms, "save_ms": save_ms})
+        );
+        return Ok(());
     }
-    println!("{}", serde_json::to_string_pretty(&result)?);
+    let size_kb = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) as f64 / 1024.0;
+    let rel = path.strip_prefix(root).unwrap_or(&path);
+    render::print(&format!(
+        "[green]indexed[/green] {} files → {} symbols, {} imports, {} refs",
+        stats["files"], stats["symbols"], stats["imports"], stats["refs"]
+    ));
+    render::print(&format!(
+        "[dim]build {build_ms} ms  •  save {save_ms} ms  •  {size_kb:.1} KB  •  {}[/dim]",
+        rel.display()
+    ));
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn patch(
+    root: &Path,
+    file: &str,
+    range: &str,
+    content: &str,
+    force: bool,
+    dry_run: bool,
+    context: usize,
+    out: Out,
+) -> Result<()> {
+    // Like the Python CLI, a relative file that exists from the working
+    // directory means that file; otherwise it is project-relative.
+    let resolved = std::path::absolute(file)
+        .ok()
+        .filter(|p| Path::new(file).is_relative() && p.exists())
+        .map(|p| p.to_string_lossy().into_owned());
+    let cache = ReadCache::for_session(root);
+    let request = match validate_args(
+        resolved.as_deref().unwrap_or(file),
+        range,
+        content.as_bytes(),
+        root,
+        force,
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            if out.native_json {
+                println!("{}", serde_json::to_string_pretty(&e)?);
+            } else {
+                let e = serde_json::to_value(&e)?;
+                let pre = serde_json::json!({
+                    "status": "error",
+                    "error_code": e["error_code"],
+                    "message": e["message"],
+                });
+                render::patch_preflight(&pre, out.py_json, out.agent);
+            }
+            exit(1);
+        }
+    };
+    if let Err(msg) = preflight(&request, &cache) {
+        if out.native_json {
+            println!(
+                "{}",
+                serde_json::json!({"status": "needs_read_confirmation", "message": msg})
+            );
+        } else {
+            let source = std::fs::read(&request.file_abs).unwrap_or_default();
+            let (s, e) = request.byte_range;
+            let current = source
+                .get(s..e.min(source.len()))
+                .map(|b| String::from_utf8_lossy(b).into_owned())
+                .unwrap_or_default();
+            let pre = serde_json::json!({
+                "status": "needs_read_confirmation",
+                "file": request.file_rel,
+                "line_range": [request.line_range.0, request.line_range.1],
+                "byte_range": [s, e],
+                "current_content": current,
+            });
+            render::patch_preflight(&pre, out.py_json, out.agent);
+        }
+        exit(2);
+    }
+    let result = apply_patch(&request, &cache, dry_run, context);
+    let failed = result.status == "error";
+    if out.native_json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    } else {
+        render::patch_result(&serde_json::to_value(&result)?, out.py_json, out.agent);
+    }
     if failed {
-        std::process::exit(1);
+        exit(1);
     }
     Ok(())
+}
+
+/// Print a write result in the requested mode; exit 1 on error. The index
+/// is not touched: like the Python CLI, the next command's staleness check
+/// refreshes (and compacts) it.
+fn finish_write(result: &Value, out: Out, human: fn(&Value, bool, bool)) {
+    if out.native_json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(result).unwrap_or_default()
+        );
+    } else {
+        human(result, out.py_json, out.agent);
+    }
+    if result["status"] == "error" {
+        exit(1);
+    }
 }
 
 /// Record served bodies in the session read cache so a follow-up patch
 /// passes preflight — mirrors how commands/code.py records reads.
-fn record_read(root: &std::path::Path, _idx: &Index, payload: &serde_json::Value) {
+fn record_read(root: &Path, payload: &Value) {
     use symbol_core::writes::patch::{
         line_end_byte, line_start_byte, mtime_f64, now_f64, short_sha256,
     };
@@ -628,12 +1003,7 @@ fn record_read(root: &std::path::Path, _idx: &Index, payload: &serde_json::Value
 
 /// Print a refs/implementers result; errors print as `error [code]` (or
 /// the JSON object) and exit 1.
-fn finish_xref(
-    result: &serde_json::Value,
-    json: bool,
-    verbose: bool,
-    print: fn(&serde_json::Value),
-) -> Result<()> {
+fn finish_xref(result: &Value, json: bool, verbose: bool, print: fn(&Value)) -> Result<()> {
     let failed = result["status"] == "error";
     if json {
         println!("{}", serde_json::to_string_pretty(result)?);
@@ -668,12 +1038,12 @@ fn finish_xref(
         print_not_analyzed(result, verbose);
     }
     if failed {
-        std::process::exit(1);
+        exit(1);
     }
     Ok(())
 }
 
-fn xref_header(result: &serde_json::Value) -> String {
+fn xref_header(result: &Value) -> String {
     let target = &result["target"];
     format!(
         "{} ({}, {}:{})",
@@ -686,7 +1056,7 @@ fn xref_header(result: &serde_json::Value) -> String {
 
 /// One note line counting skipped files per reason (the adapter's string,
 /// never interpreted here); `-v` lists every file.
-fn print_not_analyzed(result: &serde_json::Value, verbose: bool) {
+fn print_not_analyzed(result: &Value, verbose: bool) {
     let files = result["not_analyzed"]
         .as_array()
         .map(Vec::as_slice)
@@ -719,7 +1089,7 @@ fn print_not_analyzed(result: &serde_json::Value, verbose: bool) {
     }
 }
 
-fn print_refs(result: &serde_json::Value) {
+fn print_refs(result: &Value) {
     println!("{}: {} reference(s)", xref_header(result), result["count"]);
     for r in result["references"]
         .as_array()
@@ -736,7 +1106,7 @@ fn print_refs(result: &serde_json::Value) {
     }
 }
 
-fn print_implementers(result: &serde_json::Value) {
+fn print_implementers(result: &Value) {
     let (label, items) = if result["target"]["kind"] == "interface" {
         ("implementer(s)", &result["implementers"])
     } else {
@@ -763,24 +1133,5 @@ fn print_implementers(result: &serde_json::Value) {
             format!("  ({})", notes.join(", "))
         };
         println!("  {location}{}{notes}", item["path"].as_str().unwrap_or(""));
-    }
-}
-
-fn print_tree(node: &serde_json::Value, depth: usize) {
-    let indent = "  ".repeat(depth);
-    println!(
-        "{indent}{} [{}] {}-{}  {}",
-        node["path"].as_str().unwrap_or(""),
-        node["kind"].as_str().unwrap_or(""),
-        node["start_line"],
-        node["end_line"],
-        node["signature"].as_str().unwrap_or(""),
-    );
-    for child in node["children"]
-        .as_array()
-        .map(Vec::as_slice)
-        .unwrap_or(&[])
-    {
-        print_tree(child, depth + 1);
     }
 }

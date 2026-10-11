@@ -174,6 +174,17 @@ fn prune_transactions(tx_root: &Path, keep: usize) {
     }
 }
 
+/// Drop every recorded transaction (refresh's default); returns how many.
+pub fn clear_transactions(project_root: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(project_root.join(TX_DIR)) else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_dir() && std::fs::remove_dir_all(e.path()).is_ok())
+        .count()
+}
+
 // ---------------------------------------------------------- undo
 
 #[derive(Serialize)]
