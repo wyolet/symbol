@@ -3,10 +3,13 @@
 //! dropped, lines word-wrapped to the console width, panels/tables drawn
 //! with the same box characters.
 
+pub mod agent;
+
 use serde_json::{json, Value};
 
 use crate::pyjson::{dumps, dumps_indent};
 use crate::pystr::repr;
+use agent::py;
 
 // ---------------------------------------------------------- console
 
@@ -661,16 +664,6 @@ fn str_of(v: &Value) -> &str {
     v.as_str().unwrap_or("")
 }
 
-/// `str(x)` of a JSON scalar the way Python would print it.
-fn py_str(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.clone(),
-        Value::Null => "None".into(),
-        Value::Bool(b) => if *b { "True" } else { "False" }.into(),
-        other => other.to_string(),
-    }
-}
-
 pub fn code_not_found(message: &str, json_format: bool) {
     if json_format {
         println!(
@@ -695,7 +688,7 @@ pub fn code_ambiguous(candidates: &[Value], json_format: bool) {
     let mut t = Table::new(&["signature", "location"]);
     for c in candidates {
         t.row(vec![
-            py_str(&c["signature"]),
+            py(&c["signature"]),
             format!(
                 "{}:{}-{}",
                 str_of(&c["file"]),
@@ -710,14 +703,14 @@ pub fn code_ambiguous(candidates: &[Value], json_format: bool) {
 pub fn code_rich(hit: &Value, include_refs: bool) {
     let head = match hit["path"].as_str() {
         Some(p) if !p.is_empty() => p.to_owned(),
-        _ => py_str(&hit["kind"]),
+        _ => py(&hit["kind"]),
     };
     print(&format!(
         "[bold cyan]{head}[/bold cyan]  [dim]{}:{}-{}  ({})[/dim]",
         str_of(&hit["file"]),
         hit["start_line"],
         hit["end_line"],
-        py_str(&hit["kind"])
+        py(&hit["kind"])
     ));
     if let Some(note) = hit["note"].as_str().filter(|n| !n.is_empty()) {
         print(&format!("[dim]{note}[/dim]"));
@@ -855,9 +848,9 @@ pub fn callers_rich(name: &str, hits: &[Value]) {
     let mut t = Table::new(&["caller", "file:line", "kind"]);
     for h in hits.iter().take(200) {
         t.row(vec![
-            py_str(&h["source_path"]),
+            py(&h["source_path"]),
             format!("{}:{}", str_of(&h["source_file"]), h["ref_line"]),
-            py_str(&h["ref_kind"]),
+            py(&h["ref_kind"]),
         ]);
     }
     print_lines(&t.render());
@@ -873,28 +866,13 @@ pub fn callers_rich(name: &str, hits: &[Value]) {
 
 fn print_error(code: &Value, message: &Value, agent: bool) {
     if agent {
-        println!("status: error");
-        println!("error_code: {}", py_str(code));
-        println!("message: {}", py_str(message));
+        print!("{}", agent::patch_error(code, message));
         return;
     }
-    print(&format!("[red]error[/red]  [bold]{}[/bold]", py_str(code)));
+    print(&format!("[red]error[/red]  [bold]{}[/bold]", py(code)));
     if let Some(m) = message.as_str().filter(|m| !m.is_empty()) {
         print(&format!("  {m}"));
     }
-}
-
-fn print_diff_block(diff: &str) {
-    if diff.is_empty() {
-        return;
-    }
-    println!("--- DIFF ---");
-    if diff.ends_with('\n') {
-        print!("{diff}");
-    } else {
-        println!("{diff}");
-    }
-    println!("--- END ---");
 }
 
 fn diff_panel(diff: &str) {
@@ -913,27 +891,19 @@ pub fn patch_preflight(pre: &Value, json_format: bool, agent: bool) {
         let current = str_of(&pre["current_content"]);
         let (a, b) = (&pre["line_range"][0], &pre["line_range"][1]);
         if agent {
-            println!("status: needs_read_confirmation");
-            println!("file: {}", str_of(&pre["file"]));
-            println!(
-                "range: lines {a}-{b} (bytes {}-{})",
-                pre["byte_range"][0], pre["byte_range"][1]
+            let int = |v: &Value| v.as_i64().unwrap_or(0);
+            print!(
+                "{}",
+                agent::patch_needs_read(
+                    str_of(&pre["file"]),
+                    (int(a), int(b)),
+                    (
+                        int(&pre["byte_range"][0]) as usize,
+                        int(&pre["byte_range"][1]) as usize
+                    ),
+                    current,
+                )
             );
-            println!("reason: no cached read covers this range.");
-            println!();
-            println!("--- CURRENT CONTENT ---");
-            if current.ends_with('\n') {
-                print!("{current}");
-            } else {
-                println!("{current}");
-            }
-            println!("--- END ---");
-            println!();
-            println!(
-                "Next: inspect the bytes above, then retry the same Patch call. The displayed"
-            );
-            println!("range has been recorded as seen — no separate Read needed. If the patch is");
-            println!("now wrong (different bytes than expected), revise content before retrying.");
             return;
         }
         print(&format!(
@@ -964,24 +934,11 @@ pub fn patch_result(result: &Value, json_format: bool, agent: bool) {
         print_error(&result["error_code"], &result["message"], agent);
         return;
     }
-    let dry = result["status"] == "dry_run";
-    let diff = str_of(&result["diff"]);
     if agent {
-        println!("status: {}", str_of(&result["status"]));
-        println!("file: {}", str_of(&result["file_rel"]));
-        println!(
-            "{}: -{} +{} lines",
-            if dry { "would apply" } else { "applied" },
-            result["lines_removed"],
-            result["lines_added"]
-        );
-        if result["status"] == "applied" {
-            println!("undo: git checkout -- <file>  # revert uncommitted change");
-        }
-        println!();
-        print_diff_block(diff);
+        print!("{}", agent::patch_result(result));
         return;
     }
+    let diff = str_of(&result["diff"]);
     let applied = result["status"] == "applied";
     print(&format!(
         "[{c}]{t}[/{c}]  [dim]{}[/dim]  [dim]-{} +{} lines[/dim]",
@@ -994,19 +951,6 @@ pub fn patch_result(result: &Value, json_format: bool, agent: bool) {
     diff_panel(diff);
 }
 
-fn caller_line(c: &Value) -> String {
-    let scope = match c["source_path"].as_str() {
-        Some(s) if !s.is_empty() => format!(" in {s}"),
-        _ => String::new(),
-    };
-    format!(
-        "  {}:{}{scope}  ({})",
-        str_of(&c["file"]),
-        c["line"],
-        str_of(&c["kind"])
-    )
-}
-
 fn callers_table(callers: &[Value]) -> Table {
     let mut t = Table::new(&["file:line", "in symbol", "kind"]);
     for c in callers {
@@ -1017,7 +961,7 @@ fn callers_table(callers: &[Value]) -> Table {
         t.row(vec![
             format!("{}:{}", str_of(&c["file"]), c["line"]),
             scope,
-            py_str(&c["kind"]),
+            py(&c["kind"]),
         ]);
     }
     t
@@ -1039,30 +983,18 @@ pub fn delete_result(result: &Value, json_format: bool, agent: bool) {
         print_json(&delete_json(result));
         return;
     }
+    if agent {
+        print!("{}", agent::delete_symbol(result));
+        return;
+    }
     let callers = list(result, "callers");
     let candidates = list(result, "candidates");
     if result["status"] == "error" {
-        if agent {
-            print_error(&result["error_code"], &result["message"], true);
-            if !candidates.is_empty() {
-                println!("candidates:");
-                for c in candidates {
-                    println!("  {}", py_str(c));
-                }
-            }
-            if !callers.is_empty() {
-                println!("callers ({}):", callers.len());
-                for c in callers {
-                    println!("{}", caller_line(c));
-                }
-            }
-            return;
-        }
         print_error(&result["error_code"], &result["message"], false);
         if !candidates.is_empty() {
             print("\n[dim]candidates:[/dim]");
             for c in candidates {
-                print(&format!("  {}", py_str(c)));
+                print(&format!("  {}", py(c)));
             }
         }
         if !callers.is_empty() {
@@ -1075,34 +1007,6 @@ pub fn delete_result(result: &Value, json_format: bool, agent: bool) {
     let qpath = str_of(&result["qualified_path"]);
     let (a, b) = line_range(result);
     let diff = str_of(&result["diff"]);
-    if agent {
-        let dry = result["status"] == "dry_run";
-        println!("status: {}", str_of(&result["status"]));
-        println!(
-            "{}: {qpath}  ({})",
-            if dry { "would delete" } else { "deleted" },
-            str_of(&result["kind"])
-        );
-        println!("file: {}:{a}-{b}", str_of(&result["file_rel"]));
-        println!("lines_removed: {}", result["lines_removed"]);
-        if !callers.is_empty() {
-            println!();
-            println!("⚠️  {} reference(s) are now broken:", callers.len());
-            for c in callers {
-                println!("{}", caller_line(c));
-            }
-            println!(
-                "Fix: symbol callers {}",
-                qpath.rsplit('.').next().unwrap_or(qpath)
-            );
-            println!("Then: symbol patch <each file> to remove or rewrite each call site.");
-        }
-        if !diff.is_empty() {
-            println!();
-            print_diff_block(diff);
-        }
-        return;
-    }
     let applied = result["status"] == "applied";
     print(&format!(
         "[{c}]{t}[/{c}]  [bold]{qpath}[/bold]  [dim]({})  {}:{a}-{b}  -{} lines[/dim]",
@@ -1123,22 +1027,10 @@ pub fn delete_result(result: &Value, json_format: bool, agent: bool) {
     diff_panel(diff);
 }
 
-fn print_candidates_error(result: &Value, agent: bool) {
-    let candidates = list(result, "candidates");
-    if agent {
-        println!(
-            "status: error\nerror_code: {}\nmessage: {}",
-            py_str(&result["error_code"]),
-            py_str(&result["message"])
-        );
-        for c in candidates {
-            println!("  candidate: {}", py_str(c));
-        }
-        return;
-    }
+fn print_candidates_error(result: &Value) {
     print_error(&result["error_code"], &result["message"], false);
-    for c in candidates {
-        print(&format!("  [dim]candidate:[/dim] {}", py_str(c)));
+    for c in list(result, "candidates") {
+        print(&format!("  [dim]candidate:[/dim] {}", py(c)));
     }
 }
 
@@ -1147,33 +1039,15 @@ pub fn insert_result(result: &Value, json_format: bool, agent: bool) {
         print_json(&insert_json(result));
         return;
     }
+    if agent {
+        print!("{}", agent::insert_symbol(result));
+        return;
+    }
     if result["status"] == "error" {
-        print_candidates_error(result, agent);
+        print_candidates_error(result);
         return;
     }
     let diff = str_of(&result["diff"]);
-    let dry = result["status"] == "dry_run";
-    if agent {
-        println!("status: {}", str_of(&result["status"]));
-        println!(
-            "{}: {} {}  ({})",
-            if dry { "would insert" } else { "inserted" },
-            str_of(&result["position"]),
-            str_of(&result["anchor_path"]),
-            str_of(&result["anchor_kind"])
-        );
-        println!(
-            "file: {}:{}",
-            str_of(&result["file_rel"]),
-            result["insert_line"]
-        );
-        println!("lines_added: {}", result["lines_added"]);
-        if !diff.is_empty() {
-            println!();
-            print_diff_block(diff);
-        }
-        return;
-    }
     let applied = result["status"] == "applied";
     print(&format!(
         "[{c}]{t}[/{c}]  [dim]{}[/dim]  [bold]{}[/bold]  [dim]({})  {}:{}  +{} lines[/dim]",
@@ -1198,8 +1072,12 @@ pub fn rename_result(result: &Value, json_format: bool, agent: bool) {
         print_json(&rename_json(result));
         return;
     }
+    if agent {
+        print!("{}", agent::rename_symbol(result));
+        return;
+    }
     if result["status"] == "error" {
-        print_candidates_error(result, agent);
+        print_candidates_error(result);
         return;
     }
     let status = str_of(&result["status"]);
@@ -1212,79 +1090,6 @@ pub fn rename_result(result: &Value, json_format: bool, agent: bool) {
     let affected = list(result, "affected_interfaces");
     let files_changed = result["files_changed"].as_i64().unwrap_or(0);
     let refs_updated = result["refs_updated"].as_i64().unwrap_or(0);
-    if agent {
-        let verb = match status {
-            "dry_run" => "would rename",
-            "needs_review" => "needs review",
-            _ => "renamed",
-        };
-        let tier = if unresolved.is_empty() && skipped.is_empty() {
-            "textual"
-        } else {
-            "ast"
-        };
-        println!("status: {status}");
-        println!("{verb}: {qpath} → {new_qpath}");
-        println!("files_changed: {files_changed}");
-        println!("refs_updated: {refs_updated}");
-        println!("tier: {tier}");
-        println!();
-        for f in per_file {
-            println!("  {}  ({} refs)", str_of(&f["file"]), f["refs_updated"]);
-        }
-        if !skipped.is_empty() {
-            println!();
-            println!(
-                "skipped {} site(s) — receiver resolved to a different declaration:",
-                skipped.len()
-            );
-            for s in skipped {
-                println!(
-                    "  {}:{}:{}  `{}.{leaf}`  → {}",
-                    str_of(&s["file"]),
-                    s["line"],
-                    col1(s),
-                    str_of(&s["receiver_source"]),
-                    str_of(&s["resolved_to_qpath"])
-                );
-            }
-        }
-        if !unresolved.is_empty() {
-            println!();
-            println!("unresolved {} site(s) — review manually:", unresolved.len());
-            for u in unresolved {
-                println!(
-                    "  {}:{}:{}  `{}.{leaf}`  ({})",
-                    str_of(&u["file"]),
-                    u["line"],
-                    col1(u),
-                    str_of(&u["receiver_source"]),
-                    str_of(&u["why"])
-                );
-            }
-        }
-        if !affected.is_empty() {
-            println!();
-            println!(
-                "affects {} interface contract(s) — the rename target also implements these; \
-                 renaming will leave them unsatisfied unless you rename the contract method too:",
-                affected.len()
-            );
-            for a in affected {
-                println!(
-                    "  {}  ({}:{})",
-                    str_of(&a["method_qpath"]),
-                    str_of(&a["file"]),
-                    a["line"]
-                );
-            }
-        }
-        if status == "applied" {
-            println!();
-            println!("undo: symbol undo");
-        }
-        return;
-    }
     let (color, title) = match status {
         "applied" => ("green", "renamed"),
         "dry_run" => ("yellow", "dry run"),
@@ -1297,7 +1102,7 @@ pub fn rename_result(result: &Value, json_format: bool, agent: bool) {
     if !per_file.is_empty() {
         let mut t = Table::new(&["file", "refs"]).right(1);
         for f in per_file {
-            t.row(vec![py_str(&f["file"]), py_str(&f["refs_updated"])]);
+            t.row(vec![py(&f["file"]), py(&f["refs_updated"])]);
         }
         print_lines(&t.render());
     }
@@ -1361,7 +1166,7 @@ fn joined_or_none(v: &Value) -> String {
         .map(Vec::as_slice)
         .unwrap_or(&[])
         .iter()
-        .map(py_str)
+        .map(py)
         .collect();
     if items.is_empty() {
         "none".into()
@@ -1375,8 +1180,12 @@ pub fn replace_result(result: &Value, json_format: bool, agent: bool) {
         print_json(&replace_json(result));
         return;
     }
+    if agent {
+        print!("{}", agent::replace_symbol(result));
+        return;
+    }
     if result["status"] == "error" {
-        print_candidates_error(result, agent);
+        print_candidates_error(result);
         return;
     }
     let status = str_of(&result["status"]);
@@ -1390,63 +1199,6 @@ pub fn replace_result(result: &Value, json_format: bool, agent: bool) {
     let files_changed = result["files_changed"].as_i64().unwrap_or(0);
     let refs_updated = result["refs_updated"].as_i64().unwrap_or(0);
     let kind = str_of(&result["kind"]);
-    if agent {
-        let verb = if status == "dry_run" {
-            "would replace"
-        } else {
-            "replaced"
-        };
-        println!("status: {status}");
-        if name_changed {
-            println!("{verb}: {qpath} → {new_qpath}");
-            println!("name_changed: true");
-        } else {
-            println!("{verb}: {qpath}");
-            println!("name_changed: false");
-        }
-        println!("kind: {kind}");
-        if !signature.is_empty() {
-            println!("signature: {signature}");
-        }
-        println!("file: {}", str_of(&result["declaring_file"]));
-        println!("files_changed: {files_changed}");
-        if name_changed {
-            println!("refs_updated: {refs_updated}");
-        }
-        if !per_file.is_empty() {
-            println!();
-            for f in per_file {
-                let n = f["refs_updated"].as_i64().unwrap_or(0);
-                println!(
-                    "  {}  ({n} change{})",
-                    str_of(&f["file"]),
-                    if n != 1 { "s" } else { "" }
-                );
-            }
-        }
-        for pr in renames {
-            println!(
-                "parameter: {} → {}  ({} kwarg site(s), {} skipped, {} unresolved)",
-                str_of(&pr["old"]),
-                str_of(&pr["new"]),
-                pr["refs_updated"],
-                pr["skipped_mismatch"],
-                pr["unresolved"]
-            );
-        }
-        if signature_changed {
-            println!(
-                "signature_changed: true  (params {} → {}; kwarg sites NOT updated)",
-                joined_or_none(&result["old_parameters"]),
-                joined_or_none(&result["new_parameters"])
-            );
-        }
-        if status == "applied" {
-            println!();
-            println!("undo: git reset --hard HEAD~1");
-        }
-        return;
-    }
     let applied = status == "applied";
     let arrow = if name_changed {
         format!("[bold]{qpath}[/bold] → [bold]{new_qpath}[/bold]")
@@ -1466,7 +1218,7 @@ pub fn replace_result(result: &Value, json_format: bool, agent: bool) {
     if !per_file.is_empty() {
         let mut t = Table::new(&["file", "changes"]).right(1);
         for f in per_file {
-            t.row(vec![py_str(&f["file"]), py_str(&f["refs_updated"])]);
+            t.row(vec![py(&f["file"]), py(&f["refs_updated"])]);
         }
         print_lines(&t.render());
     }
@@ -1515,13 +1267,13 @@ pub fn undo_result(result: &Value, json_format: bool, agent: bool) {
         if !restored.is_empty() {
             println!("restored: {}", restored.len());
             for f in restored {
-                println!("  - {}", py_str(f));
+                println!("  - {}", py(f));
             }
         }
         if !skipped.is_empty() {
             println!("skipped: {}", skipped.len());
             for f in skipped {
-                println!("  - {}", py_str(f));
+                println!("  - {}", py(f));
             }
         }
         for key in ["error_code", "message"] {
@@ -1536,7 +1288,7 @@ pub fn undo_result(result: &Value, json_format: bool, agent: bool) {
         "error" => {
             print(&format!(
                 "[red]undo failed[/red]  [bold]{}[/bold]",
-                py_str(&result["error_code"])
+                py(&result["error_code"])
             ));
             if let Some(m) = result["message"].as_str().filter(|m| !m.is_empty()) {
                 print(&format!("  {m}"));
@@ -1545,12 +1297,12 @@ pub fn undo_result(result: &Value, json_format: bool, agent: bool) {
         _ => {
             print(&format!(
                 "[green]undone[/green]  [dim]{}[/dim]  {}",
-                py_str(&result["op"]),
+                py(&result["op"]),
                 result["subject"].as_str().unwrap_or("")
             ));
             print(&format!("[dim]restored {} file(s)[/dim]", restored.len()));
             for f in restored {
-                print(&format!("  [dim]•[/dim] {}", py_str(f)));
+                print(&format!("  [dim]•[/dim] {}", py(f)));
             }
             if !skipped.is_empty() {
                 print(&format!(
@@ -1576,7 +1328,7 @@ pub fn refresh_result(result: &Value, json_format: bool, agent: bool) {
             "files",
             "transactions_cleared",
         ] {
-            println!("{key}: {}", py_str(&result[key]));
+            println!("{key}: {}", py(&result[key]));
         }
         return;
     }

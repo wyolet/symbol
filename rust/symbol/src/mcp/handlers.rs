@@ -7,11 +7,11 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 use serde_json::{json, Map, Value};
 
-use crate::mcp::render;
 use crate::mcp::state::{relative_to, resolve, FileStatus, Session};
 use crate::mcp::tools::Args;
 use crate::pystr;
 use crate::reads::{self, CodeMiss, SearchOpts};
+use crate::render::agent;
 use crate::writes::ops::{delete_symbol_with_cache, insert_symbol_with_cache, replace_symbol};
 use crate::writes::patch::{
     apply_multi_patch, apply_patch, preflight, validate_args, MultiPatchEdit,
@@ -23,6 +23,11 @@ use crate::writes::tx::undo_last;
 pub enum ToolOutput {
     Json(Value),
     Text(String),
+}
+
+/// `_capture_text`: what an agent renderer printed, trailing newlines off.
+fn captured(printed: String) -> String {
+    printed.trim_end_matches('\n').to_owned()
 }
 
 pub fn call(name: &str, session: &mut Session, args: &Args) -> Result<ToolOutput> {
@@ -66,7 +71,7 @@ fn ensure_or_error(session: &mut Session, file: &str) -> Result<Option<Value>> {
 /// `_ensure_or_error_text`: the same refusal rendered as patch error text.
 fn ensure_or_error_text(session: &mut Session, file: &str) -> Result<Option<String>> {
     Ok(ensure_or_error(session, file)?
-        .map(|err| render::patch_error(&err["error_code"], &err["message"])))
+        .map(|err| captured(agent::patch_error(&err["error_code"], &err["message"]))))
 }
 
 /// `_existing_file_part`: the path component of `target` when it names a
@@ -334,10 +339,10 @@ fn patch(session: &mut Session, args: &Args) -> Result<ToolOutput> {
     ) {
         Ok(request) => request,
         Err(err) => {
-            return Ok(ToolOutput::Text(render::patch_error(
+            return Ok(ToolOutput::Text(captured(agent::patch_error(
                 &err.error_code.into(),
                 &err.message.into(),
-            )))
+            ))))
         }
     };
     if preflight(&request, &session.cache).is_err() {
@@ -357,26 +362,26 @@ fn patch(session: &mut Session, args: &Args) -> Result<ToolOutput> {
                     .map(|slice| String::from_utf8_lossy(slice).into_owned())
             })
             .unwrap_or_default();
-        return Ok(ToolOutput::Text(render::patch_needs_read(
+        return Ok(ToolOutput::Text(captured(agent::patch_needs_read(
             &request.file_rel,
             request.line_range,
             request.byte_range,
             &current,
-        )));
+        ))));
     }
     let result = apply_patch(&request, &session.cache, args.bool("dry_run"), 5);
     if result.status == "error" {
-        return Ok(ToolOutput::Text(render::patch_error(
+        return Ok(ToolOutput::Text(captured(agent::patch_error(
             &result.error_code.into(),
             &result.message.into(),
-        )));
+        ))));
     }
     if result.status == "applied" {
         session.invalidate(HashSet::from([result.file_rel.clone()]));
     }
-    Ok(ToolOutput::Text(render::patch_result(
+    Ok(ToolOutput::Text(captured(agent::patch_result(
         &serde_json::to_value(&result)?,
-    )))
+    ))))
 }
 
 fn multi_patch(session: &mut Session, args: &Args) -> Result<ToolOutput> {
@@ -386,10 +391,10 @@ fn multi_patch(session: &mut Session, args: &Args) -> Result<ToolOutput> {
     }
     let root = session.root.clone();
     if relative_to(&resolve(&root.join(file)), &root).is_none() {
-        return Ok(ToolOutput::Text(render::patch_error(
+        return Ok(ToolOutput::Text(captured(agent::patch_error(
             &"invalid_argument".into(),
             &format!("file {} is outside project root", pystr::repr(file)).into(),
-        )));
+        ))));
     }
     let mut edits = vec![];
     for (i, raw) in args.list("edits").iter().enumerate() {
@@ -428,7 +433,7 @@ fn multi_patch(session: &mut Session, args: &Args) -> Result<ToolOutput> {
             }
         }
     }
-    Ok(ToolOutput::Text(render::multi_patch_result(
+    Ok(ToolOutput::Text(agent::multi_patch_result(
         &serde_json::to_value(&result)?,
     )))
 }
@@ -452,7 +457,7 @@ fn delete(session: &mut Session, args: &Args) -> Result<ToolOutput> {
     {
         session.invalidate(HashSet::from([file.to_owned()]));
     }
-    Ok(ToolOutput::Text(render::delete_symbol(&result)))
+    Ok(ToolOutput::Text(captured(agent::delete_symbol(&result))))
 }
 
 fn insert(session: &mut Session, args: &Args) -> Result<ToolOutput> {
@@ -485,7 +490,7 @@ fn insert(session: &mut Session, args: &Args) -> Result<ToolOutput> {
     {
         session.invalidate(HashSet::from([file.to_owned()]));
     }
-    Ok(ToolOutput::Text(render::insert_symbol(&result)))
+    Ok(ToolOutput::Text(captured(agent::insert_symbol(&result))))
 }
 
 fn rename(session: &mut Session, args: &Args) -> Result<ToolOutput> {
@@ -501,7 +506,7 @@ fn rename(session: &mut Session, args: &Args) -> Result<ToolOutput> {
     if changed(&result) {
         session.invalidate(touched_files(&result));
     }
-    Ok(ToolOutput::Text(render::rename_symbol(&result)))
+    Ok(ToolOutput::Text(captured(agent::rename_symbol(&result))))
 }
 
 fn replace(session: &mut Session, args: &Args) -> Result<ToolOutput> {
@@ -518,7 +523,7 @@ fn replace(session: &mut Session, args: &Args) -> Result<ToolOutput> {
     if changed(&result) {
         session.invalidate(touched_files(&result));
     }
-    Ok(ToolOutput::Text(render::replace_symbol(&result)))
+    Ok(ToolOutput::Text(captured(agent::replace_symbol(&result))))
 }
 
 fn refresh(session: &mut Session, args: &Args) -> Result<ToolOutput> {

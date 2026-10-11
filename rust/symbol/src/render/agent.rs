@@ -1,12 +1,12 @@
-//! Agent-format text for the write tools — ports of the `_render_*_agent` /
-//! `_render_error` helpers in commands/ that the Python server captures from
-//! stdout. Results arrive as the write engines' JSON; absent fields read as
-//! the Python dataclass defaults.
+//! Agent-format text for the writes (`--agent` and the MCP write tools) —
+//! ports of the `_render_*_agent` / `_render_error` helpers in commands/.
+//! Each returns exactly what the Python helper prints. Results arrive as
+//! the write engines' JSON; absent fields read as the Python dataclass
+//! defaults.
 
 use serde_json::Value;
 
-/// Collects `print()` lines; `finish` strips trailing newlines like
-/// `_capture_text` does.
+/// Collects `print()` lines.
 #[derive(Default)]
 struct Out(String);
 
@@ -35,7 +35,7 @@ impl Out {
     }
 
     fn finish(self) -> String {
-        self.0.trim_end_matches('\n').to_owned()
+        self.0
     }
 }
 
@@ -495,7 +495,7 @@ mod tests {
     fn patch_error_spells_none_like_python() {
         assert_eq!(
             patch_error(&json!("not_found"), &Value::Null),
-            "status: error\nerror_code: not_found\nmessage: None"
+            "status: error\nerror_code: not_found\nmessage: None\n"
         );
     }
 
@@ -518,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_without_sites_trims_trailing_blank() {
+    fn rename_without_sites_ends_with_blank_line() {
         let text = rename_symbol(&json!({
             "status": "dry_run",
             "qualified_path": "m.f",
@@ -529,7 +529,7 @@ mod tests {
         }));
         assert_eq!(
             text,
-            "status: dry_run\nwould rename: m.f → m.g\nfiles_changed: 1\nrefs_updated: 2\ntier: textual"
+            "status: dry_run\nwould rename: m.f → m.g\nfiles_changed: 1\nrefs_updated: 2\ntier: textual\n\n"
         );
     }
 }

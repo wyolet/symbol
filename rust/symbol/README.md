@@ -117,7 +117,8 @@ src/reads.rs      reads/ — search, code, outline, callers
 src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename,
                   index_query (daemon index/* queries)
 src/refresh.rs    commands/refresh.py — incremental/full reindex + tx clear
-src/mcp/          mcp/server.py — stdio MCP server, tool table, renderers
+src/mcp/          mcp/server.py — stdio MCP server, tool table
+src/render/       commands/ output; agent.rs is shared by --agent and MCP
 src/main.rs       clap CLI (the `symbol` binary)
 ```
 

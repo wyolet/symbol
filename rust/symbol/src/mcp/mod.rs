@@ -5,7 +5,6 @@
 
 mod handlers;
 mod limits;
-mod render;
 mod state;
 mod tools;
 
