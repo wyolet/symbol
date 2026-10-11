@@ -112,6 +112,28 @@ pub fn delete_symbol(
     force: bool,
     dry_run: bool,
 ) -> serde_json::Value {
+    let cache = ReadCache::for_session(project_root);
+    delete_symbol_with_cache(
+        index,
+        qualified_path,
+        project_root,
+        reg,
+        force,
+        dry_run,
+        &cache,
+    )
+}
+
+/// `delete_symbol` against a caller-owned read cache (the MCP session's).
+pub fn delete_symbol_with_cache(
+    index: &mut Index,
+    qualified_path: &str,
+    project_root: &Path,
+    reg: &Registry,
+    force: bool,
+    dry_run: bool,
+    cache: &ReadCache,
+) -> serde_json::Value {
     let row = match resolve_single(index, qualified_path, reg) {
         Ok(r) => r,
         Err(e) => return e,
@@ -158,7 +180,6 @@ pub fn delete_symbol(
         });
     }
 
-    let cache = ReadCache::for_session(project_root);
     let patch_req = PatchRequest {
         file_abs: file_abs.clone(),
         file_rel: file_rel.clone(),
@@ -167,7 +188,7 @@ pub fn delete_symbol(
         content: vec![],
         force: true, // delete-symbol bypasses the cache check by design
     };
-    let result = apply_patch(&patch_req, &cache, dry_run, 5);
+    let result = apply_patch(&patch_req, cache, dry_run, 5);
     if result.status == "applied" {
         normalize_blank_gaps_via_adapter(&file_abs, &language, reg);
         cache.invalidate(&file_rel);
@@ -214,6 +235,33 @@ pub fn insert_symbol(
     project_root: &Path,
     reg: &Registry,
     dry_run: bool,
+) -> serde_json::Value {
+    let cache = ReadCache::for_session(project_root);
+    insert_symbol_with_cache(
+        index,
+        anchor_path,
+        position,
+        content,
+        reindent,
+        project_root,
+        reg,
+        dry_run,
+        &cache,
+    )
+}
+
+/// `insert_symbol` against a caller-owned read cache (the MCP session's).
+#[allow(clippy::too_many_arguments)]
+pub fn insert_symbol_with_cache(
+    index: &mut Index,
+    anchor_path: &str,
+    position: &str,
+    content: &str,
+    reindent: bool,
+    project_root: &Path,
+    reg: &Registry,
+    dry_run: bool,
+    cache: &ReadCache,
 ) -> serde_json::Value {
     let row = match resolve_single(index, anchor_path, reg) {
         Ok(r) => r,
@@ -309,7 +357,6 @@ pub fn insert_symbol(
         content.as_bytes().to_vec()
     };
 
-    let cache = ReadCache::for_session(project_root);
     let patch_req = PatchRequest {
         file_abs: file_abs.clone(),
         file_rel: file_rel.clone(),
@@ -318,7 +365,7 @@ pub fn insert_symbol(
         content: payload,
         force: true,
     };
-    let result = apply_patch(&patch_req, &cache, dry_run, 5);
+    let result = apply_patch(&patch_req, cache, dry_run, 5);
     if result.status == "applied" {
         normalize_blank_gaps_via_adapter(&file_abs, &language, reg);
         cache.invalidate(&file_rel);
