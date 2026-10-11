@@ -94,11 +94,11 @@ Each file follows the same format as built-in specs. Extra specs are loaded afte
 
 ## Releasing
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`: it builds the platform wheels, the pure wheel, the sdist, and the standalone archives, publishes to PyPI, and creates the GitHub release. The build fails unless the tag, `pyproject.toml`, and `rust/symbol/Cargo.toml` carry the same version (`symbol --version` of the Rust binary reports the Cargo version).
+Pushing a `v*` tag runs `.github/workflows/release.yml`: it builds the platform wheels, the pure wheel, the sdist, and the standalone archives, publishes to PyPI, and creates the GitHub release. The build fails unless the tag, `pyproject.toml`, and `rust/symbol/Cargo.toml` carry the same version, as do the plugin manifest and its `wyolet-symbol` pins (`symbol --version` of the Rust binary reports the Cargo version).
 
 1. `uv version X.Y.Z` — updates `pyproject.toml` and `uv.lock`.
 2. Set `version = "X.Y.Z"` in `rust/symbol/Cargo.toml`, then `cargo build --manifest-path rust/Cargo.toml -p symbol-core` to update `rust/Cargo.lock`.
-3. Set `version` in `plugin/.claude-plugin/plugin.json`.
+3. Set `version` in `plugin/.claude-plugin/plugin.json` and the `wyolet-symbol==X.Y.Z` pins in `plugin/.mcp.json` and `plugin/hooks/hooks.json` (the plugin runs the published wheel).
 4. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] — YYYY-MM-DD`; the release notes come from that section.
 5. `uv run scripts/check_version.py`, commit `release: vX.Y.Z`, then tag `vX.Y.Z` and push the commit and the tag.
 

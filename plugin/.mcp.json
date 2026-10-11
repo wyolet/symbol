@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "symbol": {
-      "command": "uv",
-      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}/..", "symbol", "mcp"]
+      "command": "uvx",
+      "args": ["--from", "wyolet-symbol==0.2.5", "--with", "mcp<2", "symbol", "mcp"]
     }
   }
 }
