@@ -54,10 +54,16 @@ pub fn serve(root: &Path) -> Result<()> {
         _ => {}
     }
 
-    let stdin = std::io::stdin();
+    let mut stdin = std::io::stdin().lock();
     let mut stdout = std::io::stdout().lock();
-    for line in stdin.lock().lines() {
-        let line = line?;
+    let mut raw = vec![];
+    loop {
+        raw.clear();
+        if stdin.read_until(b'\n', &mut raw)? == 0 {
+            break;
+        }
+        // Invalid UTF-8 is replaced rather than ending the session.
+        let line = String::from_utf8_lossy(&raw);
         if line.trim().is_empty() {
             continue;
         }
