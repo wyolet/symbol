@@ -52,8 +52,18 @@ The Rust core owns everything neutral — the on-disk index, staleness and
 incremental refresh, search/read/write orchestration, transactions, the read
 cache, and LOC. A new language is a new daemon, not new branches in the engine.
 
-Daemon discovery is by environment: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` override
-the full command; `SYMBOL_REPO` points at a checkout that provides both.
+`pyscan` is compiled into the binary. Its modules are stdlib-only and are
+unpacked once into the user cache dir (`~/Library/Caches/symbol` on macOS,
+`$XDG_CACHE_HOME/symbol` or `~/.cache/symbol` elsewhere). They then run on the
+first Python >= 3.10 found as `python3` or `python` on `PATH`; set
+`SYMBOL_PYTHON` to choose the interpreter. If no suitable interpreter is found,
+indexing a project with Python files fails with `error_code:
+python_unavailable`, naming the requirement. Parity with the Python CLI is
+verified with both on the same Python minor version. An older interpreter
+can't parse newer syntax, and files that fail to parse are skipped.
+
+`SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` override a daemon's full command;
+`SYMBOL_REPO` points at a checkout that provides `go-scan`.
 
 ## Install
 
@@ -74,8 +84,8 @@ alias symbol="$PWD/target/release/symbol-rs"
 ```
 
 The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
-lets you build it locally via `make build-go-scan`. Python analysis uses the
-`pyscan` adapter from this repo — no separate build.
+lets you build it locally via `make build-go-scan`. Python analysis needs only
+a Python >= 3.10 interpreter: no pip install and no repo checkout.
 
 ## Usage
 

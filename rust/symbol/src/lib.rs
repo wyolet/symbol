@@ -5,6 +5,7 @@
 
 pub mod adapters;
 pub mod index;
+pub mod pyscan;
 pub mod reads;
 pub mod rpc;
 pub mod writes;

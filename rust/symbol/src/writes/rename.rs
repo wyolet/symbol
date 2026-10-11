@@ -149,15 +149,14 @@ fn rename_via_engine(
     reg: &Registry,
     dry_run: bool,
 ) -> serde_json::Value {
-    // The daemon resolves against the ON-DISK index; make sure it reflects
-    // any in-memory refresh resolve_single may have done.
-    let _ = index.save();
-
-    let Ok(adapter) = reg.for_language("python") else {
-        return serde_json::json!({
-            "status": "error", "error_code": "no_adapter",
-            "message": "pyscan daemon unavailable",
-        });
+    let adapter = match reg.for_language("python") {
+        Ok(adapter) => adapter,
+        Err(e) => {
+            return serde_json::json!({
+                "status": "error", "error_code": "no_adapter",
+                "message": format!("pyscan daemon unavailable: {e}"),
+            })
+        }
     };
 
     let owner_qpath = prefix.trim_end_matches('.').to_owned();
@@ -205,6 +204,7 @@ fn rename_via_engine(
             is_declaring,
             is_declaring.then_some(decl_byte_range),
             new_name,
+            index,
         ) {
             Ok(a) => a,
             Err(e) => {

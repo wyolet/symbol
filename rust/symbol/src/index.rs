@@ -1019,6 +1019,9 @@ pub fn full_build(project_root: &Path, reg: &Registry) -> Result<Index> {
         if !reg.has_adapter(&key) {
             continue;
         }
+        // A daemon that can't start fails the build instead of dropping
+        // every file of its language.
+        reg.for_language(&key)?;
         idx.walk_file(&f.abs, Some(&key), reg);
     }
     idx.build_by_name_id();
@@ -1045,6 +1048,14 @@ pub fn get_or_build(project_root: &Path, reg: &Registry) -> Result<(Index, &'sta
         let idx = full_build(project_root, reg)?;
         idx.save()?;
         return Ok((idx, "rebuild"));
+    }
+    // As in full_build: refresh would tombstone these files and then drop them.
+    for rel in &stale {
+        if let Some(key) = classify(&project_root.join(rel)) {
+            if reg.has_adapter(&key) {
+                reg.for_language(&key)?;
+            }
+        }
     }
     existing.refresh(&stale, &deleted, reg);
 

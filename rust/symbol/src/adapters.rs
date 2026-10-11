@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 use anyhow::{bail, Result};
 use serde::Deserialize;
 
+use crate::index::Index;
 use crate::rpc::Daemon;
 
 // ---------------------------------------------------------- wire types
@@ -370,6 +371,19 @@ impl Adapter {
         Ok(result["preview"].as_str().unwrap_or_default().to_owned())
     }
 
+    /// Daemon call that may ask `index` questions before it answers.
+    fn call_with_index(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+        index: &Index,
+    ) -> Result<serde_json::Value> {
+        let root = &self.project_root;
+        self.daemon.call_serving(method, params, &|query, args| {
+            crate::writes::index_query::serve(index, root, query, args)
+        })
+    }
+
     /// v2 engine rename analysis for one file. `method` is one of
     /// "rename_member" / "rename_field" / "rename_module_binding";
     /// `owner_or_module_qpath` maps to target_owner_qpath (member/field) or
@@ -385,6 +399,7 @@ impl Adapter {
         is_declaring_file: bool,
         decl_byte_range: Option<(i64, i64)>,
         new_name: &str,
+        index: &Index,
     ) -> Result<RenameAnalysis> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -405,7 +420,7 @@ impl Adapter {
             }
             other => bail!("unknown rename method {other:?}"),
         }
-        let result = self.daemon.call(method, params)?;
+        let result = self.call_with_index(method, params, index)?;
         Ok(serde_json::from_value(result)?)
     }
 
@@ -427,6 +442,7 @@ impl Adapter {
         new_name: &str,
         kwargs_only: bool,
         source: Option<&str>,
+        index: &Index,
     ) -> Result<RenameAnalysis> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -443,7 +459,7 @@ impl Adapter {
         if let Some(src) = source {
             params["source"] = src.into();
         }
-        let result = self.daemon.call("rename_parameter", params)?;
+        let result = self.call_with_index("rename_parameter", params, index)?;
         Ok(serde_json::from_value(result)?)
     }
 
@@ -557,20 +573,8 @@ fn symbol_repo() -> PathBuf {
         })
 }
 
-fn pyscan_argv() -> Vec<String> {
-    if let Ok(cmd) = std::env::var("SYMBOL_PYSCAN") {
-        return cmd.split_whitespace().map(str::to_owned).collect();
-    }
-    let repo = symbol_repo();
-    vec![
-        "uv".into(),
-        "run".into(),
-        "--project".into(),
-        repo.to_string_lossy().into_owned(),
-        "python".into(),
-        "-m".into(),
-        "wyolet.symbol.adapters.pyscan".into(),
-    ]
+fn pyscan_argv() -> Result<Vec<String>> {
+    crate::pyscan::argv()
 }
 
 fn goscan_argv() -> Option<Vec<String>> {
@@ -631,7 +635,7 @@ impl Registry {
             }
         }
         let (name, argv) = match lang_key {
-            "python" => ("pyscan", pyscan_argv()),
+            "python" => ("pyscan", pyscan_argv()?),
             "go" => (
                 "go-scan",
                 goscan_argv().ok_or_else(|| anyhow::anyhow!("go-scan binary not found"))?,
