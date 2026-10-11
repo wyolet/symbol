@@ -257,7 +257,7 @@
             "content": "    return \"blocked\""
           },
           "expect": {
-            "exit_code": 1,
+            "exit_code": 2,
             "json": {
               "status": "needs_read_confirmation"
             },

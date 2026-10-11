@@ -1,0 +1,917 @@
+{
+  "root": [
+    {
+      "name": "verbose",
+      "kind": "option",
+      "opts": [
+        "-v",
+        "--verbose"
+      ],
+      "required": false,
+      "multiple": false,
+      "flag": true,
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "format",
+      "kind": "option",
+      "opts": [
+        "--format"
+      ],
+      "required": false,
+      "multiple": false,
+      "flag": false,
+      "type": "text",
+      "default": "rich"
+    },
+    {
+      "name": "version",
+      "kind": "option",
+      "opts": [
+        "--version"
+      ],
+      "required": false,
+      "multiple": false,
+      "flag": true,
+      "type": "boolean",
+      "default": false
+    }
+  ],
+  "commands": {
+    "index": [
+      {
+        "name": "path",
+        "kind": "argument",
+        "opts": [
+          "path"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      }
+    ],
+    "refresh": [
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "full",
+        "kind": "option",
+        "opts": [
+          "--full"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "keep_transactions",
+        "kind": "option",
+        "opts": [
+          "--keep-transactions"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "agent",
+        "kind": "option",
+        "opts": [
+          "--agent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "search": [
+      {
+        "name": "patterns",
+        "kind": "argument",
+        "opts": [
+          "patterns"
+        ],
+        "required": true,
+        "multiple": true,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "kind",
+        "kind": "option",
+        "opts": [
+          "--kind"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "file",
+        "kind": "option",
+        "opts": [
+          "--file"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "regex",
+        "kind": "option",
+        "opts": [
+          "--regex",
+          "-E"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "fixed",
+        "kind": "option",
+        "opts": [
+          "--fixed",
+          "-F"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "ignore_case",
+        "kind": "option",
+        "opts": [
+          "--ignore-case",
+          "-i"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "limit",
+        "kind": "option",
+        "opts": [
+          "--limit"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "integer",
+        "default": 100
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "code": [
+      {
+        "name": "target",
+        "kind": "argument",
+        "opts": [
+          "target"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "no_refs",
+        "kind": "option",
+        "opts": [
+          "--no-refs"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "outline": [
+      {
+        "name": "file",
+        "kind": "argument",
+        "opts": [
+          "file"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "callers": [
+      {
+        "name": "name",
+        "kind": "argument",
+        "opts": [
+          "name"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "patch": [
+      {
+        "name": "file",
+        "kind": "argument",
+        "opts": [
+          "file"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "range_",
+        "kind": "option",
+        "opts": [
+          "--range",
+          "-r"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "content",
+        "kind": "option",
+        "opts": [
+          "--content"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "force",
+        "kind": "option",
+        "opts": [
+          "--force"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "dry_run",
+        "kind": "option",
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "context",
+        "kind": "option",
+        "opts": [
+          "--context",
+          "-C"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "integer",
+        "default": 5
+      },
+      {
+        "name": "agent",
+        "kind": "option",
+        "opts": [
+          "--agent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "delete-symbol": [
+      {
+        "name": "qualified_path",
+        "kind": "argument",
+        "opts": [
+          "qualified_path"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "force",
+        "kind": "option",
+        "opts": [
+          "--force"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "dry_run",
+        "kind": "option",
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "context",
+        "kind": "option",
+        "opts": [
+          "--context",
+          "-C"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "integer",
+        "default": 5
+      },
+      {
+        "name": "agent",
+        "kind": "option",
+        "opts": [
+          "--agent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "insert-symbol": [
+      {
+        "name": "anchor",
+        "kind": "argument",
+        "opts": [
+          "anchor"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "position",
+        "kind": "option",
+        "opts": [
+          "--position"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "content",
+        "kind": "option",
+        "opts": [
+          "--content"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "no_reindent",
+        "kind": "option",
+        "opts": [
+          "--no-reindent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "dry_run",
+        "kind": "option",
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "context",
+        "kind": "option",
+        "opts": [
+          "--context",
+          "-C"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "integer",
+        "default": 5
+      },
+      {
+        "name": "agent",
+        "kind": "option",
+        "opts": [
+          "--agent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "rename-symbol": [
+      {
+        "name": "qualified_path",
+        "kind": "argument",
+        "opts": [
+          "qualified_path"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "new_name",
+        "kind": "argument",
+        "opts": [
+          "new_name"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "dry_run",
+        "kind": "option",
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "agent",
+        "kind": "option",
+        "opts": [
+          "--agent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "replace-symbol": [
+      {
+        "name": "qualified_path",
+        "kind": "argument",
+        "opts": [
+          "qualified_path"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "content",
+        "kind": "option",
+        "opts": [
+          "--content"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "dry_run",
+        "kind": "option",
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "agent",
+        "kind": "option",
+        "opts": [
+          "--agent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "undo": [
+      {
+        "name": "path",
+        "kind": "option",
+        "opts": [
+          "--path",
+          "-p"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      },
+      {
+        "name": "agent",
+        "kind": "option",
+        "opts": [
+          "--agent"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "loc": [
+      {
+        "name": "path",
+        "kind": "argument",
+        "opts": [
+          "path"
+        ],
+        "required": true,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": null
+      },
+      {
+        "name": "format",
+        "kind": "option",
+        "opts": [
+          "--format",
+          "-f"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "rich"
+      }
+    ],
+    "hook": [
+      {
+        "name": "enforce",
+        "kind": "option",
+        "opts": [
+          "--enforce"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": true,
+        "type": "boolean",
+        "default": false
+      }
+    ]
+  }
+}

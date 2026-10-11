@@ -640,6 +640,20 @@ impl Adapter {
         Ok(result["line"].as_i64().unwrap_or(def_line))
     }
 
+    /// Dependencies the project declares in this language's manifests —
+    /// they select which per-package specs apply. A daemon that cannot
+    /// answer (no such method, manifest parse failure) declares none.
+    pub fn project_dependencies(&self) -> Result<Vec<String>> {
+        let params = serde_json::json!({ "project_root": self.project_root.to_string_lossy() });
+        match self.daemon.call("project_dependencies", params) {
+            Ok(result) => {
+                Ok(serde_json::from_value(result["dependencies"].clone()).unwrap_or_default())
+            }
+            Err(err) if err.downcast_ref::<DaemonError>().is_some() => Ok(vec![]),
+            Err(err) => Err(err),
+        }
+    }
+
     pub fn normalize_blank_gaps(&self, source: &str) -> Result<String> {
         let result = self.daemon.call(
             "normalize_blank_gaps",
@@ -808,6 +822,12 @@ impl Registry {
     /// DaemonUnavailable from for_language instead of skipping files.
     pub fn has_adapter(&self, lang_key: &str) -> bool {
         matches!(lang_key, "python" | "go")
+    }
+
+    /// Python's `supports`/`for_file` resolution without starting a daemon:
+    /// the file's linguist language key when some adapter handles it.
+    pub fn language_for_file(&self, path: &Path) -> Option<String> {
+        crate::index::classify(path).filter(|key| self.has_adapter(key))
     }
 
     /// Get (spawning lazily) the daemon adapter for a language key.

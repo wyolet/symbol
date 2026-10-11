@@ -33,7 +33,8 @@ pub fn rename_symbol(
     if !IDENT_RE.is_match(new_name) {
         return serde_json::json!({
             "status": "error", "error_code": "invalid_argument",
-            "message": "new-name must be a bare identifier (letters, digits, underscores).",
+            "message": "new-name must be a bare identifier (letters, digits, underscores). \
+                        Use `symbol move-symbol` to change the module path.",
         });
     }
     let row = match resolve_symbol_row(index, qualified_path, reg) {
@@ -61,7 +62,7 @@ pub fn rename_symbol(
     if index.by_path.contains_key(&new_qpath) {
         return serde_json::json!({
             "status": "error", "error_code": "name_collision",
-            "message": format!("{new_qpath:?} already exists"),
+            "message": format!("{} already exists", crate::pyjson::repr_str(&new_qpath)),
         });
     }
 
@@ -262,6 +263,7 @@ fn rename_via_engine(
             "declaring_file": declaring_file_rel,
             "skipped_mismatch": skipped_out,
             "unresolved": unresolved_out,
+            "message": engine_message(0, 0, &unresolved_out, &skipped_out, &[], old_leaf),
         });
     }
 
@@ -290,7 +292,77 @@ fn rename_via_engine(
         "skipped_mismatch": skipped_out,
         "unresolved": unresolved_out,
         "transaction_id": tx.transaction_id,
+        "message": engine_message(edits.len(), total, &unresolved_out, &skipped_out, &[], old_leaf),
     })
+}
+
+/// renamer._format_message: the engine's one-paragraph summary.
+fn engine_message(
+    files_changed: usize,
+    refs_updated: i64,
+    unresolved: &[serde_json::Value],
+    skipped: &[serde_json::Value],
+    affected: &[serde_json::Value],
+    leaf: &str,
+) -> String {
+    let s = |v: &serde_json::Value| v.as_str().unwrap_or("").to_owned();
+    let col = |v: &serde_json::Value| v["col"].as_i64().unwrap_or(0) + 1;
+    let mut parts = vec![if refs_updated != 0 {
+        format!("renamed {refs_updated} ref(s) across {files_changed} file(s)")
+    } else {
+        format!(
+            "no confident rewrites for {}",
+            crate::pyjson::repr_str(leaf)
+        )
+    }];
+    if !unresolved.is_empty() {
+        parts.push(format!(
+            "{} site(s) need manual review — receiver type could not be resolved statically:",
+            unresolved.len()
+        ));
+        for u in unresolved {
+            parts.push(format!(
+                "  - {}:{}:{}  `{}.{leaf}`  ({})",
+                s(&u["file"]),
+                u["line"],
+                col(u),
+                s(&u["receiver_source"]),
+                s(&u["why"])
+            ));
+        }
+    }
+    if !skipped.is_empty() {
+        parts.push(format!(
+            "{} site(s) correctly skipped — receiver resolved to a different declaration:",
+            skipped.len()
+        ));
+        for k in skipped {
+            parts.push(format!(
+                "  - {}:{}:{}  `{}.{leaf}`  → {}",
+                s(&k["file"]),
+                k["line"],
+                col(k),
+                s(&k["receiver_source"]),
+                s(&k["resolved_to_qpath"])
+            ));
+        }
+    }
+    if !affected.is_empty() {
+        parts.push(format!(
+            "affects {} interface contract(s) — the rename target also implements these; \
+             renaming will leave them unsatisfied unless you rename the contract method too:",
+            affected.len()
+        ));
+        for a in affected {
+            parts.push(format!(
+                "  - {}  ({}:{})",
+                s(&a["method_qpath"]),
+                s(&a["file"]),
+                a["line"]
+            ));
+        }
+    }
+    parts.join("\n")
 }
 
 /// renamer._may_import_from: the import source names `module_qpath` itself,
@@ -444,6 +516,7 @@ fn rename_via_go_engine(
             "skipped_mismatch": skipped_out,
             "unresolved": unresolved_out,
             "affected_interfaces": affected_out,
+            "message": engine_message(0, 0, &unresolved_out, &skipped_out, &affected_out, old_leaf),
         });
     }
 
@@ -473,6 +546,7 @@ fn rename_via_go_engine(
         "unresolved": unresolved_out,
         "affected_interfaces": affected_out,
         "transaction_id": tx.transaction_id,
+        "message": engine_message(edits.len(), total, &unresolved_out, &skipped_out, &affected_out, old_leaf),
     })
 }
 
@@ -521,7 +595,8 @@ fn rename_tier1(
         return serde_json::json!({
             "status": "error", "error_code": "nothing_to_rename",
             "message": format!(
-                "no occurrences of {old_leaf:?} found (even in the declaring file — this is unusual)"
+                "no occurrences of {} found (even in the declaring file — this is unusual)",
+                crate::pyjson::repr_str(old_leaf)
             ),
         });
     }
