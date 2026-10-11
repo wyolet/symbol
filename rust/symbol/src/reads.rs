@@ -87,11 +87,15 @@ fn resolve_rows(index: &Index, path: &str) -> Vec<i64> {
     let mut rows: Vec<i64> = index.by_path.get(path).cloned().unwrap_or_default();
     if rows.is_empty() {
         let suffix = format!(".{path}");
-        for (qpath, ids) in &index.by_path {
-            if qpath == path || qpath.ends_with(&suffix) {
-                rows.extend(ids);
-            }
-        }
+        // Python scans its by_path dict in insertion order; see `search`.
+        let mut matches: Vec<&Vec<i64>> = index
+            .by_path
+            .iter()
+            .filter(|(qpath, _)| *qpath == path || qpath.ends_with(&suffix))
+            .map(|(_, ids)| ids)
+            .collect();
+        matches.sort_by_key(|ids| ids.first().copied().unwrap_or(i64::MAX));
+        rows.extend(matches.into_iter().flatten());
     }
     rows
 }

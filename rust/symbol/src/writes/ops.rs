@@ -8,6 +8,7 @@ use anyhow::Result;
 
 use crate::adapters::{error_json, Adapter, Registry};
 use crate::index::{Index, S_EBYTE, S_SBYTE};
+use crate::pystr::repr;
 use crate::writes::content::{indent_at_byte, normalize_content};
 use crate::writes::patch::{apply_patch, line_end_byte, line_start_byte, PatchRequest};
 use crate::writes::read_cache::ReadCache;
@@ -34,7 +35,7 @@ pub(crate) fn resolve_single(
     if rows.is_empty() {
         return Err(serde_json::json!({
             "status": "error", "error_code": "symbol_not_found",
-            "message": format!("no symbol at {qualified_path:?}"),
+            "message": format!("no symbol at {}", repr(qualified_path)),
         }));
     }
     if rows.len() > 1 {
@@ -51,7 +52,7 @@ pub(crate) fn resolve_single(
             .collect();
         return Err(serde_json::json!({
             "status": "error", "error_code": "symbol_ambiguous",
-            "message": format!("{} symbols match {qualified_path:?}", rows.len()),
+            "message": format!("{} symbols match {}", rows.len(), repr(qualified_path)),
             "candidates": candidates,
         }));
     }
@@ -69,7 +70,7 @@ pub(crate) fn resolve_single(
         if rows.is_empty() {
             return Err(serde_json::json!({
                 "status": "error", "error_code": "symbol_not_found",
-                "message": format!("symbol {qualified_path:?} no longer exists after refresh"),
+                "message": format!("symbol {} no longer exists after refresh", repr(qualified_path)),
             }));
         }
         row = rows[0];
@@ -293,7 +294,9 @@ pub fn insert_symbol_with_cache(
         return arg_err(
             "invalid_argument",
             format!(
-                "position {position:?} requires a symbol with a body; {anchor_path} is {kind:?}"
+                "position {} requires a symbol with a body; {anchor_path} is {}",
+                repr(position),
+                repr(&kind)
             ),
         );
     }
@@ -346,7 +349,10 @@ pub fn insert_symbol_with_cache(
         other => {
             return arg_err(
                 "invalid_argument",
-                format!("position must be one of before/after/start/end, got {other:?}"),
+                format!(
+                    "position must be one of before/after/start/end, got {}",
+                    repr(other)
+                ),
             );
         }
     };
@@ -531,15 +537,19 @@ pub fn replace_symbol(
     if !ident_ok(&new_leaf) {
         return err(
             "invalid_argument",
-            format!("new symbol name {new_leaf:?} is not a valid identifier"),
+            format!(
+                "new symbol name {} is not a valid identifier",
+                repr(&new_leaf)
+            ),
         );
     }
     if !kinds_compatible(&old_kind, &new_sym.kind) {
         return err(
             "invalid_argument",
             format!(
-                "kind mismatch: old symbol is {old_kind:?}, new content defines a {:?}",
-                new_sym.kind
+                "kind mismatch: old symbol is {}, new content defines a {}",
+                repr(&old_kind),
+                repr(&new_sym.kind)
             ),
         );
     }
@@ -552,7 +562,10 @@ pub fn replace_symbol(
         format!("{prefix}{new_leaf}")
     };
     if name_changed && index.by_path.contains_key(&new_qpath) {
-        return err("name_collision", format!("{new_qpath:?} already exists"));
+        return err(
+            "name_collision",
+            format!("{} already exists", repr(&new_qpath)),
+        );
     }
 
     let declaring_source = match std::fs::read(&declaring_file_abs) {
