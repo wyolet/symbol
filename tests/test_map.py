@@ -1,7 +1,9 @@
 """Tests for import map analysis."""
 
+import json
 from pathlib import Path
 
+from wyolet.symbol.commands.map import map_cmd
 from wyolet.symbol.shared.graph import analyze_map
 from wyolet.symbol.shared.project_config import MapThresholds, MetricThreshold
 
@@ -185,6 +187,30 @@ def test_real_cross_package_cycle_detected(tmp_path: Path):
     )
     result = analyze_map(tmp_path)
     assert len(result.cycles) >= 1
+
+
+def test_map_cmd_without_python_says_so(tmp_path: Path, capsys):
+    _make_project(tmp_path, {"go.mod": "module example.com/m\n", "main.go": "package main\n"})
+    map_cmd(str(tmp_path))
+    out = capsys.readouterr().out
+    assert "No Python sources found" in out
+    assert "symbol map" in out
+    assert "No circular imports" not in out
+
+
+def test_map_cmd_without_python_json(tmp_path: Path, capsys):
+    _make_project(tmp_path, {"main.go": "package main\n"})
+    map_cmd(str(tmp_path), format="json")
+    data = json.loads(capsys.readouterr().out)
+    assert data["python_sources"] is False
+    assert data["total_files"] == 0
+    assert "No Python sources found" in data["message"]
+
+
+def test_map_cmd_blast_without_python_says_so(tmp_path: Path, capsys):
+    _make_project(tmp_path, {"main.go": "package main\n"})
+    map_cmd(str(tmp_path), blast="main.go")
+    assert "No Python sources found" in capsys.readouterr().out
 
 
 def test_type_checking_imports_not_edges(tmp_path: Path):
