@@ -1,6 +1,7 @@
 """The root --format option applies to the subcommand or is rejected."""
 
 import json
+import re
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -30,4 +31,7 @@ def test_subcommand_format_overrides_global(tmp_path: Path):
 def test_global_format_rejected_without_subcommand_support(tmp_path: Path):
     result = runner.invoke(app, ["--format", "json", "init", str(_project(tmp_path))])
     assert result.exit_code != 0
-    assert "has no --format option" in result.output
+    # Click renders usage errors in a boxed, colored panel that wraps at the
+    # terminal width, so match on the flattened text.
+    text = re.sub(r"[│╭╮╰╯─]", " ", re.sub(r"\x1b\[[0-9;]*m", "", result.output))
+    assert "has no --format option" in " ".join(text.split())
