@@ -435,12 +435,36 @@ fn rename_via_go_engine(
     let mut edits: Vec<FileEdit> = vec![];
     let mut per_file: Vec<serde_json::Value> = vec![];
 
-    // Deterministic iteration for stable output ordering.
-    let mut rels: Vec<&String> = files.keys().collect();
-    rels.sort();
+    // renamer._run_per_file order: the index-derived candidate files
+    // (sorted), then the daemon's extra files (sorted). It fixes per_file
+    // and the transaction's file order.
+    let module_qpath = (!member).then_some(container_qpath.as_str());
+    let mut candidates: std::collections::BTreeSet<String> =
+        std::collections::BTreeSet::from([declaring_file_rel.to_owned()]);
+    for (src_row, _line, _kind) in index.callers_of(old_leaf) {
+        candidates.insert(index.file_of(src_row).to_owned());
+    }
+    for file_id in 0..index.files.len() as i64 {
+        if index.imports_for(file_id).iter().any(|(local, source, _)| {
+            *local == old_leaf || module_qpath.is_some_and(|m| may_import_from(source, m))
+        }) {
+            candidates.insert(index.files[file_id as usize].clone());
+        }
+    }
+    let mut extras: Vec<&String> = files
+        .keys()
+        .filter(|rel| !candidates.contains(*rel))
+        .collect();
+    extras.sort();
+    let rels = candidates.iter().chain(extras);
 
     for rel in rels {
-        let analysis = &files[rel];
+        let Some(analysis) = files.get(rel) else {
+            continue;
+        };
+        if !project_root.join(rel).is_file() {
+            continue;
+        }
         for r in &analysis.rewrites {
             rewrites_out.push(serde_json::json!({
                 "file": rel, "line": r.line, "col": r.col,
