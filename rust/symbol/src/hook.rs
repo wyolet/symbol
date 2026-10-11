@@ -89,19 +89,32 @@ pub fn pre_tool_message(project_root: &Path, payload: &Value, reg: &Registry) ->
     if !matches!(tool, "Read" | "Grep" | "Edit" | "Write") {
         return None;
     }
+    let mut index = None;
     // File-bearing tools skip anything no adapter handles (md, json,
-    // settings); linguist sniffing decides, not the extension.
+    // settings); linguist sniffing decides, not the extension. An indexed
+    // file was already admitted by an adapter, which spares loading
+    // linguist on the common path.
     if tool != "Grep" {
         let file_path = input_str(input, "file_path").trim();
         if file_path.is_empty() {
             return None;
         }
         let path = Path::new(file_path);
-        if !path.is_file() || reg.language_for_file(path).is_none() {
+        if !path.is_file() {
             return None;
         }
+        let loaded = Index::load(project_root)?;
+        let indexed = to_rel(project_root, file_path)
+            .is_some_and(|rel| loaded.language_of_file(&rel).is_some());
+        if !indexed && reg.language_for_file(path).is_none() {
+            return None;
+        }
+        index = Some(loaded);
     }
-    let index = Index::load(project_root)?;
+    let index = match index {
+        Some(index) => index,
+        None => Index::load(project_root)?,
+    };
     match tool {
         "Read" => read_suggestion(&index, project_root, input, reg),
         "Grep" => grep_suggestion(&index, input),
