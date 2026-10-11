@@ -102,9 +102,12 @@ struct ResolvedMultiEdit {
 pub fn parse_line_range(raw: &str) -> Result<(i64, i64), String> {
     static RANGE_RE: std::sync::LazyLock<regex::Regex> =
         std::sync::LazyLock::new(|| regex::Regex::new(r"^(\d+)-(\d+)$").unwrap());
-    let m = RANGE_RE
-        .captures(raw.trim())
-        .ok_or_else(|| format!("range must be 'A-B' with non-negative integers, got {raw:?}"))?;
+    let m = RANGE_RE.captures(raw.trim()).ok_or_else(|| {
+        format!(
+            "range must be 'A-B' with non-negative integers, got {}",
+            crate::pyjson::repr_str(raw)
+        )
+    })?;
     let start: i64 = m[1].parse().map_err(|e| format!("{e}"))?;
     let end: i64 = m[2].parse().map_err(|e| format!("{e}"))?;
     if start < 1 {
@@ -713,17 +716,16 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
 /// Full-file unified diff with each line prefixed by its absolute line
 /// number — ports patch.py `_unified_diff` + `_number_diff_lines`.
 pub fn unified_diff(file_rel: &str, old: &[u8], new: &[u8], context: usize) -> String {
-    let old_text = String::from_utf8_lossy(old).into_owned();
-    let new_text = String::from_utf8_lossy(new).into_owned();
-    let diff = similar::TextDiff::from_lines(&old_text, &new_text);
-    let raw = diff
-        .unified_diff()
-        .context_radius(context)
-        .header(
-            &format!("{file_rel} (before)"),
-            &format!("{file_rel} (after)"),
-        )
-        .to_string();
+    use crate::writes::difflib::{splitlines_keepends, unified_diff as difflib_unified};
+    let old_text = String::from_utf8_lossy(old);
+    let new_text = String::from_utf8_lossy(new);
+    let raw = difflib_unified(
+        &splitlines_keepends(&old_text),
+        &splitlines_keepends(&new_text),
+        &format!("{file_rel} (before)"),
+        &format!("{file_rel} (after)"),
+        context,
+    );
     number_diff_lines(&raw)
 }
 
@@ -734,7 +736,7 @@ fn number_diff_lines(diff: &str) -> String {
     let mut out = String::with_capacity(diff.len() * 2);
     let mut old_line = 0i64;
     let mut new_line = 0i64;
-    for line in diff.split_inclusive('\n') {
+    for line in crate::writes::difflib::splitlines_keepends(diff) {
         if line.starts_with("@@") {
             if let Some(m) = HUNK_RE.captures(line.trim_end()) {
                 old_line = m[1].parse().unwrap_or(0);
