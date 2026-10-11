@@ -15,7 +15,7 @@ pub const PYTHON_ENV: &str = "SYMBOL_PYTHON";
 pub const PYSCAN_ENV: &str = "SYMBOL_PYSCAN";
 /// Oldest interpreter the embedded code runs on (PEP 604 unions are
 /// evaluated at runtime in its annotations and dataclasses).
-pub const MIN_PYTHON: (u32, u32) = (3, 10);
+pub const MIN_PYTHON: (u32, u32) = (3, 11);
 
 macro_rules! embed {
     ($($rel:literal),* $(,)?) => {
@@ -209,7 +209,7 @@ mod tests {
         let body: serde_json::Value = serde_json::from_str(&err.to_string()).unwrap();
         assert_eq!(body["error_code"], "python_unavailable");
         assert_eq!(body["override_env"], PYTHON_ENV);
-        assert_eq!(body["required_python"], ">=3.10");
+        assert_eq!(body["required_python"], ">=3.11");
         assert_eq!(body["tried"][0]["result"], "not found");
     }
 
@@ -238,7 +238,7 @@ mod tests {
 
     /// One request against the embedded set alone (no site-packages).
     fn embedded_call(request: &str) -> serde_json::Value {
-        let python = find_python(&["python3".to_owned()]).expect("python3 >= 3.10 on PATH");
+        let python = find_python(&["python3".to_owned()]).expect("python3 >= 3.11 on PATH");
         let tmp = tempfile::tempdir().unwrap();
         let dir = materialize(tmp.path()).unwrap();
         let argv = embedded_argv(&python, &dir);

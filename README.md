@@ -56,7 +56,7 @@ cache, and LOC. A new language is a new daemon, not new branches in the engine.
 `pyscan` is compiled into the binary. Its modules are stdlib-only and are
 unpacked once into the user cache dir (`~/Library/Caches/symbol` on macOS,
 `$XDG_CACHE_HOME/symbol` or `~/.cache/symbol` elsewhere). They then run on the
-first Python >= 3.10 found as `python3` or `python` on `PATH`; set
+first Python >= 3.11 found as `python3` or `python` on `PATH`; set
 `SYMBOL_PYTHON` to choose the interpreter. Parity with the Python CLI is
 verified with both on the same Python minor version. An older interpreter
 can't parse newer syntax, and files that fail to parse are skipped.
@@ -127,7 +127,7 @@ lets you build it locally via `make build-go-scan`. For Go projects without
 Python, place a `go-scan` binary next to `symbol`. Go renames also need the Go
 toolchain (`go`) on `PATH`, since go-scan's rename loads packages through
 `packages.Load`; indexing and reads don't. Python analysis needs only a
-Python >= 3.10 interpreter: no pip install and no repo checkout.
+Python >= 3.11 interpreter: no pip install and no repo checkout.
 
 ## Usage
 

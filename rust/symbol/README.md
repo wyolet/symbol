@@ -49,8 +49,8 @@ run as:
 the embedded modules.
 
 The interpreter is `SYMBOL_PYTHON` if set, else the first of `python3` /
-`python` on `PATH` that reports Python >= 3.10. 3.10 is the floor because the
-code evaluates PEP 604 `X | None` annotations at runtime. If nothing qualifies,
+`python` on `PATH` that reports Python >= 3.11. 3.11 is the floor because
+dependency detection reads `pyproject.toml` with `tomllib`. If nothing qualifies,
 the index build fails with a JSON error (`error_code: python_unavailable`,
 `required_python`, `override_env`, and each interpreter tried) rather than
 indexing zero Python files.

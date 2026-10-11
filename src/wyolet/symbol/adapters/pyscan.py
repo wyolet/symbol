@@ -21,7 +21,7 @@ protocol): the daemon writes `index/find_declaration` {qpath},
 `index/class_bases` {qpath} or `index/owners_of_leaf` {leaf} requests and
 reads each reply before continuing. The daemon never loads the index itself.
 
-Stdlib only, Python 3.10+: the Rust core embeds this module's import closure
+Stdlib only, Python 3.11+: the Rust core embeds this module's import closure
 and runs it with whatever `python3` is on PATH.
 
 Run: python -m wyolet.symbol.adapters.pyscan
