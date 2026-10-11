@@ -1,11 +1,32 @@
 # Differential-test ops datasets
 
 JSONL ops datasets for `scripts/diff_runner.py`, which executes each op
-against BOTH implementations of symbol (Python oracle CLI + Rust
-`symbol` binary) and diffs the results. Authored per the rules in
+against both the reference Python implementation and the Rust `symbol`
+binary and diffs the results. Authored per the rules in
 `scripts/ops_dataset_spec.md`. **Every target is derived from a real index
 dump of the corpus — nothing is invented.** JSONL has no comment syntax, so
 provenance and composition live here.
+
+## Reference checkout
+
+The Python implementation's last commit is `238accc`; the runner's
+reference side runs from a checkout of it. One-time setup (go-scan needs
+Go >= 1.26; set `GOTOOLCHAIN` if the local Go is older):
+
+```
+git worktree add --detach <ref> 238accc
+cd <ref>
+uv sync --all-extras
+make build-go-scan
+```
+
+The Rust side is `rust/target/release/symbol` of this checkout
+(`cargo build --release --manifest-path rust/Cargo.toml -p symbol-core`,
+plus `make build-go-scan` for Go corpora). Pass the checkout as
+`--reference <ref>` or `SYMBOL_REFERENCE=<ref>`. The reference's
+`symbol` runs via `uv run --project <ref>` with `SYMBOL_IMPL=python`, and
+`scripts/diff_reference.py` loads indexes and answers reads in its
+environment.
 
 ## Corpus provenance
 
@@ -96,24 +117,27 @@ dumps are ephemeral scratchpad artifacts:
 ```
 # 1. index each corpus with the Rust binary
 rust/target/release/symbol --root <corpus> index
-# 2. dump index facts (qpaths, kinds, files, bases, ref/caller counts, signatures)
-uv run python enumerate.py <corpus> enum-<name>.json
-uv run python sigs.py     <corpus> sigs-<name>.json
+# 2. dump index facts (qpaths, kinds, files, bases, ref/caller counts, signatures);
+#    these load the index with the reference's Python implementation
+uv run --project <ref> python scripts/datasets/enumerate.py <corpus> enum-<name>.json
+uv run --project <ref> python scripts/datasets/sigs.py     <corpus> sigs-<name>.json
 # 3. author the dataset from the real dumps
 python gen.py <name> enum-<name>.json sigs-<name>.json scripts/datasets/<name>.jsonl
 ```
 
 Reports land in `scripts/datasets/reports/<name>-report.json`; run via
-`uv run scripts/diff_runner.py <corpus> scripts/datasets/<name>.jsonl --report <out>`.
+`uv run scripts/diff_runner.py <corpus> scripts/datasets/<name>.jsonl --reference <ref> --report <out>`.
+Without a dataset the run is the index diff alone; `--index-check` adds it
+to a dataset run.
 
 ## MCP mode
 
 ```
-uv run scripts/diff_runner.py <corpus> scripts/datasets/<name>.jsonl --mcp [--report <out>]
+uv run scripts/diff_runner.py <corpus> scripts/datasets/<name>.jsonl --reference <ref> --mcp [--report <out>]
 ```
 
-Starts both MCP servers (`uv run symbol mcp` and `rust/target/release/symbol
-mcp`), each on its own copy of the corpus with the copy as working directory,
+Starts both MCP servers (the reference's `symbol mcp` and
+`rust/target/release/symbol mcp`), each on its own copy of the corpus with the copy as working directory,
 and compares full tool results: the text payload byte-for-byte after each
 copy's root is replaced with `<root>` and transaction ids are masked.
 
