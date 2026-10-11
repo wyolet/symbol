@@ -29,14 +29,13 @@ unfamiliar codebase:
 
 Static analysis only — `symbol` never imports or executes the target code.
 
-> **Status.** This is the Rust rewrite (`rust/`), the future of the
-> project. Its core — the symbol index, the read surface, the write surface,
-> and `loc` — is differentially verified **byte-for-byte** against the mature
-> Python implementation across real corpora (flask, gin, this repo). The Python
-> version is being wound down as the Rust surface reaches parity. `audit` and
-> the MCP server still live in Python today and will be ported to Rust after
-> the core lands — nothing is being dropped. `map` exists in both: the Rust one
-> works over the index for every indexed language.
+> **Status.** The Rust binary (`rust/`) implements the symbol index, the read
+> and write surface, `loc`, the MCP server and the Claude Code hook; it is
+> differentially verified **byte-for-byte** against the Python implementation
+> it replaced across real corpora (flask, gin, this repo). The Python package
+> keeps the Python-specific analysis commands: `audit`, `analyze`, `dump`,
+> `init`, `map` (the Python import graph) and `update-linguist`. The binary's
+> own `map` works over the index for every indexed language.
 
 ## How it works
 
@@ -79,12 +78,17 @@ uv tool install wyolet-symbol    # or: pipx install wyolet-symbol
 ```
 
 Wheels for macOS 13+ (arm64, x86_64), Linux (x86_64, arm64; glibc or musl),
-and Windows (x86_64) bundle the Rust `symbol` binary and `go-scan`. Commands
-the binary implements run it directly, with `pyscan` on the interpreter the
-package is installed into; `audit`, `analyze`, `dump`, `init`, `map`, and
-`update-linguist` run the Python implementation. `SYMBOL_IMPL=python` forces
-the Python implementation for every command. Other platforms get the
-pure-Python wheel.
+and Windows (x86_64) bundle the Rust `symbol` binary and `go-scan`. The
+package's `symbol` runs `audit`, `analyze`, `dump`, `init`, `map`, and
+`update-linguist` in Python and every other command on the binary, with
+`pyscan` on the interpreter the package is installed into. Other platforms
+get a pure wheel without binaries.
+
+The binary is the first of: `SYMBOL_BIN`, the one bundled in the wheel,
+`rust/target/release/symbol` or `rust/target/debug/symbol` when running from
+a source checkout, and a `symbol` on `PATH` that is not a Python entry point
+(such as the standalone binary below). Without one, those commands exit 1
+and name these options.
 
 ### Standalone binary
 
@@ -191,6 +195,9 @@ patch a stale view of a file; `--force` skips it.
 
 ### Import graph
 
+The binary's `map` works over the index. The PyPI package's `symbol map PATH`
+is the Python import graph instead (`symbol map --help`).
+
 ```bash
 symbol map                                  # cycles, hotspots, fan-out, deep chains
 symbol map -v                               # plus every import site and coverage detail
@@ -250,17 +257,6 @@ exclude = ["alembic/*", "scripts/*"]
 `loc` takes `--exclude`, `--no-vendor-skip`, and `--config-dir` for one-off
 overrides.
 
-## Interop with the Python version
-
-During the transition, both implementations operate on the same `.symbol/`
-state, so a mixed agent session is safe:
-
-- **Index** — `.symbol/symbol_index.msgpack.zst` is byte-compatible (v8). Either
-  implementation loads the other's index.
-- **Transactions** — `symbol undo` in one implementation rolls back writes
-  committed by the other.
-- **Read cache** — shared session cache, so patch preflight works across both.
-
 ## Repository layout
 
 ```
@@ -271,8 +267,9 @@ rust/
 └── harness/    black-box feature harness
 ```
 
-The Python implementation (`src/wyolet/symbol/`) remains in the tree until the
-Rust surface reaches parity.
+`src/wyolet/symbol/` is the Python package: the `symbol` console entry, the
+audit engine (checkers, spec system, import graph), the package specs, and
+the `pyscan` daemon the binary embeds.
 
 ## License
 

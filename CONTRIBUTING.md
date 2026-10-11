@@ -107,5 +107,5 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`: it builds the platform 
 ## Other contributions
 
 - **Checker improvements** — see `src/wyolet/symbol/checkers/`
-- **CLI commands** — see `src/wyolet/symbol/commands/`
+- **CLI commands** — Python analysis commands (`audit`, `analyze`, `dump`, `init`, `map`, `update-linguist`) in `src/wyolet/symbol/commands/`; every other command in the Rust binary (`rust/symbol/src/main.rs`). The Python entry runs those on the first of `SYMBOL_BIN`, the wheel's bundled copy, `rust/target/{release,debug}/symbol` in a checkout, and `symbol` on `PATH`. Rust checks: `make lint-rust test-rust test-features`; the differential gate against the last Python implementation is in `scripts/datasets/README.md`.
 - **Bug reports** — open an issue at https://github.com/anthropics/ca-tools/issues

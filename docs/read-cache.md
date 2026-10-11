@@ -2,7 +2,7 @@
 
 The read cache tracks what content we've served to an agent, so `symbol patch` can apply edits without forcing a re-read. It's the safety rail that makes the write surface token-efficient.
 
-Status: shipped. See `src/wyolet/symbol/caches/` for implementations and `src/wyolet/symbol/protocols/read_cache.py` for the contract.
+Status: shipped. See `rust/symbol/src/writes/read_cache.rs`.
 
 ## What the cache is for
 

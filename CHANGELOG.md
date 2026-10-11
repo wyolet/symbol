@@ -9,8 +9,11 @@ All notable changes to `symbol` are documented here. Format follows [Keep a Chan
 - **Standalone archives** on each GitHub release: `symbol-<version>-<target>.tar.gz` (`.zip` on Windows) with `symbol` and `go-scan`, plus `SHA256SUMS`.
 
 ### Changed
-- **`symbol` delegates to the bundled Rust binary** for `index`, `refresh`, `search`, `code`, `outline`, `callers`, `patch`, `delete-symbol`, `insert-symbol`, `rename-symbol`, `replace-symbol`, `undo`, `loc`, `mcp`, and `hook`, with `SYMBOL_PYTHON` defaulting to the installed interpreter. `SYMBOL_IMPL=python` forces the Python implementation.
+- **`symbol` runs every command except `audit`, `analyze`, `dump`, `init`, `map`, and `update-linguist` on the Rust binary**, with `SYMBOL_PYTHON` defaulting to the installed interpreter. The binary is `SYMBOL_BIN`, else the wheel's bundled copy, else `rust/target/{release,debug}/symbol` in a source checkout, else a `symbol` on `PATH` that is not a Python entry point; without one those commands exit 1 and name these options. `symbol --help` still lists them.
 - **The Rust binary's version follows the package version**; CI fails when `pyproject.toml`, `rust/symbol/Cargo.toml`, and the release tag disagree.
+
+### Removed
+- **The Python implementations of `index`, `refresh`, `search`, `code`, `outline`, `callers`, `patch`, `delete-symbol`, `insert-symbol`, `rename-symbol`, `replace-symbol`, `undo`, `loc`, `mcp`, and `hook`**, and `SYMBOL_IMPL`. The `mcp`, `msgpack`, and `zstandard` dependencies go with them.
 
 ## [0.2.5] — 2026-06-14
 

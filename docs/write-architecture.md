@@ -2,7 +2,7 @@
 
 The write surface is built protocol-first: define interfaces, implement concretely for Python/tier-1, swap in new languages and resolution tiers without touching the pipeline or commands.
 
-Status: shipped. `symbol patch`, `symbol delete-symbol`, `symbol insert-symbol`, `symbol rename-symbol`, `symbol replace-symbol` all live. Protocols in `src/wyolet/symbol/protocols/`, adapter in `src/wyolet/symbol/adapters/python_ast.py`, engines in `src/wyolet/symbol/writes/`, caches in `src/wyolet/symbol/caches/`. `symbol move-symbol` remains unshipped (see refactoring.md).
+Status: shipped. `symbol patch`, `symbol delete-symbol`, `symbol insert-symbol`, `symbol rename-symbol`, `symbol replace-symbol` all live. Engines and the read cache in `rust/symbol/src/writes/`; Python analysis in `src/wyolet/symbol/adapters/python_ast.py`, served by the `pyscan` daemon. `symbol move-symbol` remains unshipped (see refactoring.md).
 
 ## Design principle
 
