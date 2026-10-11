@@ -539,6 +539,53 @@ impl Adapter {
 
 // ---------------------------------------------------------- registry
 
+/// A language's daemon could not be started. Indexing stops on it rather
+/// than dropping that language's files and saving a hollow index.
+#[derive(Debug)]
+pub struct DaemonUnavailable {
+    pub language: String,
+    pub daemon: &'static str,
+    pub env_var: &'static str,
+    pub reason: String,
+}
+
+impl std::fmt::Display for DaemonUnavailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} files found but the {} daemon is unavailable ({}); set {} to its command",
+            self.language, self.daemon, self.reason, self.env_var
+        )
+    }
+}
+
+impl std::error::Error for DaemonUnavailable {}
+
+impl DaemonUnavailable {
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "status": "error",
+            "error_code": "daemon_unavailable",
+            "language": self.language,
+            "daemon": self.daemon,
+            "env_var": self.env_var,
+            "message": self.to_string(),
+        })
+    }
+}
+
+/// Structured form of an index-maintenance error for JSON-reporting callers.
+pub fn error_json(err: &anyhow::Error) -> serde_json::Value {
+    match err.downcast_ref::<DaemonUnavailable>() {
+        Some(unavailable) => unavailable.to_json(),
+        None => serde_json::json!({
+            "status": "error",
+            "error_code": "index_error",
+            "message": format!("{err:#}"),
+        }),
+    }
+}
+
 pub struct Registry {
     project_root: PathBuf,
     adapters: std::sync::Mutex<HashMap<String, &'static Adapter>>,
@@ -626,13 +673,11 @@ impl Registry {
         }
     }
 
-    /// Languages with a registered adapter — mirrors registry.has_adapter.
+    /// Languages with a registered adapter. Unlike Python's registry this
+    /// does not probe the daemon: a missing one surfaces as
+    /// DaemonUnavailable from for_language instead of skipping files.
     pub fn has_adapter(&self, lang_key: &str) -> bool {
-        match lang_key {
-            "python" => true,
-            "go" => goscan_argv().is_some(),
-            _ => false,
-        }
+        matches!(lang_key, "python" | "go")
     }
 
     /// Get (spawning lazily) the daemon adapter for a language key.
@@ -645,20 +690,28 @@ impl Registry {
                 return Ok(a);
             }
         }
-        let (name, argv) = match lang_key {
-            "python" => ("pyscan", pyscan_argv()),
-            "go" => (
-                "go-scan",
-                goscan_argv().ok_or_else(|| anyhow::anyhow!("go-scan binary not found"))?,
-            ),
+        let (name, env_var, argv) = match lang_key {
+            "python" => ("pyscan", "SYMBOL_PYSCAN", Some(pyscan_argv())),
+            "go" => ("go-scan", "SYMBOL_GOSCAN", goscan_argv()),
             other => bail!("no adapter for language {other:?}"),
+        };
+        let unavailable = |reason: String| DaemonUnavailable {
+            language: lang_key.to_owned(),
+            daemon: name,
+            env_var,
+            reason,
+        };
+        let Some(argv) = argv.filter(|argv| !argv.is_empty()) else {
+            return Err(unavailable(format!("no {name} binary found")).into());
         };
         let init = serde_json::json!({
             "protocol_version": "1",
             "project_root": self.project_root.to_string_lossy(),
         });
+        let daemon =
+            Daemon::spawn(name, &argv, init).map_err(|err| unavailable(format!("{err:#}")))?;
         let adapter: &'static Adapter = Box::leak(Box::new(Adapter {
-            daemon: Daemon::spawn(name, &argv, init)?,
+            daemon,
             language: lang_key.to_owned(),
             project_root: self.project_root.clone(),
         }));

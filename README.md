@@ -55,7 +55,10 @@ cache, and LOC. A new language is a new daemon, not new branches in the engine.
 Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` override the full command.
 Without an override, `go-scan` (or `go-scan-<os>-<arch>`) is taken from the
 directory holding the `symbol` executable, then from a source checkout
-(`SYMBOL_REPO`, else the one the binary was built from).
+(`SYMBOL_REPO`, else the one the binary was built from). If the project has
+files in a language whose daemon can't start, `index`, `refresh`, and commands
+that need a refresh exit non-zero with `error_code: "daemon_unavailable"` and
+leave the existing index untouched.
 
 ## Install
 

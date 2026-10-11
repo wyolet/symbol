@@ -229,38 +229,37 @@ impl Index {
 
     // ------------------------------------------------------ build
 
-    /// _walk_file: ingest one file via its language adapter.
-    pub fn walk_file(&mut self, path: &Path, language: Option<&str>, reg: &Registry) {
+    /// _walk_file: ingest one file via its language adapter. Per-file scan
+    /// failures skip the file; an unavailable daemon is an error.
+    pub fn walk_file(&mut self, path: &Path, language: Option<&str>, reg: &Registry) -> Result<()> {
         let Ok(rel) = path.strip_prefix(&self.project_root) else {
-            return;
+            return Ok(());
         };
         let rel = rel
             .to_string_lossy()
             .replace(std::path::MAIN_SEPARATOR, "/");
         let Ok(meta) = std::fs::metadata(path) else {
-            return;
+            return Ok(());
         };
         if meta.len() > MAX_INDEX_FILE_BYTES {
-            return;
+            return Ok(());
         }
         let language = match language {
             Some(l) => l.to_owned(),
             None => match classify(path) {
                 Some(l) => l,
-                None => return,
+                None => return Ok(()),
             },
         };
         if !reg.has_adapter(&language) {
-            return;
+            return Ok(());
         }
-        let Ok(adapter) = reg.for_language(&language) else {
-            return;
-        };
+        let adapter = reg.for_language(&language)?;
         let Ok(scan) = adapter.scan_file(path, None) else {
-            return;
+            return Ok(());
         };
         if !scan.ok {
-            return;
+            return Ok(());
         }
 
         let file_id = self.file_id(&rel, &scan.language);
@@ -276,6 +275,7 @@ impl Index {
         for top in &scan.symbols {
             self.ingest_symbol(top, file_id, -1, lang_id);
         }
+        Ok(())
     }
 
     fn ingest_symbol(&mut self, sym: &ScannedSymbol, file_id: i64, parent_row: i64, lang_id: i64) {
@@ -775,29 +775,31 @@ impl Index {
 
     /// ensure_fresh: refresh `rel` in place if its mtime differs. Returns
     /// true when a refresh happened.
-    pub fn ensure_fresh(&mut self, rel: &str, reg: &Registry) -> bool {
+    pub fn ensure_fresh(&mut self, rel: &str, reg: &Registry) -> Result<bool> {
         let Some(current) = mtime_f64_checked(&self.project_root.join(rel)) else {
-            return false;
+            return Ok(false);
         };
         if self.saved_mtimes.get(rel) == Some(&current) {
-            return false;
+            return Ok(false);
         }
         self.refresh(
             &std::collections::HashSet::from([rel.to_owned()]),
             &Default::default(),
             reg,
-        );
-        true
+        )?;
+        Ok(true)
     }
 
     // ------------------------------------------------------ refresh
 
+    /// On error the in-memory index is partially tombstoned; callers must
+    /// not save it.
     pub fn refresh(
         &mut self,
         stale: &std::collections::HashSet<String>,
         deleted: &std::collections::HashSet<String>,
         reg: &Registry,
-    ) {
+    ) -> Result<()> {
         for rel in deleted.iter().chain(stale.iter()) {
             self.tombstone_file(rel);
         }
@@ -806,12 +808,13 @@ impl Index {
             if !path.exists() {
                 continue;
             }
-            self.walk_file(&path, None, reg);
+            self.walk_file(&path, None, reg)?;
         }
         self.build_by_name_id();
         self.saved_mtimes = self.snapshot_mtimes();
         self.saved_dir_mtimes = self.snapshot_dir_mtimes();
         self.git_head = self.current_head();
+        Ok(())
     }
 
     fn tombstone_file(&mut self, rel: &str) {
@@ -1019,7 +1022,7 @@ pub fn full_build(project_root: &Path, reg: &Registry) -> Result<Index> {
         if !reg.has_adapter(&key) {
             continue;
         }
-        idx.walk_file(&f.abs, Some(&key), reg);
+        idx.walk_file(&f.abs, Some(&key), reg)?;
     }
     idx.build_by_name_id();
     Ok(idx)
@@ -1046,7 +1049,7 @@ pub fn get_or_build(project_root: &Path, reg: &Registry) -> Result<(Index, &'sta
         idx.save()?;
         return Ok((idx, "rebuild"));
     }
-    existing.refresh(&stale, &deleted, reg);
+    existing.refresh(&stale, &deleted, reg)?;
 
     let total = existing.symbols.len() as i64;
     if existing.dead_rows >= COMPACT_MIN

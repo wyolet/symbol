@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use symbol_core::adapters::default_registry;
+use symbol_core::adapters::{default_registry, DaemonUnavailable};
 use symbol_core::index::{full_build, get_or_build, Index};
 use symbol_core::reads;
 use symbol_core::writes::ops::{delete_symbol, insert_symbol, replace_symbol};
@@ -140,6 +140,22 @@ enum Cmd {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let json = args.json;
+    let Err(err) = run(args) else {
+        return Ok(());
+    };
+    let Some(unavailable) = err.downcast_ref::<DaemonUnavailable>() else {
+        return Err(err);
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&unavailable.to_json())?);
+    } else {
+        eprintln!("error [daemon_unavailable]: {unavailable}");
+    }
+    std::process::exit(1);
+}
+
+fn run(args: Args) -> Result<()> {
     let root = args.root.canonicalize()?;
     let reg = default_registry(&root);
 
@@ -413,8 +429,12 @@ fn main() -> Result<()> {
                 // Python command and explicitly refresh every restored file.
                 if let Some(mut idx) = Index::load(&root) {
                     let stale = result.files_restored.iter().cloned().collect();
-                    idx.refresh(&stale, &Default::default(), reg);
-                    idx.save()?;
+                    match idx.refresh(&stale, &Default::default(), reg) {
+                        Ok(()) => {
+                            idx.save()?;
+                        }
+                        Err(err) => eprintln!("warning: index not refreshed after undo: {err:#}"),
+                    }
                 }
             }
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -484,8 +504,12 @@ fn finish_write(
             }
         }
         if !touched.is_empty() {
-            idx.refresh(&touched, &Default::default(), reg);
-            let _ = idx.save();
+            match idx.refresh(&touched, &Default::default(), reg) {
+                Ok(()) => {
+                    let _ = idx.save();
+                }
+                Err(err) => eprintln!("warning: index not refreshed after write: {err:#}"),
+            }
         }
     }
     println!("{}", serde_json::to_string_pretty(&result)?);

@@ -19,6 +19,13 @@ next to the running executable (symlinks resolved), the dev builds under
 `SYMBOL_REPO` (else the crate's own repo), then that checkout's
 wheel-bundled `src/wyolet/symbol/bin/go-scan-<os>-<arch>`.
 
+A daemon that can't start is an error, not a filter. Python's registry
+reports such a language as unsupported and indexes around it; the Rust
+index build and refresh instead stop with `daemon_unavailable` (language,
+daemon, env var) before saving, so an existing index is never replaced by
+one missing that language. Reads on an index that needs no refresh still
+fall back to first-line signatures and previews.
+
 ## Interop guarantees (verified end-to-end)
 
 - **Index**: `.symbol/symbol_index.msgpack.zst` is byte-compatible v8 —

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::adapters::Registry;
+use crate::adapters::{error_json, Registry};
 use crate::index::{Index, S_EBYTE, S_SBYTE};
 use crate::writes::content::{indent_at_byte, normalize_content};
 use crate::writes::patch::{apply_patch, line_end_byte, line_start_byte, PatchRequest};
@@ -57,7 +57,10 @@ pub(crate) fn resolve_single(
     }
     let mut row = rows[0];
     let file_rel = index.file_of(row).to_owned();
-    if index.ensure_fresh(&file_rel, reg) {
+    if index
+        .ensure_fresh(&file_rel, reg)
+        .map_err(|err| error_json(&err))?
+    {
         let rows: Vec<i64> = index
             .by_path
             .get(qualified_path)
