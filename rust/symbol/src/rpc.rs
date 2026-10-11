@@ -68,9 +68,8 @@ impl Drop for Daemon {
     fn drop(&mut self) {
         // go_ast._stop: shutdown notification, brief wait, then kill.
         if let Ok(mut io) = self.io.lock() {
-            let _ = io
-                .0
-                .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"shutdown\"}\n");
+            let _ =
+                io.0.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"shutdown\"}\n");
             let _ = io.0.flush();
         }
         std::thread::sleep(std::time::Duration::from_millis(50));

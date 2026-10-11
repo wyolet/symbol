@@ -32,12 +32,20 @@ fn run_json(root: &Path, extra: &[&str]) -> serde_json::Value {
         .args(extra)
         .output()
         .expect("binary runs");
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     serde_json::from_slice(&out.stdout).expect("valid json")
 }
 
 fn lang<'a>(v: &'a serde_json::Value, name: &str) -> Option<&'a serde_json::Value> {
-    v["languages"].as_array().unwrap().iter().find(|l| l["name"] == name)
+    v["languages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|l| l["name"] == name)
 }
 
 #[test]
@@ -94,11 +102,23 @@ fn cache_roundtrip() {
     // touch one file with new mtime AND size → re-classifies that file plus
     // link.py, whose followed-metadata mtime tracks the same target
     std::thread::sleep(std::time::Duration::from_millis(20));
-    std::fs::write(tmp.path().join("src/main.py"), "import os\n\nprint(1)\n# more\n").unwrap();
-    let out = bin().arg(tmp.path()).arg("--json").arg("-v").output().unwrap();
+    std::fs::write(
+        tmp.path().join("src/main.py"),
+        "import os\n\nprint(1)\n# more\n",
+    )
+    .unwrap();
+    let out = bin()
+        .arg(tmp.path())
+        .arg("--json")
+        .arg("-v")
+        .output()
+        .unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr);
     let expected_misses = if cfg!(unix) { "2 misses" } else { "1 misses" };
-    assert!(stderr.contains(expected_misses), "expected {expected_misses}: {stderr}");
+    assert!(
+        stderr.contains(expected_misses),
+        "expected {expected_misses}: {stderr}"
+    );
     let touched: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(lang(&touched, "Python").unwrap()["loc"], 6);
 
@@ -117,5 +137,8 @@ fn no_heuristics_flag_changes_chain() {
     let with = run_json(tmp.path(), &["--no-cache"]);
     let without = run_json(tmp.path(), &["--no-cache", "--no-heuristics"]);
     assert!(lang(&with, "Objective-C").is_some(), "{with}");
-    assert!(lang(&without, "C").is_some(), "_PREFERRED .h → C: {without}");
+    assert!(
+        lang(&without, "C").is_some(),
+        "_PREFERRED .h → C: {without}"
+    );
 }

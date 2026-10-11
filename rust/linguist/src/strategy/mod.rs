@@ -23,6 +23,10 @@ pub(crate) fn narrow(found: &[LangId], candidates: &[LangId]) -> Vec<LangId> {
     if candidates.is_empty() {
         found.to_vec()
     } else {
-        found.iter().copied().filter(|id| candidates.contains(id)).collect()
+        found
+            .iter()
+            .copied()
+            .filter(|id| candidates.contains(id))
+            .collect()
     }
 }

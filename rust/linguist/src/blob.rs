@@ -90,7 +90,9 @@ impl Blob {
 
     pub fn last_lines(&self, n: usize) -> Vec<&str> {
         let total = self.lines().len();
-        (total.saturating_sub(n)..total).map(|i| self.line(i)).collect()
+        (total.saturating_sub(n)..total)
+            .map(|i| self.line(i))
+            .collect()
     }
 
     /// Total physical lines (blob.py loc).

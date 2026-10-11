@@ -35,8 +35,9 @@ pub fn callers(index: &Index, name: &str) -> Vec<serde_json::Value> {
 // ---------------------------------------------------------- code
 
 pub fn code(index: &Index, target: &str, reg: &Registry) -> Result<serde_json::Value> {
-    static RANGE_RE: std::sync::LazyLock<regex::Regex> =
-        std::sync::LazyLock::new(|| regex::Regex::new(r"^(?P<file>.+?):(?P<start>\d+)-(?P<end>\d+)$").unwrap());
+    static RANGE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"^(?P<file>.+?):(?P<start>\d+)-(?P<end>\d+)$").unwrap()
+    });
 
     if let Some(m) = RANGE_RE.captures(target) {
         return by_range(
@@ -119,7 +120,12 @@ fn by_range(
 
     let mut best_row: i64 = -1;
     let mut best_span: Option<(i64, i64)> = None;
-    for &row in index.by_file.get(&file_id).map(Vec::as_slice).unwrap_or(&[]) {
+    for &row in index
+        .by_file
+        .get(&file_id)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
         let (rs, re_) = index.range_of(row);
         if rs == start && re_ == end {
             best_row = row;
@@ -156,7 +162,9 @@ pub fn outline(index: &Index, query: &str, reg: &Registry) -> Vec<serde_json::Va
         return outline_file(index, query, reg);
     }
     if query.contains('/')
-        || [".py", ".ts", ".js", ".go", ".php"].iter().any(|e| query.ends_with(e))
+        || [".py", ".ts", ".js", ".go", ".php"]
+            .iter()
+            .any(|e| query.ends_with(e))
     {
         return outline_file(index, query, reg);
     }
@@ -265,7 +273,12 @@ pub fn search(
             .for_language(index.language_of(row))
             .ok()
             .and_then(|a| a.preview(&body, &signature, PREVIEW_LINES).ok())
-            .unwrap_or_else(|| body.lines().take(PREVIEW_LINES).collect::<Vec<_>>().join("\n"));
+            .unwrap_or_else(|| {
+                body.lines()
+                    .take(PREVIEW_LINES)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
         out.push(serde_json::json!({
             "path": index.path_of(row),
             "file": file_path,

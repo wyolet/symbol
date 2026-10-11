@@ -139,7 +139,12 @@ mod tests {
     }
 
     fn name_of(d: &Detector, file: &str, content: &[u8]) -> Option<String> {
-        let blob = Blob::from_bytes(Path::new(file), content.to_vec(), false, content.len() as u64);
+        let blob = Blob::from_bytes(
+            Path::new(file),
+            content.to_vec(),
+            false,
+            content.len() as u64,
+        );
         d.detect(&blob).map(|id| d.reg.get(id).name.clone())
     }
 
@@ -153,8 +158,14 @@ mod tests {
         assert_eq!(name_of(&d, "a.h", b"int x;\n"), Some("C".into()));
         assert_eq!(name_of(&d, "a.md", b"# hi\n"), Some("Markdown".into()));
         // filename strategy
-        assert_eq!(name_of(&d, "Makefile", b"all:\n\ttrue\n"), Some("Makefile".into()));
-        assert_eq!(name_of(&d, "Dockerfile", b"FROM x\n"), Some("Dockerfile".into()));
+        assert_eq!(
+            name_of(&d, "Makefile", b"all:\n\ttrue\n"),
+            Some("Makefile".into())
+        );
+        assert_eq!(
+            name_of(&d, "Dockerfile", b"FROM x\n"),
+            Some("Dockerfile".into())
+        );
         // shebang decides for extensionless scripts
         assert_eq!(
             name_of(&d, "script", b"#!/usr/bin/env python3\nprint(1)\n"),
@@ -166,7 +177,10 @@ mod tests {
             Some("XML".into())
         );
         // manpage
-        assert_eq!(name_of(&d, "foo.1", b".TH FOO 1\n"), Some("Roff Manpage".into()));
+        assert_eq!(
+            name_of(&d, "foo.1", b".TH FOO 1\n"),
+            Some("Roff Manpage".into())
+        );
         // unknown extension → Unknown (counted)
         assert_eq!(name_of(&d, "a.zzznope", b"data\n"), Some("Unknown".into()));
         // gates → None

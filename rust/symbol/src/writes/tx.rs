@@ -156,7 +156,9 @@ fn persist_transaction(
 }
 
 fn prune_transactions(tx_root: &Path, keep: usize) {
-    let Ok(entries) = std::fs::read_dir(tx_root) else { return };
+    let Ok(entries) = std::fs::read_dir(tx_root) else {
+        return;
+    };
     let mut dirs: Vec<PathBuf> = entries
         .flatten()
         .filter(|e| e.path().is_dir())
@@ -201,38 +203,44 @@ pub fn undo_last(project_root: &Path) -> UndoResult {
     if !tx_root.is_dir() {
         return nothing;
     }
-    let Ok(entries) = std::fs::read_dir(&tx_root) else { return nothing };
+    let Ok(entries) = std::fs::read_dir(&tx_root) else {
+        return nothing;
+    };
     let mut candidates: Vec<PathBuf> = entries
         .flatten()
         .map(|e| e.path())
         .filter(|p| p.is_dir() && !p.to_string_lossy().ends_with(".undone"))
         .collect();
     candidates.sort();
-    let Some(tx_dir) = candidates.pop() else { return nothing };
+    let Some(tx_dir) = candidates.pop() else {
+        return nothing;
+    };
 
-    let manifest: serde_json::Value =
-        match std::fs::read_to_string(tx_dir.join(MANIFEST)).map_err(|e| e.to_string()).and_then(
-            |s| serde_json::from_str(&s).map_err(|e| e.to_string()),
-        ) {
-            Ok(m) => m,
-            Err(e) => {
-                return UndoResult {
-                    status: "error",
-                    transaction_id: Some(tx_dir.file_name().unwrap().to_string_lossy().into_owned()),
-                    op: None,
-                    subject: None,
-                    files_restored: vec![],
-                    files_skipped: vec![],
-                    error_code: Some("manifest_unreadable".into()),
-                    message: Some(e),
-                }
+    let manifest: serde_json::Value = match std::fs::read_to_string(tx_dir.join(MANIFEST))
+        .map_err(|e| e.to_string())
+        .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))
+    {
+        Ok(m) => m,
+        Err(e) => {
+            return UndoResult {
+                status: "error",
+                transaction_id: Some(tx_dir.file_name().unwrap().to_string_lossy().into_owned()),
+                op: None,
+                subject: None,
+                files_restored: vec![],
+                files_skipped: vec![],
+                error_code: Some("manifest_unreadable".into()),
+                message: Some(e),
             }
-        };
+        }
+    };
 
     let mut restored = vec![];
     let mut skipped = vec![];
     for entry in manifest["files"].as_array().cloned().unwrap_or_default() {
-        let Some(file_rel) = entry["file_rel"].as_str() else { continue };
+        let Some(file_rel) = entry["file_rel"].as_str() else {
+            continue;
+        };
         let target = project_root.join(file_rel);
         let outcome = match entry["pre_image"].as_str() {
             None => std::fs::remove_file(&target).or_else(|e| {
@@ -242,7 +250,9 @@ pub fn undo_last(project_root: &Path) -> UndoResult {
                     Err(e)
                 }
             }),
-            Some(blob) => std::fs::read(tx_dir.join(blob)).and_then(|pre| atomic_write(&target, &pre)),
+            Some(blob) => {
+                std::fs::read(tx_dir.join(blob)).and_then(|pre| atomic_write(&target, &pre))
+            }
         };
         match outcome {
             Ok(()) => restored.push(file_rel.to_owned()),
@@ -250,10 +260,13 @@ pub fn undo_last(project_root: &Path) -> UndoResult {
         }
     }
 
-    let _ = std::fs::rename(&tx_dir, tx_dir.with_file_name(format!(
-        "{}.undone",
-        tx_dir.file_name().unwrap().to_string_lossy()
-    )));
+    let _ = std::fs::rename(
+        &tx_dir,
+        tx_dir.with_file_name(format!(
+            "{}.undone",
+            tx_dir.file_name().unwrap().to_string_lossy()
+        )),
+    );
 
     UndoResult {
         status: "undone",

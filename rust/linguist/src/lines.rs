@@ -90,8 +90,11 @@ pub fn is_blank(line: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn split<'a>(s: &'a str) -> Vec<&'a str> {
-        py_splitlines(s).into_iter().map(|(a, b)| &s[a..b]).collect()
+    fn split(s: &str) -> Vec<&str> {
+        py_splitlines(s)
+            .into_iter()
+            .map(|(a, b)| &s[a..b])
+            .collect()
     }
 
     #[test]

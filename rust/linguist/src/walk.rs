@@ -48,7 +48,9 @@ fn walk_dir(dir: &Path, rel_dir: &str, opts: &WalkOptions, out: &mut Vec<WalkedF
         } else {
             format!("{rel_dir}/{name}")
         };
-        let Ok(lmeta) = entry.metadata() else { continue }; // lstat via DirEntry
+        let Ok(lmeta) = entry.metadata() else {
+            continue;
+        }; // lstat via DirEntry
         let is_symlink = lmeta.file_type().is_symlink();
 
         // Classify like os.walk: is_dir() FOLLOWS symlinks, but

@@ -55,7 +55,9 @@ impl Heuristic {
         let f = filename.to_lowercase();
         self.extensions.iter().any(|ext| f.ends_with(ext))
             && self.rules.iter().any(|rule| {
-                rule.languages.iter().any(|l| candidate_names.contains(&l.as_str()))
+                rule.languages
+                    .iter()
+                    .any(|l| candidate_names.contains(&l.as_str()))
             })
     }
 
@@ -133,8 +135,7 @@ impl HeuristicsStrategy {
                 return compile(union_pattern(p)?, dropped);
             }
             if let Some(p) = rule.get("negative_pattern") {
-                return compile(union_pattern(p)?, dropped)
-                    .map(|m| Matcher::Negative(Box::new(m)));
+                return compile(union_pattern(p)?, dropped).map(|m| Matcher::Negative(Box::new(m)));
             }
             if let Some(n) = rule.get("named_pattern").and_then(|v| v.as_str()) {
                 return compile(named.get(n)?.clone(), dropped);
@@ -188,8 +189,10 @@ impl Strategy for HeuristicsStrategy {
             Some((i, _)) => &data[..i],
             None => data,
         };
-        let candidate_names: Vec<&str> =
-            candidates.iter().map(|&id| reg.get(id).name.as_str()).collect();
+        let candidate_names: Vec<&str> = candidates
+            .iter()
+            .map(|&id| reg.get(id).name.as_str())
+            .collect();
 
         for heuristic in &self.heuristics {
             if heuristic.matches(&blob.name, &candidate_names) {
@@ -215,7 +218,13 @@ mod tests {
         (reg, h)
     }
 
-    fn run(reg: &Registry, h: &HeuristicsStrategy, name: &str, content: &str, cands: &[&str]) -> Vec<String> {
+    fn run(
+        reg: &Registry,
+        h: &HeuristicsStrategy,
+        name: &str,
+        content: &str,
+        cands: &[&str],
+    ) -> Vec<String> {
         let blob = Blob::from_bytes(
             Path::new(name),
             content.as_bytes().to_vec(),

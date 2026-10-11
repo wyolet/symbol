@@ -234,7 +234,6 @@ fn parse_go_module_name(gomod: &Path) -> Option<String> {
     None
 }
 
-
 /// GoAstAdapter._PACKAGE_STUB — prepended to bare Go snippets so go/parser
 /// accepts them; offsets are shifted back to the caller's coordinates.
 const GO_PACKAGE_STUB: &str = "package _stub\n";
@@ -342,9 +341,10 @@ impl Adapter {
         // pyscan reads params["text"]; go-scan's SignatureParams unmarshals
         // `source` (a missing field decodes to "" → empty signature — WP7
         // sweep root cause #1). Send both keys so each daemon finds its own.
-        let result = self
-            .daemon
-            .call("signature", serde_json::json!({ "text": text, "source": text }))?;
+        let result = self.daemon.call(
+            "signature",
+            serde_json::json!({ "text": text, "source": text }),
+        )?;
         let sig = result["signature"].as_str().unwrap_or_default();
         if !sig.is_empty() || self.language != "go" {
             // Python's adapters return "" for kinds without a parseable
@@ -469,7 +469,10 @@ impl Adapter {
         }
         let result = self.daemon.call("function_parameters", params)?;
         Ok(serde_json::from_value(
-            result.get("parameters").cloned().unwrap_or(serde_json::Value::Null),
+            result
+                .get("parameters")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
         )?)
     }
 
@@ -526,9 +529,10 @@ impl Adapter {
     }
 
     pub fn normalize_blank_gaps(&self, source: &str) -> Result<String> {
-        let result = self
-            .daemon
-            .call("normalize_blank_gaps", serde_json::json!({ "source": source }))?;
+        let result = self.daemon.call(
+            "normalize_blank_gaps",
+            serde_json::json!({ "source": source }),
+        )?;
         Ok(result["source"].as_str().unwrap_or_default().to_owned())
     }
 }

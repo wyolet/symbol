@@ -147,7 +147,9 @@ pub fn splitext_ext(name: &str) -> &str {
 
 /// Basename of a forward-slash or OS path string (os.path.basename).
 pub fn basename(path: &str) -> &str {
-    path.rsplit(['/', std::path::MAIN_SEPARATOR]).next().unwrap_or(path)
+    path.rsplit(['/', std::path::MAIN_SEPARATOR])
+        .next()
+        .unwrap_or(path)
 }
 
 pub fn python_config_dir(repo_root: &Path) -> PathBuf {

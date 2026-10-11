@@ -25,7 +25,11 @@ impl ReadCache {
     pub fn for_session(project_root: &Path) -> ReadCache {
         match std::env::var("SYMBOL_SESSION_ID") {
             Ok(sid) if !sid.is_empty() => ReadCache {
-                path: Some(project_root.join(".symbol/cache/sessions").join(format!("{sid}.json"))),
+                path: Some(
+                    project_root
+                        .join(".symbol/cache/sessions")
+                        .join(format!("{sid}.json")),
+                ),
             },
             _ => ReadCache { path: None },
         }
@@ -57,7 +61,10 @@ impl ReadCache {
             return;
         }
         let mut entries = self.read();
-        let key = format!("{}:{}-{}", entry.file, entry.byte_range.0, entry.byte_range.1);
+        let key = format!(
+            "{}:{}-{}",
+            entry.file, entry.byte_range.0, entry.byte_range.1
+        );
         entries.insert(key, serde_json::to_value(entry).unwrap());
         self.write(&entries);
     }

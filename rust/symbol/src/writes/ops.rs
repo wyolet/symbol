@@ -26,7 +26,11 @@ pub(crate) fn resolve_single(
     qualified_path: &str,
     reg: &Registry,
 ) -> Result<i64, serde_json::Value> {
-    let rows: Vec<i64> = index.by_path.get(qualified_path).cloned().unwrap_or_default();
+    let rows: Vec<i64> = index
+        .by_path
+        .get(qualified_path)
+        .cloned()
+        .unwrap_or_default();
     if rows.is_empty() {
         return Err(serde_json::json!({
             "status": "error", "error_code": "symbol_not_found",
@@ -54,7 +58,11 @@ pub(crate) fn resolve_single(
     let mut row = rows[0];
     let file_rel = index.file_of(row).to_owned();
     if index.ensure_fresh(&file_rel, reg) {
-        let rows: Vec<i64> = index.by_path.get(qualified_path).cloned().unwrap_or_default();
+        let rows: Vec<i64> = index
+            .by_path
+            .get(qualified_path)
+            .cloned()
+            .unwrap_or_default();
         if rows.is_empty() {
             return Err(serde_json::json!({
                 "status": "error", "error_code": "symbol_not_found",
@@ -67,8 +75,12 @@ pub(crate) fn resolve_single(
 }
 
 fn normalize_blank_gaps_via_adapter(file_abs: &Path, language: &str, reg: &Registry) {
-    let Ok(adapter) = reg.for_language(language) else { return };
-    let Ok(source) = std::fs::read(file_abs) else { return };
+    let Ok(adapter) = reg.for_language(language) else {
+        return;
+    };
+    let Ok(source) = std::fs::read(file_abs) else {
+        return;
+    };
     let text = String::from_utf8_lossy(&source).into_owned();
     if let Ok(normalized) = adapter.normalize_blank_gaps(&text) {
         if normalized != text {
@@ -209,7 +221,9 @@ pub fn insert_symbol(
     if (position == "start" || position == "end") && !has_body {
         return arg_err(
             "invalid_argument",
-            format!("position {position:?} requires a symbol with a body; {anchor_path} is {kind:?}"),
+            format!(
+                "position {position:?} requires a symbol with a body; {anchor_path} is {kind:?}"
+            ),
         );
     }
 
@@ -391,7 +405,11 @@ pub fn replace_symbol(
     };
     let declaring_file_rel = index.file_of(row).to_owned();
     let declaring_file_abs = project_root.join(&declaring_file_rel);
-    let old_leaf = qualified_path.rsplit('.').next().unwrap_or(qualified_path).to_owned();
+    let old_leaf = qualified_path
+        .rsplit('.')
+        .next()
+        .unwrap_or(qualified_path)
+        .to_owned();
     let old_kind = index.kind_of(row).to_owned();
     let language = index.language_of(row).to_owned();
     let old_byte_range = (
@@ -399,9 +417,7 @@ pub fn replace_symbol(
         index.symbols[row as usize][S_EBYTE] as usize,
     );
 
-    let err = |code: &str, msg: String| {
-        serde_json::json!({ "status": "error", "error_code": code, "message": msg })
-    };
+    let err = |code: &str, msg: String| serde_json::json!({ "status": "error", "error_code": code, "message": msg });
 
     let Ok(adapter) = reg.for_language(&language) else {
         return err("no_adapter", format!("no adapter for {language}"));
@@ -486,19 +502,24 @@ pub fn replace_symbol(
         );
     }
 
-    let pattern = name_changed.then(|| {
-        regex::Regex::new(&format!(r"\b{}\b", regex::escape(&old_leaf))).unwrap()
-    });
+    let pattern = name_changed
+        .then(|| regex::Regex::new(&format!(r"\b{}\b", regex::escape(&old_leaf))).unwrap());
     let mut before = declaring_source[..start].to_vec();
     let mut after = declaring_source[end..].to_vec();
     let mut declaring_refs_updated = 1i64;
     if let Some(pat) = &pattern {
         let before_text = String::from_utf8_lossy(&before).into_owned();
         let c1 = pat.find_iter(&before_text).count() as i64;
-        before = pat.replace_all(&before_text, new_leaf.as_str()).into_owned().into_bytes();
+        before = pat
+            .replace_all(&before_text, new_leaf.as_str())
+            .into_owned()
+            .into_bytes();
         let after_text = String::from_utf8_lossy(&after).into_owned();
         let c2 = pat.find_iter(&after_text).count() as i64;
-        after = pat.replace_all(&after_text, new_leaf.as_str()).into_owned().into_bytes();
+        after = pat
+            .replace_all(&after_text, new_leaf.as_str())
+            .into_owned()
+            .into_bytes();
         declaring_refs_updated += c1 + c2;
     }
 
@@ -527,7 +548,9 @@ pub fn replace_symbol(
         other_files.remove(&declaring_file_rel);
         for rel in other_files {
             let abs = project_root.join(&rel);
-            let Ok(src) = std::fs::read(&abs) else { continue };
+            let Ok(src) = std::fs::read(&abs) else {
+                continue;
+            };
             let text = String::from_utf8_lossy(&src).into_owned();
             let count = pat.find_iter(&text).count() as i64;
             if count == 0 {
@@ -596,8 +619,7 @@ pub fn replace_symbol(
                         .iter()
                         .map(|e| (e.file_rel.clone(), e.new_content.clone()))
                         .collect();
-                    let mut order: Vec<String> =
-                        edits.iter().map(|e| e.file_rel.clone()).collect();
+                    let mut order: Vec<String> = edits.iter().map(|e| e.file_rel.clone()).collect();
                     let mut agg: Vec<(String, String, i64, i64, i64)> = renames
                         .iter()
                         .map(|(o, n)| (o.clone(), n.clone(), 0, 0, 0))
@@ -620,7 +642,14 @@ pub fn replace_symbol(
                         for (i, (o, n)) in renames.iter().enumerate() {
                             let src_str = String::from_utf8_lossy(&current).into_owned();
                             let analysis = match adapter.rename_parameter_analysis(
-                                &abs, &new_qpath, &new_leaf, o, is_declaring, None, n, true,
+                                &abs,
+                                &new_qpath,
+                                &new_leaf,
+                                o,
+                                is_declaring,
+                                None,
+                                n,
+                                true,
                                 Some(&src_str),
                             ) {
                                 Ok(a) => a,
@@ -639,7 +668,8 @@ pub fn replace_symbol(
                                 sorted.sort_by_key(|r| std::cmp::Reverse(r.byte_start));
                                 for r in &sorted {
                                     if r.byte_end <= current.len() && r.byte_start <= r.byte_end {
-                                        current.splice(r.byte_start..r.byte_end, r.new_text.bytes());
+                                        current
+                                            .splice(r.byte_start..r.byte_end, r.new_text.bytes());
                                     }
                                 }
                                 changed = true;

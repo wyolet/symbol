@@ -39,7 +39,9 @@ pub fn normalize_content(content: &str, target_indent: &str) -> Vec<u8> {
 }
 
 fn leading_ws_len(line: &str) -> usize {
-    line.bytes().take_while(|&b| b == b' ' || b == b'\t').count()
+    line.bytes()
+        .take_while(|&b| b == b' ' || b == b'\t')
+        .count()
 }
 
 /// _indent_at_byte: leading whitespace of the line containing `byte_pos`.
