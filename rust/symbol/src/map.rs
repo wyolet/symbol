@@ -766,17 +766,9 @@ fn print_closure(
         return true;
     }
     if reverse {
-        println!(
-            "{}: {} module(s) import it",
-            graph.modules[target],
-            reached.len()
-        );
+        println!("{}: {} dependent(s)", graph.modules[target], reached.len());
     } else {
-        println!(
-            "{}: imports {} module(s)",
-            graph.modules[target],
-            reached.len()
-        );
+        println!("{}: depends on {}", graph.modules[target], reached.len());
     }
     let mut current = 0;
     for &(m, depth, via) in &reached {
