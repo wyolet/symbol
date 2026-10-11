@@ -10,43 +10,8 @@ permissions:
 jobs:
   build:
     name: Build distributions
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          # go-scan type-checks projects only up to the Go it was built with
-          go-version: stable
-      - name: Cross-compile go-scan for every shipped platform
-        # The wheel's ``artifacts`` glob (pyproject.toml) picks up everything
-        # under src/wyolet/symbol/bin/, so binaries built here get bundled
-        # automatically. Without this step, the wheel ships without any
-        # go-scan binary and ``GoAstAdapter.is_enabled`` returns False on
-        # every installed copy.
-        run: make build-go-scan-all
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-      - name: Set up Python 3.13
-        run: uv python install 3.13
-      - name: Build sdist + wheel
-        run: uv build
-      - name: Sanity-check Go binaries are in the wheel
-        run: |
-          set -euo pipefail
-          wheel=$(ls dist/wyolet_symbol-*.whl)
-          echo "Inspecting $wheel"
-          if ! unzip -l "$wheel" | grep -q 'bin/go-scan-'; then
-            echo "ERROR: wheel does not contain go-scan binaries" >&2
-            unzip -l "$wheel" >&2
-            exit 1
-          fi
-          unzip -l "$wheel" | grep 'bin/go-scan-'
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
+    # Also asserts the tag matches pyproject.toml and Cargo.toml.
+    uses: ./.github/workflows/build.yml
 
   publish:
     name: Publish to PyPI
@@ -56,10 +21,11 @@ jobs:
     permissions:
       id-token: write  # OIDC for trusted publishing
     steps:
-      - name: Download build artifacts
+      - name: Download wheels + sdist
         uses: actions/download-artifact@v4
         with:
-          name: dist
+          pattern: dist-*
+          merge-multiple: true
           path: dist/
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -72,11 +38,21 @@ jobs:
       contents: write  # required to create the release
     steps:
       - uses: actions/checkout@v4
-      - name: Download build artifacts
+      - name: Download wheels + sdist
         uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist/
+          pattern: dist-*
+          merge-multiple: true
+          path: release/
+      - name: Download standalone archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: release/
+      - name: Write SHA256SUMS
+        working-directory: release
+        run: sha256sum -- * > SHA256SUMS && cat SHA256SUMS
       - name: Extract release notes for this tag from CHANGELOG.md
         # Pull the section between this version's heading and the next
         # ## heading. Falls back to a one-liner if extraction comes up
@@ -100,4 +76,4 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body_path: release-notes.md
-          files: dist/*
+          files: release/*

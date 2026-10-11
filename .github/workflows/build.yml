@@ -1,0 +1,117 @@
+name: Build distributions
+
+# Shared by ci.yml (build only) and release.yml (build + publish). Artifacts:
+# dist-* (wheels + sdist, PyPI payload) and archive-* (standalone binaries).
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: version check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: pyproject, Cargo.toml, and tag versions agree
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "$TAG" ]; then args=(--tag "$TAG"); fi
+          uv run --no-project --python 3.13 scripts/check_version.py "${args[@]}"
+
+  sdist:
+    name: sdist + pure wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Build sdist + py3-none-any wheel
+        run: uv build --python 3.13
+      - name: Check contents
+        run: uv run --no-project --python 3.13 scripts/check_dist.py dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-pure
+          path: dist/
+          if-no-files-found: error
+
+  binaries:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with WHEEL_PLATFORMS in hatch_build.py and TARGETS in
+        # scripts/check_dist.py. darwin-amd64 is cross-built, so not smoke-run.
+        include:
+          - { target: darwin-arm64,  runner: macos-latest,     rust: aarch64-apple-darwin,       smoke: true }
+          - { target: darwin-amd64,  runner: macos-latest,     rust: x86_64-apple-darwin,        smoke: false }
+          - { target: linux-amd64,   runner: ubuntu-latest,    rust: x86_64-unknown-linux-musl,  smoke: true }
+          - { target: linux-arm64,   runner: ubuntu-24.04-arm, rust: aarch64-unknown-linux-musl, smoke: true }
+          - { target: windows-amd64, runner: windows-latest,   rust: x86_64-pc-windows-msvc,     smoke: true }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # go-scan type-checks projects only up to the Go it was built with
+          go-version: stable
+          cache-dependency-path: src/wyolet/symbol/adapters/go_ast/daemon/go.sum
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: ${{ matrix.target }}
+      - name: Install musl toolchain
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build binaries, platform wheel, and archive
+        run: uv run --no-project --python 3.13 scripts/build_dist.py --target ${{ matrix.target }} ${{ matrix.smoke && '--smoke' || '' }}
+      - name: Check contents
+        run: uv run --no-project --python 3.13 scripts/check_dist.py dist build/archives
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.target }}
+          path: build/archives/*
+          if-no-files-found: error
+
+  check:
+    name: check all distributions
+    needs: [version, sdist, binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: build/archives/
+      - name: Every target present, each with exactly its binaries
+        run: uv run --no-project --python 3.13 scripts/check_dist.py dist build/archives --all-targets

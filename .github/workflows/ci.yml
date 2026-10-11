@@ -66,41 +66,7 @@ jobs:
           path: .tmp/real-world-feature-report.json
           if-no-files-found: warn
 
-  go-scan-cross-compile:
-    name: go-scan cross-compile (${{ matrix.goos }}-${{ matrix.goarch }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Keep this list in sync with GO_SCAN_TARGETS in the Makefile and
-        # with _bundled_binary() in src/wyolet/symbol/adapters/go_ast/__init__.py.
-        include:
-          - { goos: darwin,  goarch: arm64 }
-          - { goos: darwin,  goarch: amd64 }
-          - { goos: linux,   goarch: arm64 }
-          - { goos: linux,   goarch: amd64 }
-          - { goos: windows, goarch: amd64 }
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          # go-scan type-checks projects only up to the Go it was built with
-          go-version: stable
-      - name: Build go-scan for ${{ matrix.goos }}/${{ matrix.goarch }}
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          mkdir -p src/wyolet/symbol/bin
-          suffix=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then suffix=".exe"; fi
-          go -C src/wyolet/symbol/adapters/go_ast/daemon \
-            build -o "../../../../../../src/wyolet/symbol/bin/go-scan-${{ matrix.goos }}-${{ matrix.goarch }}$suffix" .
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-scan-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: src/wyolet/symbol/bin/go-scan-*
-          if-no-files-found: error
-          retention-days: 7
+  package:
+    name: package
+    # Platform wheels, standalone archives, and sdist, built as on release.
+    uses: ./.github/workflows/build.yml
