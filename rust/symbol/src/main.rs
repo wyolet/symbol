@@ -17,7 +17,7 @@ use symbol_core::writes::tx::undo_last;
 /// symbol — AST-native code intelligence (index, reads, writes, loc).
 /// Language analysis runs in native-AST daemons (pyscan / go-scan).
 #[derive(Parser)]
-#[command(version, about)]
+#[command(name = "symbol", version, about)]
 struct Args {
     /// Project root
     #[arg(long, default_value = ".", global = true)]
