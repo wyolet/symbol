@@ -121,12 +121,14 @@ pub fn run(args: LocArgs) -> Result<()> {
     }
     let work: Vec<Work> = walked
         .iter()
-        .map(|f| match cache.as_mut().and_then(|c| {
-            c.get(&f.rel, f.mtime_ns, f.size)
-                .map(|rec| (rec.2.clone(), rec.3, rec.4))
-        }) {
-            Some((lang, loc, sloc)) => Work::Hit(f, lang, loc, sloc),
-            None => Work::Todo(f),
+        .map(|f| {
+            match cache.as_mut().and_then(|c| {
+                c.get(&f.rel, f.mtime_ns, f.size)
+                    .map(|rec| (rec.2.clone(), rec.3, rec.4))
+            }) {
+                Some((lang, loc, sloc)) => Work::Hit(f, lang, loc, sloc),
+                None => Work::Todo(f),
+            }
         })
         .collect();
 
@@ -198,10 +200,7 @@ pub fn run(args: LocArgs) -> Result<()> {
     }
 
     if args.verbose {
-        let (hits, misses) = cache
-            .as_ref()
-            .map(|c| (c.hits, c.misses))
-            .unwrap_or((0, 0));
+        let (hits, misses) = cache.as_ref().map(|c| (c.hits, c.misses)).unwrap_or((0, 0));
         eprintln!(
             "setup {:?}  walk {:?} ({} files)  classify {:?}  cache {hits} hits / {misses} misses",
             t_setup,

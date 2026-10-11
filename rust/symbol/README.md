@@ -61,7 +61,7 @@ src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename
 src/main.rs       clap CLI (symbol-rs)
 ```
 
-## Differential verification (WP7 sweep — 2026-07-08)
+## Differential verification
 
 Full differential sweep via `scripts/diff_runner.py` with the authored
 datasets in `scripts/datasets/` (every target derived from real index
@@ -73,12 +73,17 @@ Corpora: flask `36e4a824` (pallets/flask), gin `34dac209` (gin-gonic/gin),
 self = this repo at `5f82bcce` (`git archive` copy), fixture-proj
 `e38a36b7` (smoke files).
 
-| corpus | index assertions | dataset ops | match | known_divergence | MISMATCH |
-|---|---|---|---|---|---|
-| flask | 1787 / 1787 | 426 (316r/110w) | 588 | 0 | **0** |
-| gin | 1614 / 1614 | 383 (290r/93w) | 469 | 0 | **0** |
-| self | 2284 / 2284 | 385 (319r/66w) | 495 | 0 | **0** |
-| fixture-proj (smoke ×2) | 16 / 16 | 3 + 9 | 20 | 0 | 0 |
+| corpus | index assertions | dataset ops | match | both_refused | known_divergence | MISMATCH |
+|---|---|---|---|---|---|---|
+| flask | 1787 / 1787 | 425 (316r/109w) | 588 | 1 | 0 | **0** |
+| gin | 1614 / 1614 | 383 (290r/93w) | 432 | 37 | 0 | **0** |
+| self | 2284 / 2284 | 384 (319r/65w) | 494 | 0 | 0 | **0** |
+| fixture-proj (smoke ×2) | 16 / 16 | 3 + 9 | 20 | 0 | 0 | 0 |
+
+`both_refused` writes agree on the refusal but exercise no write path. On
+gin they are build-tag duplicates (`symbol_ambiguous`), `needs_review`, and
+symbols defined in `_test.go` files (`nothing_to_rename` — go-scan loads
+packages without tests).
 
 Index diff is **100% byte-equivalent on all four corpora** (v8 rows incl.
 field/constant kinds, class bases, refs, byte ranges, imports). Every

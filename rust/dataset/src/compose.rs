@@ -33,7 +33,10 @@ pub fn run(config: RunConfig<'_>) -> Result<()> {
     let mut rejected = 0usize;
     let mut selected_by_corpus = HashMap::<String, usize>::new();
     for (index, line) in reader.lines().enumerate() {
-        if config.limit.is_some_and(|limit| accepted + rejected >= limit) {
+        if config
+            .limit
+            .is_some_and(|limit| accepted + rejected >= limit)
+        {
             break;
         }
         let line = line?;
@@ -53,7 +56,10 @@ pub fn run(config: RunConfig<'_>) -> Result<()> {
         let corpus_count = selected_by_corpus
             .entry(candidate.corpus.clone())
             .or_default();
-        if config.limit_per_corpus.is_some_and(|limit| *corpus_count >= limit) {
+        if config
+            .limit_per_corpus
+            .is_some_and(|limit| *corpus_count >= limit)
+        {
             continue;
         }
         *corpus_count += 1;
@@ -90,10 +96,10 @@ pub fn run(config: RunConfig<'_>) -> Result<()> {
     }
     writer.flush()?;
     println!(
-            "wrote {} composed cases to {}",
-            accepted + rejected,
-            config.out.display()
-        );
+        "wrote {} composed cases to {}",
+        accepted + rejected,
+        config.out.display()
+    );
     Ok(())
 }
 

@@ -81,7 +81,10 @@ mod tests {
 
     #[test]
     fn vim_modeline() {
-        assert_eq!(detect("code\n# vim: set ft=python :\n"), Some("Python".into()));
+        assert_eq!(
+            detect("code\n# vim: set ft=python :\n"),
+            Some("Python".into())
+        );
         // needs ≥10 lines: in short files the no-separator header+footer
         // concat merges the modeline with the first line ("gotext") —
         // verified identical in Python's ModeLineStrategy

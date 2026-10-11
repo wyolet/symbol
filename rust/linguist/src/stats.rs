@@ -98,7 +98,15 @@ pub struct Statistics {
 }
 
 impl Statistics {
-    pub fn add(&mut self, reg: &Registry, id: LangId, path: String, loc: u64, sloc: u64, size: u64) {
+    pub fn add(
+        &mut self,
+        reg: &Registry,
+        id: LangId,
+        path: String,
+        loc: u64,
+        sloc: u64,
+        size: u64,
+    ) {
         let stats = self.by_lang.entry(id).or_insert_with(|| {
             self.order.push(id);
             LangStats::new(reg, id)

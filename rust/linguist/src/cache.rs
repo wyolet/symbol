@@ -111,7 +111,9 @@ impl Cache {
         if let Some(dir) = self.path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let tmp = self.path.with_extension(format!("tmp.{}", std::process::id()));
+        let tmp = self
+            .path
+            .with_extension(format!("tmp.{}", std::process::id()));
         std::fs::write(&tmp, &compressed)?;
         std::fs::rename(&tmp, &self.path)
     }

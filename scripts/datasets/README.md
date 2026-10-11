@@ -30,17 +30,18 @@ Target: ~70% reads / 30% writes, deliberately-nasty coverage.
 
 | dataset | ops | reads (code/callers/outline/search) | writes | expect_error |
 |---|---|---|---|---|
-| `flask.jsonl` | 426 | 316 (158 / 44 / 55 / 59) | 110 | 11 |
+| `flask.jsonl` | 425 | 316 (158 / 44 / 55 / 59) | 109 | 9 |
 | `gin.jsonl` | 383 | 290 (137 / 44 / 55 / 54) | 93 | 7 |
-| `self.jsonl` | 385 | 319 (160 / 44 / 55 / 60) | 66 | 6 |
+| `self.jsonl` | 384 | 319 (160 / 44 / 55 / 60) | 65 | 5 |
 
-Write op mix (successful + expect_error forms):
+Write op mix (successful + expect_error forms). Parameter renames are
+`replace-symbol` signature edits (`rp*` ids), not a separate op:
 
-| dataset | rename-symbol | replace-symbol | rename-parameter | insert-symbol | patch | delete-symbol |
-|---|---|---|---|---|---|---|
-| `flask.jsonl` | 72 | 3 | 12 | 10 | 7 | 6 |
-| `gin.jsonl` | 79 | 4 | 0 | 3 | 3 | 4 |
-| `self.jsonl` | 46 | 1 | 11 | 3 | 2 | 3 |
+| dataset | rename-symbol | replace-symbol | insert-symbol | patch | delete-symbol |
+|---|---|---|---|---|---|
+| `flask.jsonl` | 72 | 14 | 10 | 7 | 6 |
+| `gin.jsonl` | 79 | 4 | 3 | 3 | 4 |
+| `self.jsonl` | 46 | 11 | 3 | 2 | 3 |
 
 ### Coverage highlights
 
@@ -50,8 +51,8 @@ Write op mix (successful + expect_error forms):
   `name`, `data`, `cli`, `url_prefix`, `session_interface`); constant renames
   (`flask.config.T`, `flask.ctx.F`, …); method renames across a real
   inheritance hierarchy (`flask.views.View.dispatch_request`/`as_view` —
-  `MethodView` overrides + `super()` sites); rename-parameter on functions
-  with real `param=` kwarg sites; insert-symbol in all four positions incl.
+  `MethodView` overrides + `super()` sites); signature parameter edits on
+  functions with real `param=` kwarg sites; insert-symbol in all four positions incl.
   a decorated anchor (`flask.cli.routes_command`) and a `no_reindent` case;
   boundary patches (first/second line, EOF); force-deletes of unreferenced
   constants; and every write op in its `expect_error` form.
@@ -61,34 +62,29 @@ Write op mix (successful + expect_error forms):
   (`responseWriter.Write` vs `failWriter.Write` — rename one, leave the
   other); zero-caller consts + hot names (`Context`, `Header`, `String`);
   successful Go insert-symbol (before/after), boundary patches, force-deletes
-  of zero-ref consts; `expect_error` for every write op. rename-parameter is
-  skipped entirely (no Go kwargs).
+  of zero-ref consts; `expect_error` for every write op. No parameter edits
+  (no Go kwargs).
 - **self** — dogfood: internal `_`-prefixed function/method renames, class,
-  constant, and field renames, rename-parameter on single-line-signature
+  constant, and field renames, parameter edits on single-line-signature
   functions, insert-symbol (after / class-end), first-line patches, a
   zero-ref force-delete, `expect_error` refusals.
 
 ## Undo semantics
 
-Only `rename-symbol`, `replace-symbol`, and `rename-parameter` are
+Only `rename-symbol` and `replace-symbol` are
 transaction-backed and therefore undoable; `insert-symbol`, `delete-symbol`,
 and `patch` are direct byte-writes for which `symbol undo` is a no-op — by
 design, identically on both implementations. The runner mirrors this: the
-undo-restores-pristine assertion applies to the transaction-backed trio
-only, so all six write ops appear freely in these datasets. See
+undo-restores-pristine assertion applies to the transaction-backed pair
+only, so all five write ops appear freely in these datasets. See
 `../ops_dataset_spec.md` § "Undo semantics".
 
-## Sweep results (2026-07-08)
+## Reading results
 
-See the "Differential verification" section of `../../rust/symbol/README.md`
-for the full verdict and timing tables, and `reports/` for raw JSON.
-Summary: index diff 100% match on all corpora; all writes byte-identical
-with clean undo round-trips; every MISMATCH reduces to (1) Rust returning
-empty `signature` for Go symbols on reads, (2) one flask search
-limit-truncation ordering case, (3) a diff_runner artifact — `py_write`
-passes replace-symbol content positionally but the Python CLI requires
-`--content`, so the two successful flask replace ops false-MISMATCH
-(manually verified identical when invoked correctly).
+Verdict tables live in the "Differential verification" section of
+`../../rust/symbol/README.md`; raw JSON in `reports/`. A non-`expect_error`
+write that both sides refuse is reported as `both_refused`, not `match` —
+it proves the refusals agree but exercises no write path.
 
 ## Regeneration
 

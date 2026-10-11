@@ -145,13 +145,22 @@ impl Registry {
             if !ext.starts_with('.') {
                 bail!("Extension must start with '.': {ext}");
             }
-            self.by_extension.entry(ext.to_lowercase()).or_default().push(id);
+            self.by_extension
+                .entry(ext.to_lowercase())
+                .or_default()
+                .push(id);
         }
         for interp in &lang.interpreters {
-            self.by_interpreter.entry(interp.to_lowercase()).or_default().push(id);
+            self.by_interpreter
+                .entry(interp.to_lowercase())
+                .or_default()
+                .push(id);
         }
         for fname in &lang.filenames {
-            self.by_filename.entry(fname.to_lowercase()).or_default().push(id);
+            self.by_filename
+                .entry(fname.to_lowercase())
+                .or_default()
+                .push(id);
         }
         self.languages.push(lang);
         Ok(())
@@ -185,10 +194,13 @@ impl Registry {
         if alias.trim().is_empty() {
             return None;
         }
-        self.by_alias.get(&alias.to_lowercase()).copied().or_else(|| {
-            let head = alias.split(',').next().unwrap_or("").trim().to_lowercase();
-            self.by_alias.get(&head).copied()
-        })
+        self.by_alias
+            .get(&alias.to_lowercase())
+            .copied()
+            .or_else(|| {
+                let head = alias.split(',').next().unwrap_or("").trim().to_lowercase();
+                self.by_alias.get(&head).copied()
+            })
     }
 
     pub fn find_by_filename(&self, filename: &str) -> &[LangId] {
@@ -227,7 +239,11 @@ mod tests {
     #[test]
     fn loads_all_languages() {
         let reg = registry();
-        assert!(reg.len() > 500, "expected 500+ languages, got {}", reg.len());
+        assert!(
+            reg.len() > 500,
+            "expected 500+ languages, got {}",
+            reg.len()
+        );
         assert_eq!(reg.get(reg.unknown).language_id, -1);
     }
 

@@ -146,18 +146,16 @@ fn main() -> Result<()> {
             limit,
             limit_per_corpus,
             require_hint,
-        } => compose::run(
-            compose::RunConfig {
-                input: &input,
-                out: &out,
-                grok_bin: &grok_bin,
-                model: &model,
-                cache_dir: &cache_dir,
-                limit,
-                limit_per_corpus,
-                require_hint: require_hint.as_deref(),
-            },
-        ),
+        } => compose::run(compose::RunConfig {
+            input: &input,
+            out: &out,
+            grok_bin: &grok_bin,
+            model: &model,
+            cache_dir: &cache_dir,
+            limit,
+            limit_per_corpus,
+            require_hint: require_hint.as_deref(),
+        }),
         Commands::Exercise {
             manifest,
             input,

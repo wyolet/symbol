@@ -14,9 +14,8 @@ static SHEBANG: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^#!\s*(\S+)").unwrap());
 static VERSION_SUFFIX: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"\.\d+$").unwrap());
-static SH_EXEC_REWRAP: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r#"exec (\w+)[\s"']+\$0[\s"']+\$@"#).unwrap()
-});
+static SH_EXEC_REWRAP: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"exec (\w+)[\s"']+\$0[\s"']+\$@"#).unwrap());
 static EXEC_ANY: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"exec (\w+)").unwrap());
 
@@ -81,7 +80,10 @@ mod tests {
 
     #[test]
     fn interpreter_extraction() {
-        assert_eq!(get_interpreter("#!/usr/bin/python3\n"), Some("python3".into()));
+        assert_eq!(
+            get_interpreter("#!/usr/bin/python3\n"),
+            Some("python3".into())
+        );
         assert_eq!(
             get_interpreter("#!/usr/bin/env python3.11\n"),
             Some("python3".into())
@@ -94,7 +96,10 @@ mod tests {
         assert_eq!(get_interpreter("no shebang"), None);
         assert_eq!(get_interpreter("#!/usr/bin/env\n"), None);
         // osascript with -l is rejected
-        assert_eq!(get_interpreter("#!/usr/bin/osascript -l JavaScript\n"), None);
+        assert_eq!(
+            get_interpreter("#!/usr/bin/osascript -l JavaScript\n"),
+            None
+        );
         // sh exec-rewrap resolves the real interpreter
         assert_eq!(
             get_interpreter("#!/bin/sh\n# next line re-execs\nexec perl \"$0\" \"$@\"\n"),

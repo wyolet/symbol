@@ -41,7 +41,10 @@ pub fn primary_op(hints: &[String]) -> Option<&'static str> {
         "insert-symbol",
         "patch",
     ];
-    ORDER.iter().copied().find(|op| hints.iter().any(|hint| hint == op))
+    ORDER
+        .iter()
+        .copied()
+        .find(|op| hints.iter().any(|hint| hint == op))
 }
 
 #[cfg(test)]
@@ -50,8 +53,14 @@ mod tests {
 
     #[test]
     fn prioritizes_specific_operations_over_patch() {
-        assert_eq!(primary_op(&["patch".into(), "rename-symbol".into()]), Some("rename-symbol"));
-        assert_eq!(primary_op(&["patch".into(), "multi-patch".into()]), Some("multi-patch"));
+        assert_eq!(
+            primary_op(&["patch".into(), "rename-symbol".into()]),
+            Some("rename-symbol")
+        );
+        assert_eq!(
+            primary_op(&["patch".into(), "multi-patch".into()]),
+            Some("multi-patch")
+        );
         assert_eq!(primary_op(&["patch".into()]), Some("patch"));
     }
 }

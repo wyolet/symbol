@@ -31,6 +31,8 @@ jobs:
           go-version: "1.22"
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - name: Build go-scan (dev binary for GoAdapter tests)
         run: make build-go-scan
       - name: Sync dependencies
@@ -40,6 +42,8 @@ jobs:
         continue-on-error: true  # TODO: clean up pre-existing lint debt, then make blocking
       - name: Test (pytest)
         run: uv run pytest -q
+      - name: Lint Rust workspace
+        run: make lint-rust
       - name: Test Rust workspace
         run: make test-rust
       - name: Test Rust feature scenarios

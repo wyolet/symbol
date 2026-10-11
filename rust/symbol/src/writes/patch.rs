@@ -826,7 +826,10 @@ mod tests {
 
     #[test]
     fn mtime_comparison_tolerates_float_rounding_only() {
-        assert!(mtime_matches(1_783_679_868.070_986_3, 1_783_679_868.070_986_2));
+        assert!(mtime_matches(
+            1_783_679_868.070_986_3,
+            1_783_679_868.070_986_2
+        ));
         assert!(!mtime_matches(1_783_679_868.0, 1_783_679_868.001));
     }
 
