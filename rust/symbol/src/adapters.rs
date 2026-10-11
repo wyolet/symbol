@@ -573,34 +573,49 @@ fn pyscan_argv() -> Vec<String> {
     ]
 }
 
-fn goscan_argv() -> Option<Vec<String>> {
-    if let Ok(cmd) = std::env::var("SYMBOL_GOSCAN") {
-        return Some(cmd.split_whitespace().map(str::to_owned).collect());
-    }
-    let repo = symbol_repo();
-    // Dev binaries a contributor may have `go build`'t. Mirrors the Python
-    // adapter's dev path (adapters/go_ast/daemon/go-scan) so both engines
-    // pick up the same freshly-built daemon before falling back to the
-    // (CI-built, possibly older) bundled binaries below.
-    for dev in [
-        repo.join("daemon/go-scan"),
-        repo.join("src/wyolet/symbol/adapters/go_ast/daemon/go-scan"),
-    ] {
-        if dev.is_file() {
-            return Some(vec![dev.to_string_lossy().into_owned()]);
-        }
-    }
-    let system = std::env::consts::OS; // "macos" → python platform says "darwin"
-    let system = if system == "macos" { "darwin" } else { system };
+/// `go-scan-<os>-<arch>`, the per-platform name CI cross-compiles to.
+fn goscan_platform_name() -> String {
+    let system = match std::env::consts::OS {
+        "macos" => "darwin",
+        other => other,
+    };
     let arch = match std::env::consts::ARCH {
         "x86_64" => "amd64",
         "aarch64" => "arm64",
         other => other,
     };
-    let bundled = repo.join(format!("src/wyolet/symbol/bin/go-scan-{system}-{arch}"));
-    bundled
-        .is_file()
-        .then(|| vec![bundled.to_string_lossy().into_owned()])
+    format!("go-scan-{system}-{arch}{}", std::env::consts::EXE_SUFFIX)
+}
+
+/// Resolved through symlinks so a `symbol` linked onto PATH still finds
+/// the go-scan shipped beside it.
+fn executable_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?.canonicalize().ok()?;
+    exe.parent().map(Path::to_owned)
+}
+
+/// SYMBOL_GOSCAN, then go-scan beside the executable (release archive
+/// layout), then a checkout's dev build, then its wheel-bundled binary.
+fn goscan_argv() -> Option<Vec<String>> {
+    if let Ok(cmd) = std::env::var("SYMBOL_GOSCAN") {
+        return Some(cmd.split_whitespace().map(str::to_owned).collect());
+    }
+    let platform_name = goscan_platform_name();
+    let mut candidates = vec![];
+    if let Some(dir) = executable_dir() {
+        candidates.push(dir.join(format!("go-scan{}", std::env::consts::EXE_SUFFIX)));
+        candidates.push(dir.join(&platform_name));
+    }
+    // Dev builds come before the (CI-built, possibly older) bundled
+    // binaries, matching the Python adapter's lookup.
+    let repo = symbol_repo();
+    candidates.push(repo.join("daemon/go-scan"));
+    candidates.push(repo.join("src/wyolet/symbol/adapters/go_ast/daemon/go-scan"));
+    candidates.push(repo.join("src/wyolet/symbol/bin").join(&platform_name));
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .map(|path| vec![path.to_string_lossy().into_owned()])
 }
 
 impl Registry {

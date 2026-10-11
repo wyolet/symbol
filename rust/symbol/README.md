@@ -13,8 +13,11 @@ in-process — it runs in native-AST daemons speaking newline-delimited JSON-RPC
   Python's own `ast`, exactly as before)
 - **Go** → the `daemon/go-scan` binary
 
-Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
-`SYMBOL_REPO` (checkout providing both), else the crate's own repo (dev mode).
+Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override).
+go-scan is otherwise looked up in order: `go-scan` or `go-scan-<os>-<arch>`
+next to the running executable (symlinks resolved), the dev builds under
+`SYMBOL_REPO` (else the crate's own repo), then that checkout's
+wheel-bundled `src/wyolet/symbol/bin/go-scan-<os>-<arch>`.
 
 ## Interop guarantees (verified end-to-end)
 
