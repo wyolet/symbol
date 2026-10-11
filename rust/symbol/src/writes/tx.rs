@@ -1,7 +1,5 @@
-//! Port of writes/transaction.py + undo.py — multi-file atomic commit with
-//! pre-image capture, persisted undo log in .symbol/transactions/<id>/.
-//! Manifest format is JSON-compatible with Python's, so `symbol undo` works
-//! on Rust-committed transactions and vice versa.
+//! Multi-file atomic commit with pre-image capture, persisted undo log in
+//! `.symbol/transactions/<id>/`. `symbol undo` reads the manifest JSON directly.
 
 use std::path::{Path, PathBuf};
 
@@ -175,7 +173,7 @@ fn prune_transactions(tx_root: &Path, keep: usize) {
 }
 
 /// Remove every transaction directory (undone ones included); returns how
-/// many were removed. Mirrors commands/refresh.py `_clear_transactions`.
+/// many were removed.
 pub fn clear_transactions(project_root: &Path) -> usize {
     let Ok(entries) = std::fs::read_dir(project_root.join(TX_DIR)) else {
         return 0;

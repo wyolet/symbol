@@ -8,7 +8,6 @@ from wyolet.symbol.protocols.language import (
     LanguageAdapter,
     SemanticLanguageAdapter,
 )
-from wyolet.symbol.protocols.read_cache import CachedRead, ReadCache
 from wyolet.symbol.protocols.types import (
     BindingResolution,
     ByteRewrite,
@@ -30,7 +29,6 @@ from wyolet.symbol.protocols.types import (
 __all__ = [
     "BindingResolution",
     "ByteRewrite",
-    "CachedRead",
     "FileScan",
     "IndexQuery",
     "LanguageAdapter",
@@ -38,7 +36,6 @@ __all__ = [
     "RawImport",
     "RawRef",
     "RawSymbol",
-    "ReadCache",
     "ReferenceResult",
     "RenameAnalysis",
     "ScannedImport",

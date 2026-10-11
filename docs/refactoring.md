@@ -4,7 +4,7 @@ AST-aware commands that mutate code across one or more files: `rename-symbol`, `
 
 **What we deliberately don't ship:** `extract`, `inline`, `signature`, and similar IDE-style refactors. These compose from `symbol patch` calls driven by the agent — the hard part of each is generating the new code text, which the agent does better than any scope-analysis machinery we'd build. Keeping the surface small means fewer commands to learn and fewer ways to misuse them. The universal `patch` is the escape hatch.
 
-Status: shipped for `rename-symbol`, `replace-symbol`, `delete-symbol`, `insert-symbol`. Multi-file transaction layer in `src/wyolet/symbol/writes/transaction.py`. `move-symbol` remains unshipped (see bottom of doc).
+Status: shipped for `rename-symbol`, `replace-symbol`, `delete-symbol`, `insert-symbol`. Multi-file transaction layer in `rust/symbol/src/writes/tx.rs`. `move-symbol` remains unshipped (see bottom of doc).
 
 ## Architectural placement
 

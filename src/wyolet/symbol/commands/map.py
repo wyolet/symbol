@@ -58,7 +58,7 @@ def map_cmd(
     format: str = "rich",
 ) -> None:
     """Run the map analysis."""
-    project_root = Path(path)
+    project_root = Path(path).resolve()
     project_name = project_root.name
 
     config = load_project_config(project_root)

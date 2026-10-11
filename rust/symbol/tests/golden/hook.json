@@ -1,0 +1,76 @@
+[
+  {
+    "tool": "Read",
+    "tool_input": {
+      "file_path": "app/big.py"
+    },
+    "args": [],
+    "code": 0,
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"permissionDecision\": \"allow\", \"additionalContext\": \"symbol: \\\"app/big.py\\\" is indexed (python). Read returns raw file lines \\u2014 SymbolBody returns the same range with structural awareness (used imports, refs, declared kind) at the same or lower token cost. Use:\\n  \\u2022 SymbolOutline(target=\\\"app/big.py\\\") \\u2014 file structure, no bodies\\n  \\u2022 SymbolBody(target=\\\"<qualified.path>\\\") \\u2014 one named symbol + imports + refs\\n  \\u2022 SymbolBody(target=\\\"app/big.py:START-END\\\") \\u2014 arbitrary line range with refs\\nRead only when you genuinely need the unstructured file content (top-level comments, module-level constants, or non-code regions).\"}}",
+    "stderr": ""
+  },
+  {
+    "tool": "Write",
+    "tool_input": {
+      "file_path": "app/big.py"
+    },
+    "args": [],
+    "code": 0,
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"permissionDecision\": \"allow\", \"additionalContext\": \"symbol: \\\"app/big.py\\\" already exists and is indexed (python). Write would overwrite it wholesale, losing the per-symbol structural edit guarantees. For changes to an existing indexed file, use:\\n  \\u2022 Patch(file=..., range=A-B, content=...) \\u2014 byte-range edit, atomic\\n  \\u2022 ReplaceSymbol(qualified_path=..., content=...) \\u2014 whole symbol; parse-validated\\n  \\u2022 InsertSymbol(anchor=..., position=..., content=...) \\u2014 structural insert\\nWrite is correct only for *new* files (it's a no-op nudge in that case).\"}}",
+    "stderr": ""
+  },
+  {
+    "tool": "Edit",
+    "tool_input": {
+      "file_path": "app/big.py"
+    },
+    "args": [],
+    "code": 0,
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"permissionDecision\": \"allow\", \"additionalContext\": \"symbol: \\\"app/big.py\\\" is indexed (python). Edit requires re-sending the existing content for disambiguation (~200 extra tokens per call) and provides no parse validation. The MCP write tools cover every case Edit covers:\\n  \\u2022 Patch(file=..., range=A-B, content=...) \\u2014 byte-range, no old_string round-trip (handles ALL non-symbol edits)\\n  \\u2022 ReplaceSymbol(qualified_path=..., content=...) \\u2014 whole symbol; parse-validated; rewrites callers if leaf renamed\\n  \\u2022 InsertSymbol(anchor=..., position=before|after|start|end, content=...) \\u2014 auto-indented, structural\\n  \\u2022 DeleteSymbol(qualified_path=...) \\u2014 refuses if callers exist\\n  \\u2022 RenameSymbol(qualified_path=..., new_name=...) \\u2014 atomic across files, transactional (Undo-able)\\nUse Edit only on files symbol does not index.\"}}",
+    "stderr": ""
+  },
+  {
+    "tool": "Edit",
+    "tool_input": {
+      "file_path": "app/big.py"
+    },
+    "args": [
+      "--enforce"
+    ],
+    "code": 2,
+    "stdout": "",
+    "stderr": "symbol: \"app/big.py\" is indexed (python). Edit requires re-sending the existing content for disambiguation (~200 extra tokens per call) and provides no parse validation. The MCP write tools cover every case Edit covers:\n  • Patch(file=..., range=A-B, content=...) — byte-range, no old_string round-trip (handles ALL non-symbol edits)\n  • ReplaceSymbol(qualified_path=..., content=...) — whole symbol; parse-validated; rewrites callers if leaf renamed\n  • InsertSymbol(anchor=..., position=before|after|start|end, content=...) — auto-indented, structural\n  • DeleteSymbol(qualified_path=...) — refuses if callers exist\n  • RenameSymbol(qualified_path=..., new_name=...) — atomic across files, transactional (Undo-able)\nUse Edit only on files symbol does not index.\n"
+  },
+  {
+    "tool": "Edit",
+    "tool_input": {
+      "file_path": "app/missing.py"
+    },
+    "args": [],
+    "code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "tool": "Grep",
+    "tool_input": {
+      "pattern": "step_2"
+    },
+    "args": [],
+    "code": 0,
+    "stdout": "{\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"permissionDecision\": \"allow\", \"additionalContext\": \"symbol: \\\"step_2\\\" is the name of 1 indexed declaration(s) (e.g. app.big.step_2). Grep returns raw line matches mixed with comments, strings, and unrelated occurrences \\u2014 typically 5-10\\u00d7 the noise of a symbol-aware lookup. Use:\\n  \\u2022 SearchSymbol(patterns=[\\\"step_2\\\"]) \\u2014 declarations only\\n  \\u2022 SymbolCallers(name=\\\"step_2\\\") \\u2014 every containing symbol that references it\\n  \\u2022 SymbolBody(target=\\\"app.big.step_2\\\") \\u2014 the body, used imports, refs\\nRe-issue Grep only for non-identifier text (TODOs, doc hunts, regex).\"}}",
+    "stderr": ""
+  },
+  {
+    "tool": "Grep",
+    "tool_input": {
+      "pattern": "step_[0-9]+"
+    },
+    "args": [
+      "--enforce"
+    ],
+    "code": 2,
+    "stdout": "",
+    "stderr": "symbol: \"step_[0-9]+\" is the name of 5+ indexed declaration(s) (e.g. app.big.step_0). Grep returns raw line matches mixed with comments, strings, and unrelated occurrences — typically 5-10× the noise of a symbol-aware lookup. Use:\n  • SearchSymbol(patterns=[\"step_[0-9]+\"]) — declarations only\n  • SymbolCallers(name=\"step_0\") — every containing symbol that references it\n  • SymbolBody(target=\"app.big.step_0\") — the body, used imports, refs\nRe-issue Grep only for non-identifier text (TODOs, doc hunts, regex).\n"
+  }
+]

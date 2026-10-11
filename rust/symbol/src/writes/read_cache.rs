@@ -1,7 +1,6 @@
-//! Port of caches/ — the read cache patch preflight consults. The disk
-//! backing is format-compatible with caches/disk.py so Python and Rust CLIs
-//! can share one SYMBOL_SESSION_ID session; the in-memory backing serves the
-//! long-lived MCP server (caches/in_memory.py).
+//! Read cache that patch preflight consults. The disk backing persists across
+//! tool calls sharing a SYMBOL_SESSION_ID; the in-memory backing serves the
+//! long-lived MCP server.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -139,8 +138,8 @@ impl ReadCache {
     }
 }
 
-/// caches/instrument.py `record_served`: record lines `start_line..=end_line`
-/// of `file_rel` as shown to the agent. Unreadable files are skipped.
+/// Record lines `start_line..=end_line` of `file_rel` as shown to the agent.
+/// Unreadable files are skipped.
 pub fn record_served(
     cache: &ReadCache,
     project_root: &Path,

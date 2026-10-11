@@ -1,5 +1,5 @@
-//! Port of writes/patch.py — the byte-range edit primitive: validation,
-//! read-cache preflight, splice, atomic write, numbered unified diff.
+//! Byte-range edit primitive: validation, read-cache preflight, splice,
+//! atomic write, numbered unified diff.
 
 use std::path::{Path, PathBuf};
 
@@ -464,7 +464,7 @@ pub fn apply_multi_patch(
             let line_range = match parse_line_range(raw_range) {
                 Ok(range) => range,
                 Err(_) => {
-                    // Same wording as writes/patch.py: malformed vs. inverted.
+                    // Wording distinguishes malformed ("bad") vs. inverted ("invalid") ranges.
                     let shape_ok = raw_range
                         .split_once('-')
                         .is_some_and(|(a, b)| a.parse::<u64>().is_ok() && b.parse::<u64>().is_ok());
@@ -732,8 +732,7 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
 
 // ---------------------------------------------------------- diff
 
-/// Full-file unified diff with each line prefixed by its absolute line
-/// number — ports patch.py `_unified_diff` + `_number_diff_lines`.
+/// Full-file unified diff with each line prefixed by its absolute line number.
 pub fn unified_diff(file_rel: &str, old: &[u8], new: &[u8], context: usize) -> String {
     let old_text = String::from_utf8_lossy(old);
     let new_text = String::from_utf8_lossy(new);
@@ -809,9 +808,8 @@ pub fn now_f64() -> f64 {
 }
 
 pub fn short_sha256(data: &[u8]) -> String {
-    // patch.py uses sha256[:16]; we avoid a heavy dep — this hash only has
-    // to be stable within one session's read cache, not cryptographic.
-    // Simple FNV-1a over the content, hex, 16 chars.
+    // FNV-1a over the content, hex-encoded, 16 chars. Only needs to be stable
+    // within one session's read cache — not cryptographic.
     let mut h: u64 = 0xcbf29ce484222325;
     for &b in data {
         h ^= b as u64;

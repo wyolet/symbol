@@ -1,6 +1,6 @@
 //! `symbol hook` through the compiled binary: PreToolUse nudges and
 //! `--enforce` blocks, silent no-ops, and the detached PostToolUse refresh.
-//! tests/test_hook.py checks the same cases byte-for-byte against Python.
+//! `golden/hook.json` pins the exact bytes the Python hook printed.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -26,13 +26,17 @@ fn big_python() -> String {
 /// An indexed project: a large and a small Python module, a large Go file
 /// when go-scan is built, and a large non-code file.
 fn project() -> (tempfile::TempDir, PathBuf) {
+    project_with(goscan_built())
+}
+
+fn project_with(go: bool) -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();
     std::fs::create_dir_all(root.join("app")).unwrap();
     std::fs::write(root.join("app/big.py"), big_python()).unwrap();
     std::fs::write(root.join("app/small.py"), "def tiny():\n    return 1\n").unwrap();
     std::fs::write(root.join("README.md"), "# notes\n".repeat(120)).unwrap();
-    if goscan_built() {
+    if go {
         std::fs::write(root.join("go.mod"), "module example.com/demo\n\ngo 1.21\n").unwrap();
         let funcs: String = (0..30)
             .map(|i| format!("func Step{i}() int {{\n\treturn {i}\n}}\n\n"))
@@ -154,6 +158,42 @@ fn grep_nudges_and_enforce_blocks() {
     assert_eq!(blocked.status.code(), Some(2));
     assert!(blocked.stdout.is_empty());
     assert!(String::from_utf8_lossy(&blocked.stderr).contains("(e.g. app.big.step_1)"));
+}
+
+#[test]
+fn prints_the_recorded_bytes() {
+    let (_dir, root) = project_with(false);
+    let golden: serde_json::Value = serde_json::from_str(include_str!("golden/hook.json")).unwrap();
+    for case in golden.as_array().unwrap() {
+        let mut input = case["tool_input"].clone();
+        if let Some(rel) = input["file_path"].as_str() {
+            input["file_path"] = serde_json::json!(root.join(rel));
+        }
+        let args: Vec<&str> = case["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_str().unwrap())
+            .collect();
+        let out = hook(&pre(&root, case["tool"].as_str().unwrap(), input), &args);
+        let root_text = root.to_string_lossy();
+        let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).replace(&*root_text, "<root>");
+        assert_eq!(
+            out.status.code(),
+            case["code"].as_i64().map(|c| c as i32),
+            "{case}"
+        );
+        assert_eq!(
+            text(&out.stdout),
+            case["stdout"].as_str().unwrap(),
+            "{case}"
+        );
+        assert_eq!(
+            text(&out.stderr),
+            case["stderr"].as_str().unwrap(),
+            "{case}"
+        );
+    }
 }
 
 #[test]

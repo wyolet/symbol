@@ -809,7 +809,7 @@ fn run(cli: Cli) -> Result<()> {
             let native = native_json || files || classify;
             let mut excludes = exclude;
             if !native {
-                // commands/loc.py: the spec's [scanner] scope.
+                // Apply the spec's [scanner] scope when not in native mode.
                 let scan_root = path.as_deref().unwrap_or(&root);
                 excludes.splice(0..0, symbol_core::specs::scanner_excludes(scan_root));
             }
@@ -1003,7 +1003,7 @@ fn finish_write(result: &Value, out: Out, human: fn(&Value, bool, bool)) {
 }
 
 /// Record served bodies in the session read cache so a follow-up patch
-/// passes preflight — mirrors how commands/code.py records reads.
+/// passes preflight.
 fn record_read(root: &Path, payload: &Value) {
     use symbol_core::writes::patch::{
         line_end_byte, line_start_byte, mtime_f64, now_f64, short_sha256,

@@ -1,6 +1,6 @@
 """Tests for AST-aware blank-line normalization."""
 
-from wyolet.symbol.writes._blank_lines import normalize_blank_gaps
+from wyolet.symbol.adapters.python_blank_lines import normalize_blank_gaps
 
 
 def _norm(src: str) -> str:

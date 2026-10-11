@@ -8,9 +8,9 @@ LOC counting, behind the `symbol` binary. Language analysis never happens
 in-process — it runs in native-AST daemons speaking newline-delimited JSON-RPC
 2.0 over stdio (`schemas/symbol.rpc.schema.json`):
 
-- **Python** → `wyolet.symbol.adapters.pyscan`, a stdio socket around the
-  existing `PythonAstAdapter` (Python code is analyzed by Python's own `ast`,
-  exactly as in the Python CLI). Embedded in the binary; see below.
+- **Python** → `wyolet.symbol.adapters.pyscan`, a stdio socket around
+  `PythonAstAdapter` (Python code is analyzed by Python's own `ast`).
+  Embedded in the binary; see below.
 - **Go** → the `daemon/go-scan` binary
 
 Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override).
@@ -23,21 +23,18 @@ Go renames also need the Go toolchain (`go`) on `PATH`: go-scan's rename
 loads the project with `packages.Load`, which shells out to `go`. Indexing
 and reads only parse files and work without it.
 
-A daemon that can't start is an error, not a filter. Python's registry
-reports such a language as unsupported and indexes around it; the Rust
-index build and refresh instead stop with `daemon_unavailable` (language,
-daemon, env var) before saving, so an existing index is never replaced by
-one missing that language. Symbol-level writes that need the daemon
+A daemon that can't start is an error, not a filter. Index build and
+refresh stop with `daemon_unavailable` (language, daemon, env var) before
+saving, so an existing index is never replaced by one missing that
+language. Symbol-level writes that need the daemon
 refuse with the same error before touching files. Reads on an index that
 needs no refresh still fall back to first-line signatures and previews.
 
 ### Embedded pyscan
 
 `src/pyscan.rs` embeds pyscan's import closure with `include_str!`, using the
-same files the Python package imports, so there is a single source.
-`adapters/__init__.py` is left out because it eagerly registers every adapter;
-without it the directory imports as a namespace package. The closure is
-stdlib-only. On first use the files are written to
+same files the Python package imports, so there is a single source. The
+closure is stdlib-only. On first use the files are written to
 `<user cache>/symbol/pyscan-<content hash>/`, one atomic rename per file, and
 run as:
 
@@ -59,25 +56,24 @@ pyscan never reads the on-disk index (that needs msgpack/zstd). During rename
 analysis it asks the caller `index/find_declaration`, `index/class_bases` and
 `index/owners_of_leaf` over the same stdio stream. `rpc.rs`
 (`Daemon::call_serving`) answers these from the in-memory index via
-`writes/index_query.rs`, a port of `writes/rename/index_query.py`.
+`writes/index_query.rs`.
 
-## Interop guarantees (verified end-to-end)
+## On-disk formats
 
-- **Index**: `.symbol/symbol_index.msgpack.zst` is byte-compatible v8 —
-  Python loads Rust-built indexes and vice versa. (Gotcha encoded in
-  `index.rs`: Python's `zstandard.decompress()` requires the frame content
-  size, so saves use `zstd::bulk::compress`.)
-- **Transactions**: `.symbol/transactions/<id>/manifest.json` matches
-  Python's format — Python `symbol undo` rolls back Rust-committed writes
-  and Rust `symbol undo` rolls back Python's.
-- **Read cache**: `.symbol/cache/sessions/<SYMBOL_SESSION_ID>.json`, same
-  JSON shape as caches/disk.py, so patch preflight works across both CLIs
-  in one agent session.
+`.symbol/` keeps the formats of the Python implementation (up to 0.2.5), so
+either reads state the other wrote:
+
+- **Index**: `.symbol/symbol_index.msgpack.zst`, v8. Saves use
+  `zstd::bulk::compress` because Python's `zstandard.decompress()` requires
+  the frame content size.
+- **Transactions**: `.symbol/transactions/<id>/manifest.json`; `symbol undo`
+  rolls back writes committed by either.
+- **Read cache**: `.symbol/cache/sessions/<SYMBOL_SESSION_ID>.json`.
 
 ## Current scope boundary
 
-- **rename-symbol**: supported Python and Go kinds use the same v2
-  receiver-aware daemon analysis as the Python CLI. Unsupported kinds retain
+- **rename-symbol**: supported Python and Go kinds use the v2
+  receiver-aware daemon analysis. Unsupported kinds retain
   the shared tier-1 fallback. Results carry `"engine": "v2"` or
   `"engine": "tier1"`.
 - **Parameter renames** are not a standalone verb. `replace-symbol` detects
@@ -88,7 +84,8 @@ analysis it asks the caller `index/find_declaration`, `index/class_bases` and
   as `patch`; exact-old edits must match once and prove their own context.
 - **audit / analyze not ported** — out of scope by design; they're the
   Python-specific engine documented in CLAUDE.md.
-- **`symbol mcp`** serves the Python server's tools over stdio with
+- **`symbol mcp`** serves the tools of the Python server it replaced
+  (up to 0.2.5) over stdio with
   the same schemas, descriptions (embedded from
   `src/wyolet/symbol/data/mcp_tools.toml`), result payloads and session
   read-cache rules, and honors the same `SYMBOL_MCP_*` resource-bound env
@@ -111,16 +108,16 @@ analysis it asks the caller `index/find_declaration`, `index/class_bases` and
 ## Layout
 
 ```
-src/rpc.rs        JSON-RPC stdio client (go_ast transport, reused)
+src/rpc.rs        JSON-RPC stdio client for the daemons
 src/adapters.rs   registry + daemon adapters + wire types (protocols/types.py)
 src/pyscan.rs     embedded pyscan: interpreter probe, cache materialization
-src/index.rs      shared/symbol_index.py — v8 format, staleness, refresh
-src/reads.rs      reads/ — search, code, outline, callers
-src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename,
+src/index.rs      v8 index format, staleness, refresh
+src/reads.rs      search, code, outline, callers
+src/writes/       patch, tx+undo, read_cache, content, ops, rename,
                   index_query (daemon index/* queries)
-src/refresh.rs    commands/refresh.py — incremental/full reindex + tx clear
-src/mcp/          mcp/server.py — stdio MCP server, tool table
-src/render/       commands/ output; agent.rs is shared by --agent and MCP
+src/refresh.rs    incremental/full reindex + tx clear
+src/mcp/          stdio MCP server, tool table
+src/render/       command output; agent.rs is shared by --agent and MCP
 src/main.rs       clap CLI (the `symbol` binary)
 ```
 
@@ -128,9 +125,10 @@ src/main.rs       clap CLI (the `symbol` binary)
 
 Full differential sweep via `scripts/diff_runner.py` with the authored
 datasets in `scripts/datasets/` (every target derived from real index
-dumps). Ground truth is the Python implementation; verdicts count every
-assertion (per-qpath index rows, per-op canonical diffs, undo round-trips).
-Reports: `scripts/datasets/reports/`.
+dumps). Ground truth is the Python implementation, run from a checkout of
+its last commit (`238accc`; setup in `scripts/datasets/README.md`); verdicts
+count every assertion (per-qpath index rows, per-op canonical diffs, undo
+round-trips). Reports: `scripts/datasets/reports/`.
 
 Corpora: flask `36e4a824` (pallets/flask), gin `34dac209` (gin-gonic/gin),
 self = this repo at `5f82bcce` (`git archive` copy), fixture-proj
@@ -139,20 +137,22 @@ self = this repo at `5f82bcce` (`git archive` copy), fixture-proj
 | corpus | index assertions | dataset ops | match | both_refused | known_divergence | MISMATCH |
 |---|---|---|---|---|---|---|
 | flask | 1787 / 1787 | 425 (316r/109w) | 588 | 1 | 0 | **0** |
-| gin | 1614 / 1614 | 383 (290r/93w) | 432 | 37 | 0 | **0** |
+| gin | 1614 / 1614 | 383 (290r/93w) | 501 | 14 | 0 | **0** |
 | self | 2284 / 2284 | 384 (319r/65w) | 494 | 0 | 0 | **0** |
 | fixture-proj (smoke ×2) | 16 / 16 | 3 + 9 | 20 | 0 | 0 | 0 |
 
 MCP mode (`--mcp`, see `scripts/datasets/README.md`) replays the same
-datasets as tool calls against `uv run symbol mcp` and `symbol mcp` and
-compares whole tool results byte-for-byte; `tools/list` is identical for the
-tools both serve, and Rust-only tools are reported as `rust_only`.
+datasets as tool calls against the reference's and this binary's `symbol mcp`
+and compares whole tool results byte-for-byte; `tools/list` is identical for
+the tools both serve, and Rust-only tools are reported as `rust_only`.
 
-| corpus | compared calls | match | both_refused | known_divergence | MISMATCH |
-|---|---|---|---|---|---|
-| flask | 1459 | 1458 | 1 | 0 | **0** |
-| gin | 1240 | 1216 | 14 | 10 | **0** |
-| self | 1089 | 1089 | 0 | 0 | **0** |
+| corpus | compared calls | match | both_refused | known_divergence | rust_only | MISMATCH |
+|---|---|---|---|---|---|---|
+| flask | 1461 | 1458 | 1 | 0 | 2 | **0** |
+| gin | 1242 | 1216 | 14 | 10 | 2 | **0** |
+| self | 1091 | 1089 | 0 | 0 | 2 | **0** |
+
+`rust_only` is `SymbolRefs` and `SymbolImplementers` in `tools/list`.
 
 The gin `known_divergence` calls are Go renames repeated in one session,
 where the Python server omits the affected interface contracts (see
@@ -174,28 +174,9 @@ expect_error refusal) — agrees byte-for-byte, with clean undo round-trips on
 transaction-backed ops. `known_divergence` is 0 everywhere; the
 `engine-kind` tag never fired.
 
-The initial sweep surfaced 229 mismatches which root-caused to SEVEN
-defects — none in the tier-2 program's feature work; all in the
-pre-program Rust core, the harness plumbing, or the Python oracle itself.
-All fixed and re-swept to zero:
-
-1. Go `signature` wire-key mismatch (`text` vs go-scan's `source`).
-2. Missing Go client-side signature fallback (first non-blank line when
-   the daemon can't parse a slice) — then re-scoped go-only after the
-   first fix leaked it into Python field/constant signatures.
-3. `search` limit-truncation ordering: candidates now iterate in
-   first-seen row order (Python dict semantics), not alphabetically.
-4. Runner: `patch` and `replace-symbol` Python CLI invocations used
-   positional args where the CLI takes options.
-5. Runner: undo-restores-pristine was asserted for non-transactional ops.
-6. Cross-implementation mtime rounding: CPython computes st_mtime as
-   `sec + nsec*1e-9`; the Rust `(sec*1e9+nsec)/1e9` differed in the last
-   ulp, making every Python-written snapshot look stale (spurious
-   refreshes).
-7. **Oracle bug (both implementations fixed): the incremental-refresh
-   path applied no vendor filter** — full builds prune `testdata/` etc.,
-   refresh smuggled them back, so index content depended on which path
-   built it.
+`tests/golden/` pins the Python CLI's output for a fixed argv sequence and
+the hook's exact bytes; `cli_golden.rs` and `hook.rs` replay them on every
+`cargo test`.
 
 Timing medians per op (seconds; write ops are fair CLI-vs-CLI comparisons;
 read ops are not — Python reads run in-process on a pre-loaded index while

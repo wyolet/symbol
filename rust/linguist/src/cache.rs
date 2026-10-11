@@ -1,6 +1,5 @@
 //! Persisted classification cache — `.symbol/linguist.msgpack.zst`.
-//! NEW relative to Python (which re-classifies the whole tree every run);
-//! follows symbol_index.py's msgpack+zstd precedent, plus atomic writes.
+//! Re-classifies only changed files; persisted as msgpack+zstd with atomic writes.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

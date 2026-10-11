@@ -813,8 +813,8 @@ pub fn outline_rich(arg: &str, roots: &[Value]) {
     print_lines(&out);
 }
 
-/// commands/loc.py `--format json`. Percentages Python never computed (an
-/// uncounted language, or nothing counted) stay the integer 0.
+/// `symbol loc --format json` shape. Percentages for an uncounted language
+/// or empty project stay the integer 0.
 pub fn loc_json(report: &symbol_linguist::loc::LocReport) -> anyhow::Result<Value> {
     let mut data = symbol_linguist::loc::json_value(report, false)?;
     let counted: Vec<_> = report.stats.iter().filter(|s| s.is_counted).collect();
@@ -1363,7 +1363,7 @@ fn fixed0(x: f64) -> String {
     format!("{}", x.round_ties_even())
 }
 
-/// commands/loc.py's rich view: name panel, language bar, totals, a
+/// Rich terminal output for `symbol loc`: name panel, language bar, totals, a
 /// borderless table cropped to the console, then the biggest files.
 pub fn loc_rich(report: &symbol_linguist::loc::LocReport, project_name: &str) {
     let w = width();

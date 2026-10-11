@@ -15,6 +15,8 @@ from wyolet.symbol.shared.spec import Spec
 
 def detect_deps(project_root: Path) -> list[str]:
     """Find and parse all dependency files using the pipeline registry."""
+    import wyolet.symbol.adapters  # noqa: F401 — registers each language's DEPS hooks
+
     all_deps = run_pipeline(DEPS, project_root)
 
     seen: set[str] = set()

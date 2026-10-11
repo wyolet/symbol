@@ -1,0 +1,431 @@
+{
+  "reads": [
+    {
+      "argv": [
+        "search",
+        "save"
+      ],
+      "code": 0,
+      "stdout": "1 match\n\napp.py:7-8\ndef save(self, x):\n\nUse symbol code <file:start-end> to fetch a body.\n"
+    },
+    {
+      "argv": [
+        "search",
+        "nope"
+      ],
+      "code": 0,
+      "stdout": "No matches for 'nope'\n"
+    },
+    {
+      "argv": [
+        "search",
+        "-E",
+        "^app\\.",
+        "--limit",
+        "2"
+      ],
+      "code": 0,
+      "stdout": "2 matches\n\napp.py:4-8\nclass Service\n──────────────────────────────────────────────────────────────────────────────\napp.py:7-8\ndef save(self, x):\n\nUse symbol code <file:start-end> to fetch a body.\n"
+    },
+    {
+      "argv": [
+        "search",
+        "save",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "[\n  {\n    \"path\": \"app.Service.save\",\n    \"file\": \"app.py\",\n    \"start_line\": 7,\n    \"end_line\": 8,\n    \"kind\": \"method\",\n    \"language\": \"python\",\n    \"signature\": \"def save(self, x):\",\n    \"preview\": \"return os.path.join(x)\"\n  }\n]\n"
+    },
+    {
+      "argv": [
+        "--format",
+        "json",
+        "search",
+        "save"
+      ],
+      "code": 0,
+      "stdout": "[\n  {\n    \"path\": \"app.Service.save\",\n    \"file\": \"app.py\",\n    \"start_line\": 7,\n    \"end_line\": 8,\n    \"kind\": \"method\",\n    \"language\": \"python\",\n    \"signature\": \"def save(self, x):\",\n    \"preview\": \"return os.path.join(x)\"\n  }\n]\n"
+    },
+    {
+      "argv": [
+        "search",
+        "save",
+        "--regex",
+        "--fixed"
+      ],
+      "code": 2,
+      "stdout": "--regex and --fixed are mutually exclusive\n"
+    },
+    {
+      "argv": [
+        "code",
+        "app.Service.save"
+      ],
+      "code": 0,
+      "stdout": "app.Service.save  app.py:7-8  (method)\n╭──────────────────────────────────────────────────────────────────────────────╮\n│   7     def save(self, x):                                                   │\n│   8         return os.path.join(x)                                           │\n╰──────────────────────────────────────────────────────────────────────────────╯\nimports\n  os from os :1\nrefs (3 external names)\n  .join :8\n  .path :8\n  os :8\n"
+    },
+    {
+      "argv": [
+        "code",
+        "helper",
+        "--no-refs"
+      ],
+      "code": 0,
+      "stdout": "app.helper  app.py:11-13  (function)\n╭──────────────────────────────────────────────────────────────────────────────╮\n│   11 def helper(a, b=1):                                                     │\n│   12     s = Service()                                                       │\n│   13     return s.save(a)                                                    │\n╰──────────────────────────────────────────────────────────────────────────────╯\n"
+    },
+    {
+      "argv": [
+        "code",
+        "nope"
+      ],
+      "code": 0,
+      "stdout": "no symbol matches 'nope'\nTry: symbol search <name>\n"
+    },
+    {
+      "argv": [
+        "code",
+        "nope",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\"error\": \"not_found\", \"message\": \"no symbol matches 'nope'\"}\n"
+    },
+    {
+      "argv": [
+        "code",
+        "app.py:8-8",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"path\": \"app.Service.save\",\n  \"file\": \"app.py\",\n  \"start_line\": 7,\n  \"end_line\": 8,\n  \"kind\": \"method\",\n  \"language\": \"python\",\n  \"signature\": \"def save(self, x):\",\n  \"body\": \"    def save(self, x):\\n        return os.path.join(x)\",\n  \"imports\": [\n    {\n      \"name\": \"os\",\n      \"source\": \"os\",\n      \"line\": 1\n    }\n  ],\n  \"refs\": [\n    {\n      \"name\": \"join\",\n      \"kind\": \"attr\",\n      \"line\": 8,\n      \"lines\": [\n        8\n      ]\n    },\n    {\n      \"name\": \"path\",\n      \"kind\": \"attr\",\n      \"line\": 8,\n      \"lines\": [\n        8\n      ]\n    },\n    {\n      \"name\": \"os\",\n      \"kind\": \"name\",\n      \"line\": 8,\n      \"lines\": [\n        8\n      ]\n    }\n  ],\n  \"note\": \"requested app.py:8-8 is inside app.Service.save (7-8)\"\n}\n"
+    },
+    {
+      "argv": [
+        "code",
+        "app.py:1-2",
+        "-f",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"path\": null,\n  \"file\": \"app.py\",\n  \"start_line\": 1,\n  \"end_line\": 2,\n  \"kind\": \"slice\",\n  \"language\": \"python\",\n  \"signature\": null,\n  \"body\": \"import os\\n\",\n  \"imports\": [],\n  \"refs\": []\n}\n"
+    },
+    {
+      "argv": [
+        "outline",
+        "app.py"
+      ],
+      "code": 0,
+      "stdout": "app.py\n├── ◆ class Service 4-8\n│   └── • def save(self, x) 7-8\n└── ƒ def helper(a, b=1) 11-13\n"
+    },
+    {
+      "argv": [
+        "outline",
+        "app.py",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "[\n  {\n    \"path\": \"app.Service\",\n    \"kind\": \"class\",\n    \"signature\": \"class Service\",\n    \"start_line\": 4,\n    \"end_line\": 8,\n    \"children\": [\n      {\n        \"path\": \"app.Service.save\",\n        \"kind\": \"method\",\n        \"signature\": \"def save(self, x):\",\n        \"start_line\": 7,\n        \"end_line\": 8,\n        \"children\": []\n      }\n    ]\n  },\n  {\n    \"path\": \"app.helper\",\n    \"kind\": \"function\",\n    \"signature\": \"def helper(a, b=1)\",\n    \"start_line\": 11,\n    \"end_line\": 13,\n    \"children\": []\n  }\n]\n"
+    },
+    {
+      "argv": [
+        "outline",
+        "nope.py"
+      ],
+      "code": 0,
+      "stdout": "Nothing to outline for 'nope.py'\n"
+    },
+    {
+      "argv": [
+        "callers",
+        "save"
+      ],
+      "code": 0,
+      "stdout": "1 tier-1 unresolved refs — name-match only, may include unrelated symbols \nsharing the name\n\n┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━┓\n┃ caller     ┃ file:line ┃ kind ┃\n┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━┩\n│ app.helper │ app.py:13 │ attr │\n└────────────┴───────────┴──────┘\n"
+    },
+    {
+      "argv": [
+        "callers",
+        "save",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "[\n  {\n    \"source_path\": \"app.helper\",\n    \"source_file\": \"app.py\",\n    \"source_range\": [\n      11,\n      13\n    ],\n    \"ref_name\": \"save\",\n    \"ref_kind\": \"attr\",\n    \"ref_line\": 13\n  }\n]\n"
+    },
+    {
+      "argv": [
+        "loc",
+        ".",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"summary\": {\n    \"sloc\": 91,\n    \"loc\": 178,\n    \"files\": 3,\n    \"size\": 1493,\n    \"languages\": 1,\n    \"code_languages\": 1\n  },\n  \"languages\": [\n    {\n      \"loc\": 178,\n      \"sloc\": 91,\n      \"lines\": 91,\n      \"size\": 1493,\n      \"files\": 3,\n      \"percentage_lines\": 100.0,\n      \"percentage_bytes\": 100.0,\n      \"name\": \"Python\",\n      \"id\": 303,\n      \"popular\": true,\n      \"is_counted\": true,\n      \"type\": \"programming\",\n      \"color\": \"#3572A5\"\n    }\n  ],\n  \"biggest_files\": [\n    {\n      \"path\": \"<root>/big.py\",\n      \"lines\": 160,\n      \"sloc\": 80,\n      \"size\": 1260,\n      \"language\": \"Python\"\n    },\n    {\n      \"path\": \"<root>/app.py\",\n      \"lines\": 13,\n      \"sloc\": 8,\n      \"size\": 175,\n      \"language\": \"Python\"\n    },\n    {\n      \"path\": \"<root>/cli.py\",\n      \"lines\": 5,\n      \"sloc\": 3,\n      \"size\": 58,\n      \"language\": \"Python\"\n    }\n  ]\n}\n"
+    },
+    {
+      "argv": [
+        "refresh",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"status\": \"ok\",\n  \"source\": \"disk\",\n  \"symbols\": 44,\n  \"files\": 3,\n  \"transactions_cleared\": 0\n}\n"
+    },
+    {
+      "argv": [
+        "undo",
+        "--agent"
+      ],
+      "code": 0,
+      "stdout": "status: nothing_to_undo\n"
+    }
+  ],
+  "writes": [
+    {
+      "argv": [
+        "patch",
+        "app.py",
+        "--range",
+        "1-1",
+        "--content",
+        "import os  # x\n",
+        "--format",
+        "json"
+      ],
+      "code": 2,
+      "stdout": "{\n  \"status\": \"needs_read_confirmation\",\n  \"file\": \"app.py\",\n  \"line_range\": [\n    1,\n    1\n  ],\n  \"byte_range\": [\n    0,\n    10\n  ],\n  \"current_content\": \"import os\\n\"\n}\n"
+    },
+    {
+      "argv": [
+        "patch",
+        "app.py",
+        "-r",
+        "1-1",
+        "--content",
+        "import os  # y\n",
+        "--force",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"status\": \"applied\",\n  \"file_rel\": \"app.py\",\n  \"before_range\": [\n    0,\n    10\n  ],\n  \"after_range\": [\n    0,\n    15\n  ],\n  \"new_line_range\": [\n    1,\n    1\n  ],\n  \"new_content\": \"import os  # y\\n\",\n  \"lines_removed\": 1,\n  \"lines_added\": 1,\n  \"diff\": \"--- app.py (before)\\n+++ app.py (after)\\n@@ -1,6 +1,6 @@\\n-   1 import os\\n+   1 import os  # y\\n    2 \\n    3 \\n    4 class Service:\\n    5     \\\"\\\"\\\"Doc \\u2014 with unicode.\\\"\\\"\\\"\\n    6 \\n\"\n}\n"
+    },
+    {
+      "argv": [
+        "patch",
+        "app.py",
+        "-r",
+        "1-1",
+        "--content",
+        "import os\n",
+        "--force",
+        "--dry-run"
+      ],
+      "code": 0,
+      "stdout": "dry run  app.py  -1 +1 lines\n╭──────────────────────────────────── diff ────────────────────────────────────╮\n│ --- app.py (before)                                                          │\n│ +++ app.py (after)                                                           │\n│ @@ -1,6 +1,6 @@                                                              │\n│ -   1 import os  # y                                                         │\n│ +   1 import os                                                              │\n│     2                                                                        │\n│     3                                                                        │\n│     4 class Service:                                                         │\n│     5     \"\"\"Doc — with unicode.\"\"\"                                          │\n│     6                                                                        │\n│                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────╯\n"
+    },
+    {
+      "argv": [
+        "patch",
+        "app.py",
+        "-r",
+        "900-901",
+        "--content",
+        "x",
+        "--force",
+        "--agent"
+      ],
+      "code": 1,
+      "stdout": "status: error\nerror_code: range_out_of_bounds\nmessage: range end 901 exceeds file length (13 lines)\n"
+    },
+    {
+      "argv": [
+        "patch",
+        "missing.py",
+        "-r",
+        "1-1",
+        "--content",
+        "x",
+        "--force",
+        "--format",
+        "json"
+      ],
+      "code": 1,
+      "stdout": "{\n  \"status\": \"error\",\n  \"error_code\": \"file_not_found\",\n  \"message\": \"no such file: missing.py\"\n}\n"
+    },
+    {
+      "argv": [
+        "delete-symbol",
+        "app.helper",
+        "--format",
+        "json"
+      ],
+      "code": 1,
+      "stdout": "{\n  \"status\": \"error\",\n  \"qualified_path\": \"app.helper\",\n  \"kind\": \"function\",\n  \"file_rel\": \"app.py\",\n  \"line_range\": [\n    11,\n    13\n  ],\n  \"callers\": [\n    {\n      \"file\": \"cli.py\",\n      \"source_path\": \"cli.main\",\n      \"line\": 5,\n      \"kind\": \"name\"\n    }\n  ],\n  \"error_code\": \"has_live_references\",\n  \"message\": \"app.helper is referenced by 1 other symbol(s); use --force to delete anyway\"\n}\n"
+    },
+    {
+      "argv": [
+        "delete-symbol",
+        "app.helper"
+      ],
+      "code": 1,
+      "stdout": "error  has_live_references\n  app.helper is referenced by 1 other symbol(s); use --force to delete anyway\n\n1 caller(s):\n┏━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━┓\n┃ file:line ┃ in symbol ┃ kind ┃\n┡━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━┩\n│ cli.py:5  │ cli.main  │ name │\n└───────────┴───────────┴──────┘\n\nUse --force to delete anyway (callers will break).\n"
+    },
+    {
+      "argv": [
+        "delete-symbol",
+        "big.f3",
+        "--dry-run",
+        "-C",
+        "1"
+      ],
+      "code": 0,
+      "stdout": "dry run  big.f3  (function)  big.py:13-14  -2 lines\n╭──────────────────────────────────── diff ────────────────────────────────────╮\n│ --- big.py (before)                                                          │\n│ +++ big.py (after)                                                           │\n│ @@ -12,4 +12,3 @@                                                            │\n│    12                                                                        │\n│ -  13 def f3(x):                                                             │\n│ -  14     return x + 3                                                       │\n│ +  13                                                                        │\n│    14                                                                        │\n│                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────╯\n"
+    },
+    {
+      "argv": [
+        "delete-symbol",
+        "big.f4",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"status\": \"applied\",\n  \"qualified_path\": \"big.f4\",\n  \"kind\": \"function\",\n  \"file_rel\": \"big.py\",\n  \"line_range\": [\n    17,\n    18\n  ],\n  \"diff\": \"--- big.py (before)\\n+++ big.py (after)\\n@@ -12,12 +12,11 @@\\n   12 \\n   13 def f3(x):\\n   14     return x + 3\\n   15 \\n   16 \\n-  17 def f4(x):\\n-  18     return x + 4\\n+  17 \\n   18 \\n   19 \\n   20 def f5(x):\\n   21     return x + 5\\n   22 \\n\",\n  \"lines_removed\": 2\n}\n"
+    },
+    {
+      "argv": [
+        "insert-symbol",
+        "big.f5",
+        "--position",
+        "after",
+        "--content",
+        "def g():\n    return 0\n",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"status\": \"applied\",\n  \"anchor_path\": \"big.f5\",\n  \"anchor_kind\": \"function\",\n  \"position\": \"after\",\n  \"file_rel\": \"big.py\",\n  \"insert_line\": 19,\n  \"diff\": \"--- big.py (before)\\n+++ big.py (after)\\n@@ -14,10 +14,12 @@\\n   14     return x + 3\\n   15 \\n   16 \\n   17 def f5(x):\\n   18     return x + 5\\n+  19 def g():\\n+  20     return 0\\n   21 \\n   22 \\n   23 def f6(x):\\n   24     return x + 6\\n   25 \\n\",\n  \"lines_added\": 2\n}\n"
+    },
+    {
+      "argv": [
+        "insert-symbol",
+        "big.f7",
+        "--position",
+        "start",
+        "--content",
+        "y = 1\n",
+        "--agent"
+      ],
+      "code": 0,
+      "stdout": "status: applied\ninserted: start big.f7  (function)\nfile: big.py:30\nlines_added: 1\n\n--- DIFF ---\n--- big.py (before)\n+++ big.py (after)\n@@ -25,10 +25,11 @@\n   25 def f6(x):\n   26     return x + 6\n   27 \n   28 \n   29 def f7(x):\n+  30     y = 1\n   31     return x + 7\n   32 \n   33 \n   34 def f8(x):\n   35     return x + 8\n--- END ---\n"
+    },
+    {
+      "argv": [
+        "insert-symbol",
+        "big.f8",
+        "--position",
+        "bogus",
+        "--content",
+        "y = 1\n",
+        "--format",
+        "json"
+      ],
+      "code": 1,
+      "stdout": "{\n  \"status\": \"error\",\n  \"error_code\": \"invalid_argument\",\n  \"message\": \"position must be one of before/after/start/end, got 'bogus'\"\n}\n"
+    },
+    {
+      "argv": [
+        "rename-symbol",
+        "big.f9",
+        "f9_renamed",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"status\": \"applied\",\n  \"qualified_path\": \"big.f9\",\n  \"new_qualified_path\": \"big.f9_renamed\",\n  \"files_changed\": 1,\n  \"refs_updated\": 1,\n  \"per_file\": [\n    {\n      \"file\": \"big.py\",\n      \"refs_updated\": 1\n    }\n  ],\n  \"declaring_file\": \"big.py\",\n  \"message\": \"renamed 1 ref(s) across 1 file(s)\"\n}\n"
+    },
+    {
+      "argv": [
+        "undo",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"status\": \"undone\",\n  \"transaction_id\": \"<ts>-rename-symbol\",\n  \"op\": \"rename-symbol\",\n  \"subject\": \"big.f9 \\u2192 f9_renamed\",\n  \"files_restored\": [\n    \"big.py\"\n  ],\n  \"files_skipped\": [],\n  \"error_code\": null,\n  \"message\": null\n}\n"
+    },
+    {
+      "argv": [
+        "rename-symbol",
+        "big.f9",
+        "f9_renamed",
+        "--dry-run"
+      ],
+      "code": 0,
+      "stdout": "dry run  big.f9 → big.f9_renamed  1 files, 1 refs\n┏━━━━━━━━┳━━━━━━┓\n┃ file   ┃ refs ┃\n┡━━━━━━━━╇━━━━━━┩\n│ big.py │    1 │\n└────────┴──────┘\n"
+    },
+    {
+      "argv": [
+        "rename-symbol",
+        "big.f10",
+        "bad name",
+        "--format",
+        "json"
+      ],
+      "code": 1,
+      "stdout": "{\n  \"status\": \"error\",\n  \"error_code\": \"invalid_argument\",\n  \"message\": \"new-name must be a bare identifier (letters, digits, underscores). Use `symbol move-symbol` to change the module path.\"\n}\n"
+    },
+    {
+      "argv": [
+        "replace-symbol",
+        "big.f12",
+        "--content",
+        "def f12_new(y):\n    return y\n",
+        "--format",
+        "json"
+      ],
+      "code": 0,
+      "stdout": "{\n  \"status\": \"applied\",\n  \"qualified_path\": \"big.f12\",\n  \"new_qualified_path\": \"big.f12_new\",\n  \"name_changed\": true,\n  \"declaring_file\": \"big.py\",\n  \"new_signature\": \"def f12_new(y):\",\n  \"kind\": \"function\",\n  \"files_changed\": 1,\n  \"refs_updated\": 1,\n  \"per_file\": [\n    {\n      \"file\": \"big.py\",\n      \"refs_updated\": 1\n    }\n  ],\n  \"parameter_renames\": [\n    {\n      \"old\": \"x\",\n      \"new\": \"y\",\n      \"refs_updated\": 0,\n      \"skipped_mismatch\": 0,\n      \"unresolved\": 0\n    }\n  ]\n}\n"
+    },
+    {
+      "argv": [
+        "undo"
+      ],
+      "code": 0,
+      "stdout": "undone  replace-symbol  big.f12 → f12_new (rewrite + rename)\nrestored 1 file(s)\n  • big.py\n"
+    },
+    {
+      "argv": [
+        "replace-symbol",
+        "big.f13",
+        "--content",
+        "def f13(x):\n    return 13\n",
+        "--agent"
+      ],
+      "code": 0,
+      "stdout": "status: applied\nreplaced: big.f13\nname_changed: false\nkind: function\nsignature: def f13(x):\nfile: big.py\nfiles_changed: 1\n\n  big.py  (1 change)\n\nundo: git reset --hard HEAD~1\n"
+    },
+    {
+      "argv": [
+        "replace-symbol",
+        "big.f14",
+        "--content",
+        "class Nope:\n    pass\n",
+        "--format",
+        "json"
+      ],
+      "code": 1,
+      "stdout": "{\n  \"status\": \"error\",\n  \"error_code\": \"invalid_argument\",\n  \"message\": \"kind mismatch: old symbol is 'function', new content defines a 'class'\"\n}\n"
+    },
+    {
+      "argv": [
+        "refresh"
+      ],
+      "code": 0,
+      "stdout": "refreshed  disk  44 symbols across 3 files\ncleared 3 transaction(s)\n"
+    }
+  ]
+}

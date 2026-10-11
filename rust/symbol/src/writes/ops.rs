@@ -1,6 +1,6 @@
-//! Port of writes/delete_symbol.py and writes/replace_symbol.py — the
-//! index-driven symbol-level edits. Language-specific bits (parsing new
-//! content, PEP 8 blank-gap normalization) go through the daemon adapter.
+//! Index-driven symbol-level edits (delete and replace). Language-specific
+//! bits (parsing new content, PEP 8 blank-gap normalization) go through the
+//! daemon adapter.
 
 use std::path::Path;
 
@@ -218,8 +218,7 @@ pub fn delete_symbol_with_cache(
 
 // ---------------------------------------------------------- insert-symbol
 
-/// Kinds that have a body (start/end are valid) and can carry decorators —
-/// mirrors insert_symbol.py's has_body set.
+/// Kinds that have a body (start/end are valid) and can carry decorators.
 const HAS_BODY: &[&str] = &[
     "class",
     "function",
@@ -228,8 +227,8 @@ const HAS_BODY: &[&str] = &[
     "async_method",
 ];
 
-/// Port of writes/insert_symbol.py — add content at a position anchored to an
-/// existing symbol via a zero-width byte splice through the patch engine.
+/// Add content at a position anchored to an existing symbol via a zero-width
+/// byte splice through the patch engine.
 #[allow(clippy::too_many_arguments)]
 pub fn insert_symbol(
     index: &mut Index,

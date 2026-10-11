@@ -1,10 +1,15 @@
-"""Differential test RUNNER: Python symbol vs Rust symbol, driven by an ops
-dataset. The dataset is authored elsewhere (generated per-repo by a model);
-this runner only executes, diffs, times, and reports.
+"""Differential test RUNNER: the reference Python symbol vs the Rust symbol,
+driven by an ops dataset. The dataset is authored elsewhere (generated
+per-repo by a model); this runner only executes, diffs, times, and reports.
+
+The reference is a checkout holding the Python implementation (the last such
+commit is 238accc; setup in scripts/datasets/README.md), passed as
+--reference or SYMBOL_REFERENCE. Its side runs through `uv run --project
+<reference>`; scripts/diff_reference.py does the in-process index and read work.
 
 Usage:
-  uv run scripts/diff_runner.py <repo> <ops.jsonl> [--report out.json]
-  uv run scripts/diff_runner.py <repo> --index-check         # index diff only
+  uv run scripts/diff_runner.py <repo> <ops.jsonl> --reference <dir> [--report out.json]
+  uv run scripts/diff_runner.py <repo> --reference <dir> --index-check   # index diff only
 
 Ops dataset: JSONL, one op per line.
   {"id": "r1", "op": "code",           "args": {"target": "app.models.UserService.save"}}
@@ -30,8 +35,8 @@ Optional per-op keys:
 
 Verdicts: match | both_refused | known_divergence | MISMATCH. Exit 1 if any
 MISMATCH. both_refused marks a non-expect_error write neither side applied.
-Ground truth is the Python implementation — the runner never invents
-expectations of its own.
+Ground truth is the reference Python implementation — the runner never
+invents expectations of its own.
 
 MCP mode (--mcp) replays the same dataset as tool calls against both MCP
 servers (`symbol mcp`), each on its own copy of the target, and compares
@@ -55,6 +60,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 RUST_BIN = REPO / "rust/target/release/symbol"
+REFERENCE_HELPER = Path(__file__).resolve().parent / "diff_reference.py"
+REFERENCE: Path  # set by main()
 
 READ_OPS = {"code", "callers", "outline", "search"}
 WRITE_OPS = {"rename-symbol", "replace-symbol", "delete-symbol", "insert-symbol", "patch"}
@@ -67,6 +74,20 @@ def sh(cmd, cwd=None, env=None):
     t0 = time.perf_counter()
     out = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, env=env)
     return out, time.perf_counter() - t0
+
+
+def ref_symbol(*args) -> list[str]:
+    return ["uv", "run", "--project", str(REFERENCE), "symbol", *args]
+
+
+def ref_helper(*args, stdin: str | None = None):
+    out = subprocess.run(
+        ["uv", "run", "--project", str(REFERENCE), "python", str(REFERENCE_HELPER), *map(str, args)],
+        input=stdin, capture_output=True, text=True,
+    )
+    if out.returncode != 0:
+        raise RuntimeError(f"diff_reference.py {args[0]} failed: {out.stderr.strip()[-2000:]}")
+    return json.loads(out.stdout)
 
 
 def run_rust(args, root):
@@ -87,53 +108,9 @@ def tree_hash(root: Path) -> dict:
     return out
 
 
-# ---------------------------------------------------------- python side
-# In-process (import once, index once) so 1k ops don't pay 1k interpreter
-# startups. The Python implementation is the oracle.
-
-
-class PySide:
-    def __init__(self, root: Path):
-        from wyolet.symbol.shared.symbol_index import get_or_build_index
-
-        self.root = root
-        self.index, _ = get_or_build_index(root)
-
-    def read(self, op: str, args: dict):
-        from wyolet.symbol.reads.callers import callers
-        from wyolet.symbol.reads.code import code, CodeAmbiguous, CodeNotFound
-        from wyolet.symbol.reads.outline import outline
-        from wyolet.symbol.reads.search import search
-
-        if op == "code":
-            try:
-                return code(self.index, args["target"])
-            except CodeAmbiguous as e:
-                return {"ambiguous": True, "candidates": e.candidates}
-            except CodeNotFound as e:
-                return {"error": "not_found", "message": str(e)}
-        if op == "callers":
-            return callers(self.index, args["name"])
-        if op == "outline":
-            return outline(self.index, args["query"])
-        if op == "search":
-            return search(
-                self.index,
-                args.get("patterns", []),
-                kind=args.get("kind"),
-                file=args.get("file"),
-                regex=bool(args.get("regex")),
-                fixed=bool(args.get("fixed")),
-                ignore_case=bool(args.get("ignore_case")),
-                limit=int(args.get("limit", 100)),
-            )
-        raise ValueError(op)
-
-
 def py_write(op: str, args: dict, cwd: Path):
-    """Writes go through the Python CLI in a fresh copy (its index state is
-    per-copy, so in-process reuse buys nothing here)."""
-    cmd = ["uv", "run", "--project", str(REPO), "symbol"]
+    """Writes go through the reference CLI in a fresh copy."""
+    cmd = ref_symbol()
     if op == "rename-symbol":
         cmd += ["rename-symbol", args["qualified_path"], args["new_name"]]
     elif op == "replace-symbol":
@@ -227,39 +204,23 @@ class Runner:
     # ---- phase: index structural diff (always available, no dataset needed)
 
     def index_check(self):
-        from wyolet.symbol.shared.symbol_index import SymbolIndex
-
         py_copy = self.fresh_copy("idxpy")
         rs_copy = self.fresh_copy("idxrs")
-        _, dt_py = sh(["uv", "run", "--project", str(REPO), "symbol", "index", str(py_copy)])
+        _, dt_py = sh(ref_symbol("index", str(py_copy)))
         self.timings["index"]["py"].append(dt_py)
         _, dt_rs = sh([str(RUST_BIN), "--root", str(rs_copy), "index"])
         self.timings["index"]["rs"].append(dt_rs)
 
-        py_idx = SymbolIndex.load(py_copy)
-        rs_idx = SymbolIndex.load(rs_copy)
-        if py_idx is None or rs_idx is None:
+        # The reference loads both indexes; the on-disk format is shared.
+        snapshots = ref_helper("snapshot", py_copy, rs_copy)
+        py_snap, rs_snap = snapshots[str(py_copy)], snapshots[str(rs_copy)]
+        if py_snap is None or rs_snap is None:
             self.verdict("MISMATCH", "index", "index-diff",
-                         f"load failed py={py_idx is None} rs={rs_idx is None}")
+                         f"load failed py={py_snap is None} rs={rs_snap is None}")
             return
 
-        def snapshot(idx):
-            rows = {}
-            for qpath, ids in idx.by_path.items():
-                rows[qpath] = sorted(
-                    (idx.file_of(r), idx.kind_of(r), idx.range_of(r),
-                     idx.byte_range_of(r), tuple(sorted(idx.refs_for(r))),
-                     tuple(idx.bases_for(r)))
-                    for r in ids
-                )
-            imports = sorted(
-                (idx.files[imp[0]], idx.strings[imp[1]], idx.strings[imp[2]], imp[3])
-                for imp in idx.imports if imp[1] != 0
-            )
-            return rows, imports
-
-        py_rows, py_imports = snapshot(py_idx)
-        rs_rows, rs_imports = snapshot(rs_idx)
+        py_rows, py_imports = py_snap["rows"], [tuple(i) for i in py_snap["imports"]]
+        rs_rows, rs_imports = rs_snap["rows"], [tuple(i) for i in rs_snap["imports"]]
         for qpath in sorted(set(py_rows) | set(rs_rows)):
             a, b = py_rows.get(qpath), rs_rows.get(qpath)
             if a == b:
@@ -288,22 +249,20 @@ class Runner:
         if read_ops:
             if not hasattr(self, "read_copy"):
                 self.read_copy = self.fresh_copy("reads")
-                sh(["uv", "run", "--project", str(REPO), "symbol", "index", str(self.read_copy)])
-            py = PySide(self.read_copy)
-            for o in read_ops:
-                self.run_read(py, o)
+                sh(ref_symbol("index", str(self.read_copy)))
+            # One reference process for every read: index loaded once.
+            py_results = ref_helper("reads", self.read_copy,
+                                    stdin="\n".join(json.dumps(o) for o in read_ops))
+            for o, py_result in zip(read_ops, py_results, strict=True):
+                self.run_read(py_result, o)
 
         for o in write_ops:
             self.run_write(o)
 
-    def run_read(self, py: "PySide", o: dict):
+    def run_read(self, py_result: dict, o: dict):
         op, args, op_id = o["op"], o.get("args", {}), o.get("id", "?")
-        t0 = time.perf_counter()
-        try:
-            py_out = py.read(op, args)
-        except Exception as e:  # oracle crashed — that's a finding too
-            py_out = {"error": "exception", "message": str(e)}
-        self.timings[op]["py"].append(time.perf_counter() - t0)
+        py_out = py_result["out"]
+        self.timings[op]["py"].append(py_result["dt"])
 
         rs_args = {
             "code": lambda: ["code", args["target"]],
@@ -374,7 +333,7 @@ class Runner:
         # manufacture false MISMATCHes.
         tx_backed = op in {"rename-symbol", "replace-symbol"}
         if tx_backed and py_changed:
-            sh(["uv", "run", "--project", str(REPO), "symbol", "undo"], cwd=py_copy)
+            sh(ref_symbol("undo"), cwd=py_copy)
             self.verdict("match" if tree_hash(py_copy) == pristine else "MISMATCH",
                          f"{op_id}/undo-py", op, "python undo not pristine")
         if tx_backed and rs_changed:
@@ -464,7 +423,7 @@ class McpServer:
 
 
 def py_mcp(root: Path) -> McpServer:
-    return McpServer(["uv", "run", "--project", str(REPO), "symbol", "mcp", "--root", str(root)], root)
+    return McpServer(ref_symbol("mcp", "--root", str(root)), root)
 
 
 def rs_mcp(root: Path) -> McpServer:
@@ -787,9 +746,16 @@ def main():
     ap.add_argument("--index-check", action="store_true")
     ap.add_argument("--mcp", action="store_true",
                     help="compare the MCP servers (tools/list + dataset as tool calls)")
+    ap.add_argument("--reference", default=os.environ.get("SYMBOL_REFERENCE"),
+                    help="checkout holding the Python implementation (default: $SYMBOL_REFERENCE)")
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
-    # `uv run symbol` is the Python side; never let it delegate to a bundled binary.
+    if not args.reference or not (Path(args.reference) / "src/wyolet/symbol/shared/symbol_index.py").is_file():
+        ap.error("--reference must be a checkout holding the Python implementation "
+                 "(setup: scripts/datasets/README.md)")
+    global REFERENCE
+    REFERENCE = Path(args.reference).resolve()
+    # The reference's `symbol` must run its Python implementation, not delegate.
     os.environ["SYMBOL_IMPL"] = "python"
 
     if args.mcp:

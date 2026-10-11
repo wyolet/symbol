@@ -1,6 +1,5 @@
-//! The tool bodies — ports of the tool functions in mcp/server.py, plus
-//! the xref reads. Reads return JSON objects (xref reads and writes return
-//! agent-format text).
+//! MCP tool implementations. Reads return JSON objects; xref reads and writes
+//! return agent-format text.
 
 use std::collections::HashSet;
 use std::path::Path;

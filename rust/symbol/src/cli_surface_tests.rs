@@ -1,6 +1,7 @@
-//! Every command, option, short flag and default of the Python CLI's
-//! delegated commands (tests/fixtures/python_cli_surface.json, pinned by
-//! tests/test_cli_surface.py) must parse here with the same meaning.
+//! Every command, option, short flag and default the Python CLI had for the
+//! commands this binary runs (frozen in tests/fixtures/python_cli_surface.json;
+//! root options checked live by tests/test_cli_surface.py) must parse here
+//! with the same meaning.
 
 use clap::{CommandFactory, Parser};
 use serde_json::Value;

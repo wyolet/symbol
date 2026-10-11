@@ -156,7 +156,7 @@ class PythonAstAdapter(LanguageAdapter):
 
         ``module_prefix`` prepends to every qualified path. The symbol
         index builder passes its layout-aware module name (e.g.
-        ``wyolet.symbol.shared.symbol_index``); standalone callers can omit
+        ``wyolet.symbol.shared.spec``); standalone callers can omit
         it and get file-stem-rooted paths instead.
         """
         try:

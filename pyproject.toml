@@ -23,11 +23,8 @@ classifiers = [
 ]
 dependencies = [
     "chardet>=7.4.1",
-    "mcp>=1.27.0",
-    "msgpack>=1.1.2",
     "pyyaml>=6.0.3",
     "typer>=0.24.1",
-    "zstandard>=0.25.0",
 ]
 
 [project.urls]

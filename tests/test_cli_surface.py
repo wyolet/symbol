@@ -1,27 +1,23 @@
-"""The Python CLI's argument surface for the commands the Rust binary also
-implements, pinned in tests/fixtures/python_cli_surface.json.
+"""The CLI surface of the commands the Rust binary runs, as the Python CLI
+had it, frozen in tests/fixtures/python_cli_surface.json.
 
-The Rust test suite checks the binary accepts every command, option, short
-flag and default recorded there, so a change here must land in both CLIs.
-Refresh the snapshot with `SYMBOL_UPDATE_CLI_SURFACE=1 uv run pytest
-tests/test_cli_surface.py`.
+rust/symbol/src/cli_surface_tests.rs checks the binary accepts every command,
+option, short flag and default recorded there. The command entries change
+only by hand, to change that contract on purpose; the root options are still
+the Python CLI's and are compared against it live.
 """
 
 import json
-import os
+import re
 from pathlib import Path
 
 import typer
+from typer.testing import CliRunner
 
 from wyolet.symbol.cli import app
+from wyolet.symbol.entrypoint import DELEGATED_COMMANDS
 
-SNAPSHOT = Path(__file__).parent / "fixtures" / "python_cli_surface.json"
-
-DELEGATED = [
-    "index", "refresh", "search", "code", "outline", "callers", "patch",
-    "delete-symbol", "insert-symbol", "rename-symbol", "replace-symbol",
-    "undo", "loc", "mcp", "hook",
-]
+SNAPSHOT = json.loads((Path(__file__).parent / "fixtures" / "python_cli_surface.json").read_text())
 # Typer's shell-completion installers: root-only, never reach a subcommand.
 COMPLETION = {"install_completion", "show_completion"}
 
@@ -42,19 +38,23 @@ def _param(p) -> dict:
     }
 
 
-def surface() -> dict:
+def test_root_options_match_snapshot():
     group = typer.main.get_command(app)
-    return {
-        "root": [_param(p) for p in group.params if p.name not in COMPLETION],
-        "commands": {name: [_param(p) for p in group.commands[name].params] for name in DELEGATED},
-    }
-
-
-def test_snapshot_matches_python_cli():
-    current = surface()
-    if os.environ.get("SYMBOL_UPDATE_CLI_SURFACE"):
-        SNAPSHOT.write_text(json.dumps(current, indent=2) + "\n")
-    assert json.loads(SNAPSHOT.read_text()) == current, (
-        "Python CLI surface changed: mirror it in the Rust CLI, then refresh "
-        "the snapshot (see module docstring)"
+    assert SNAPSHOT["root"] == [_param(p) for p in group.params if p.name not in COMPLETION], (
+        "root options changed: mirror them in the Rust CLI, then update the snapshot"
     )
+
+
+def test_frozen_commands_are_delegated():
+    assert set(SNAPSHOT["commands"]) <= set(DELEGATED_COMMANDS)
+
+
+def test_help_lists_delegated_commands():
+    group = typer.main.get_command(app)
+    assert {name for name in DELEGATED_COMMANDS if group.commands[name].hidden} == {"hook"}
+    result = CliRunner().invoke(app, ["--help"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0, result.output
+    # Rich colors and boxes the help in CI; compare whole words of the plain text.
+    words = set(re.sub(r"[│╭╮╰╯─]", " ", re.sub(r"\x1b\[[0-9;]*m", "", result.output)).split())
+    for name in DELEGATED_COMMANDS.keys() - {"hook"}:
+        assert name in words, name

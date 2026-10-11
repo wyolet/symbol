@@ -265,7 +265,7 @@ fn output_classify(outcomes: &[Outcome], json: bool) {
     }
 }
 
-/// Same JSON shape as commands/loc.py `--format json`.
+/// Same JSON shape as `symbol loc --format json`.
 pub fn json_value(report: &LocReport, with_files: bool) -> Result<serde_json::Value> {
     let (stats, outcomes) = (&report.stats, &report.outcomes);
     let languages: Vec<_> = stats.iter().map(|s| s.dict()).collect();

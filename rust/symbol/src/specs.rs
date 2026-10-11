@@ -159,7 +159,7 @@ pub fn base_checker_excludes(project_root: &Path) -> Vec<String> {
     checker_scope(project_root, &[]).1
 }
 
-/// commands/loc.py: global `[scanner] exclude` + the project's.
+/// Global `[scanner] exclude` list merged with the project's.
 pub fn scanner_excludes(project_root: &Path) -> Vec<String> {
     let global = data_file("spec.toml")
         .and_then(|t| parse(&t))
