@@ -45,7 +45,7 @@ dev = [
 ]
 
 [project.scripts]
-symbol = "wyolet.symbol.cli:app"
+symbol = "wyolet.symbol.entrypoint:main"
 
 [build-system]
 requires = ["hatchling"]
