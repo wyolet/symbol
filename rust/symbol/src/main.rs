@@ -9,14 +9,14 @@ use symbol_core::index::{full_build, get_or_build, Index};
 use symbol_core::reads::{self, CodeMiss};
 use symbol_core::render;
 use symbol_core::writes::ops::{
-    delete_symbol_with_context, insert_symbol_with_context, replace_symbol,
+    delete_symbol_with_cache, insert_symbol_with_cache, replace_symbol,
 };
 use symbol_core::writes::patch::{
     apply_multi_patch, apply_patch, preflight, validate_args, MultiPatchEdit,
 };
 use symbol_core::writes::read_cache::ReadCache;
 use symbol_core::writes::rename::rename_symbol;
-use symbol_core::writes::tx::{clear_transactions, undo_last};
+use symbol_core::writes::tx::undo_last;
 
 #[cfg(test)]
 #[path = "cli_surface_tests.rs"]
@@ -89,8 +89,20 @@ enum Cmd {
     },
     /// Reindex changed files and clear transaction history
     Refresh {
+        /// Force full rebuild instead of incremental refresh
+        #[arg(long)]
+        full: bool,
+        /// Don't clear .symbol/transactions/
+        #[arg(long)]
+        keep_transactions: bool,
         #[command(flatten)]
         out: WriteFormat,
+    },
+    /// Run the MCP server (stdio) exposing symbol as agent tools
+    Mcp {
+        /// Project root to serve (same as --root)
+        #[arg(short = 'r', id = "mcp_root", value_name = "ROOT")]
+        root: Option<PathBuf>,
     },
     /// Narrow candidates by name. Returns signatures, no bodies.
     Search {
@@ -334,7 +346,7 @@ impl Cmd {
             | Cmd::Outline { out, .. }
             | Cmd::Callers { out, .. }
             | Cmd::Loc { out, .. } => Some(&mut out.format),
-            Cmd::Refresh { out }
+            Cmd::Refresh { out, .. }
             | Cmd::Patch { out, .. }
             | Cmd::DeleteSymbol { out, .. }
             | Cmd::ReplaceSymbol { out, .. }
@@ -474,26 +486,36 @@ fn run(cli: Cli) -> Result<()> {
         let root = path.clone().unwrap_or(cli.root.clone()).canonicalize()?;
         return index(&root, native_json);
     }
+    if let Cmd::Mcp { root } = &cmd {
+        let root = root.clone().unwrap_or(cli.root.clone()).canonicalize()?;
+        return symbol_core::mcp::serve(&root);
+    }
     let root = cli.root.canonicalize()?;
     let reg = default_registry(&root);
 
     match cmd {
-        Cmd::Index { .. } | Cmd::Hook { .. } => unreachable!("handled before the registry"),
-        Cmd::Refresh { out } => {
+        Cmd::Index { .. } | Cmd::Hook { .. } | Cmd::Mcp { .. } => {
+            unreachable!("handled before the registry")
+        }
+        Cmd::Refresh {
+            full,
+            keep_transactions,
+            out,
+        } => {
             let out = Out::write(native_json, &out);
-            let (idx, source) = get_or_build(&root, reg)?;
-            let cleared = clear_transactions(&root);
+            let (idx, refreshed) =
+                symbol_core::refresh::refresh(&root, reg, full, keep_transactions)?;
+            let mut result = serde_json::json!({
+                "status": "ok",
+                "source": refreshed.source,
+                "symbols": idx.symbols.len(),
+                "files": idx.files.len(),
+                "transactions_cleared": refreshed.transactions_cleared,
+            });
             if out.native_json {
-                let stats = idx.stats();
-                println!("{}", serde_json::json!({"source": source, "stats": stats}));
+                result["stats"] = idx.stats();
+                println!("{result}");
             } else {
-                let result = serde_json::json!({
-                    "status": "ok",
-                    "source": source,
-                    "symbols": idx.symbols.len(),
-                    "files": idx.files.len(),
-                    "transactions_cleared": cleared,
-                });
                 render::refresh_result(&result, out.py_json, out.agent);
             }
         }
@@ -669,13 +691,14 @@ fn run(cli: Cli) -> Result<()> {
         } => {
             let out = Out::write(native_json, &out);
             let (mut idx, _) = get_or_build(&root, reg)?;
-            let result = delete_symbol_with_context(
+            let result = delete_symbol_with_cache(
                 &mut idx,
                 &qualified_path,
                 &root,
                 reg,
                 force,
                 dry_run,
+                &ReadCache::for_session(&root),
                 context,
             );
             finish_write(&result, out, render::delete_result);
@@ -712,7 +735,7 @@ fn run(cli: Cli) -> Result<()> {
             };
             let content = either(content_arg, content, "content").unwrap_or_default();
             let (mut idx, _) = get_or_build(&root, reg)?;
-            let result = insert_symbol_with_context(
+            let result = insert_symbol_with_cache(
                 &mut idx,
                 &anchor,
                 &position,
@@ -721,6 +744,7 @@ fn run(cli: Cli) -> Result<()> {
                 &root,
                 reg,
                 dry_run,
+                &ReadCache::for_session(&root),
                 context,
             );
             finish_write(&result, out, render::insert_result);

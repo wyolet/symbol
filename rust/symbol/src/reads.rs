@@ -35,6 +35,7 @@ pub fn callers(index: &Index, name: &str) -> Vec<serde_json::Value> {
 // ---------------------------------------------------------- code
 
 /// Why `code` has no single body to return (CodeNotFound / CodeAmbiguous).
+/// `NotFound` carries the Python exception's message.
 #[derive(Debug)]
 pub enum CodeMiss {
     NotFound(String),
@@ -101,7 +102,7 @@ fn by_path(
     if rows.is_empty() {
         return Err(CodeMiss::NotFound(format!(
             "no symbol matches {}",
-            crate::pyjson::repr_str(path)
+            crate::pystr::repr(path)
         )));
     }
     if rows.len() > 1 {
@@ -149,7 +150,7 @@ fn by_range(
     let Some(file_id) = file_id else {
         return Err(CodeMiss::NotFound(format!(
             "file not indexed: {}",
-            crate::pyjson::repr_str(&file)
+            crate::pystr::repr(&file)
         )));
     };
 

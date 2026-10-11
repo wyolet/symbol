@@ -1,36 +1,9 @@
-//! CPython's `difflib.unified_diff` over `str.splitlines(keepends=True)`,
-//! so diffs align exactly as the Python implementation's do (Myers-based
-//! diffs place moved blank lines differently).
+//! Port of CPython's `difflib.SequenceMatcher` (no junk function, autojunk
+//! on) and `difflib.unified_diff` over lines. Diffs are user-visible in
+//! every write result, and other diff algorithms pick different — equally
+//! valid — alignments around repeated lines such as blanks.
 
 use std::collections::HashMap;
-
-/// `str.splitlines(keepends=True)`: every Unicode line boundary Python
-/// recognizes, `\r\n` as one.
-pub fn splitlines_keepends(text: &str) -> Vec<&str> {
-    let mut out = vec![];
-    let mut start = 0;
-    let mut iter = text.char_indices().peekable();
-    while let Some((i, c)) = iter.next() {
-        let end = match c {
-            '\r' => match iter.peek() {
-                Some(&(j, '\n')) => {
-                    iter.next();
-                    j + 1
-                }
-                _ => i + 1,
-            },
-            '\n' | '\x0b' | '\x0c' | '\x1c' | '\x1d' | '\x1e' | '\u{85}' | '\u{2028}'
-            | '\u{2029}' => i + c.len_utf8(),
-            _ => continue,
-        };
-        out.push(&text[start..end]);
-        start = end;
-    }
-    if start < text.len() {
-        out.push(&text[start..]);
-    }
-    out
-}
 
 type Opcode = (&'static str, usize, usize, usize, usize);
 
@@ -43,14 +16,13 @@ struct SequenceMatcher<'a> {
 impl<'a> SequenceMatcher<'a> {
     fn new(a: &'a [&'a str], b: &'a [&'a str]) -> Self {
         let mut b2j: HashMap<&str, Vec<usize>> = HashMap::new();
-        for (i, elt) in b.iter().enumerate() {
-            b2j.entry(elt).or_default().push(i);
+        for (i, line) in b.iter().enumerate() {
+            b2j.entry(line).or_default().push(i);
         }
-        // autojunk: in long sequences, lines more frequent than 1% + 1 are
-        // "popular" and never seed a match.
-        let n = b.len();
-        if n >= 200 {
-            let ntest = n / 100 + 1;
+        // autojunk: in sequences of 200+ items, items making up more than
+        // 1% of b are dropped from the index (but not treated as junk).
+        if b.len() >= 200 {
+            let ntest = b.len() / 100 + 1;
             b2j.retain(|_, idxs| idxs.len() <= ntest);
         }
         SequenceMatcher { a, b, b2j }
@@ -75,12 +47,7 @@ impl<'a> SequenceMatcher<'a> {
                 if j >= bhi {
                     break;
                 }
-                let k = j
-                    .checked_sub(1)
-                    .and_then(|p| j2len.get(&p))
-                    .copied()
-                    .unwrap_or(0)
-                    + 1;
+                let k = j.checked_sub(1).and_then(|p| j2len.get(&p)).unwrap_or(&0) + 1;
                 newj2len.insert(j, k);
                 if k > bestsize {
                     besti = i + 1 - k;
@@ -90,7 +57,8 @@ impl<'a> SequenceMatcher<'a> {
             }
             j2len = newj2len;
         }
-        // No junk is configured, so popular lines extend a match like any other.
+        // Extend over equal neighbours (popular lines are not in b2j but are
+        // not junk either, so they extend the match here).
         while besti > alo && bestj > blo && a[besti - 1] == b[bestj - 1] {
             besti -= 1;
             bestj -= 1;
@@ -123,33 +91,36 @@ impl<'a> SequenceMatcher<'a> {
         }
         blocks.sort_unstable();
         let (mut i1, mut j1, mut k1) = (0, 0, 0);
-        let mut out = vec![];
+        let mut collapsed = vec![];
         for (i2, j2, k2) in blocks {
             if i1 + k1 == i2 && j1 + k1 == j2 {
                 k1 += k2;
             } else {
                 if k1 > 0 {
-                    out.push((i1, j1, k1));
+                    collapsed.push((i1, j1, k1));
                 }
                 (i1, j1, k1) = (i2, j2, k2);
             }
         }
         if k1 > 0 {
-            out.push((i1, j1, k1));
+            collapsed.push((i1, j1, k1));
         }
-        out.push((la, lb, 0));
-        out
+        collapsed.push((la, lb, 0));
+        collapsed
     }
 
     fn opcodes(&self) -> Vec<Opcode> {
         let (mut i, mut j) = (0, 0);
         let mut out = vec![];
         for (ai, bj, size) in self.matching_blocks() {
-            let tag = match (i < ai, j < bj) {
-                (true, true) => "replace",
-                (true, false) => "delete",
-                (false, true) => "insert",
-                _ => "",
+            let tag = if i < ai && j < bj {
+                "replace"
+            } else if i < ai {
+                "delete"
+            } else if j < bj {
+                "insert"
+            } else {
+                ""
             };
             if !tag.is_empty() {
                 out.push((tag, i, ai, j, bj));
@@ -165,7 +136,7 @@ impl<'a> SequenceMatcher<'a> {
     fn grouped_opcodes(&self, n: usize) -> Vec<Vec<Opcode>> {
         let mut codes = self.opcodes();
         if codes.is_empty() {
-            codes = vec![("equal", 0, 1, 0, 1)];
+            codes.push(("equal", 0, 1, 0, 1));
         }
         if let Some(first) = codes.first_mut() {
             if first.0 == "equal" {
@@ -185,11 +156,10 @@ impl<'a> SequenceMatcher<'a> {
                 *last = (tag, i1, i2.min(i1 + n), j1, j2.min(j1 + n));
             }
         }
-        let nn = n + n;
         let mut groups = vec![];
         let mut group = vec![];
         for (tag, mut i1, i2, mut j1, j2) in codes {
-            if tag == "equal" && i2 - i1 > nn {
+            if tag == "equal" && i2 - i1 > 2 * n {
                 group.push((tag, i1, i2.min(i1 + n), j1, j2.min(j1 + n)));
                 groups.push(std::mem::take(&mut group));
                 i1 = i1.max(i2.saturating_sub(n));
@@ -206,23 +176,21 @@ impl<'a> SequenceMatcher<'a> {
 }
 
 fn format_range(start: usize, stop: usize) -> String {
-    let mut beginning = start + 1;
     let length = stop - start;
-    if length == 1 {
-        return beginning.to_string();
+    match length {
+        1 => format!("{}", start + 1),
+        0 => format!("{start},0"),
+        _ => format!("{},{length}", start + 1),
     }
-    if length == 0 {
-        beginning -= 1;
-    }
-    format!("{beginning},{length}")
 }
 
-/// `"".join(difflib.unified_diff(a, b, fromfile, tofile, n=context))`.
+/// `"".join(difflib.unified_diff(a, b, fromfile, tofile, n=n))` where `a`
+/// and `b` are lines with their endings kept.
 pub fn unified_diff(a: &[&str], b: &[&str], fromfile: &str, tofile: &str, n: usize) -> String {
     let matcher = SequenceMatcher::new(a, b);
     let mut out = String::new();
-    for (g, group) in matcher.grouped_opcodes(n).iter().enumerate() {
-        if g == 0 {
+    for (index, group) in matcher.grouped_opcodes(n).iter().enumerate() {
+        if index == 0 {
             out.push_str(&format!("--- {fromfile}\n+++ {tofile}\n"));
         }
         let (first, last) = (group[0], group[group.len() - 1]);
@@ -260,13 +228,37 @@ pub fn unified_diff(a: &[&str], b: &[&str], fromfile: &str, tofile: &str, n: usi
 mod tests {
     use super::*;
 
+    fn lines(s: &str) -> Vec<&str> {
+        s.split_inclusive('\n').collect()
+    }
+
     #[test]
-    fn splitlines_matches_python() {
+    fn matches_python_unified_diff() {
+        // Expected text produced by CPython difflib for the same inputs.
+        let a = lines("a\nb\nc\nd\ne\nf\ng\nh\n");
+        let b = lines("a\nB\nc\nd\ne\nf\ng\nh\ni\n");
         assert_eq!(
-            splitlines_keepends("a\r\nb\rc\x0cd\u{2028}e"),
-            vec!["a\r\n", "b\r", "c\x0c", "d\u{2028}", "e"]
+            unified_diff(&a, &b, "x", "y", 1),
+            "--- x\n+++ y\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n@@ -8 +8,2 @@\n h\n+i\n"
         );
-        assert!(splitlines_keepends("").is_empty());
+        assert_eq!(unified_diff(&a, &a, "x", "y", 3), "");
+        let empty: Vec<&str> = vec![];
+        assert_eq!(
+            unified_diff(&empty, &lines("x\n"), "x", "y", 3),
+            "--- x\n+++ y\n@@ -0,0 +1 @@\n+x\n"
+        );
+    }
+
+    #[test]
+    fn prefers_the_first_longest_block_like_python() {
+        // T removed between blank lines: difflib keeps the earliest blank
+        // run aligned, which is what Python prints.
+        let a = lines("x\n\n\nT\n\n\ny\n");
+        let b = lines("x\n\n\n\ny\n");
+        assert_eq!(
+            unified_diff(&a, &b, "x", "y", 5),
+            "--- x\n+++ y\n@@ -1,7 +1,5 @@\n x\n \n \n-T\n-\n \n y\n"
+        );
     }
 
     #[test]

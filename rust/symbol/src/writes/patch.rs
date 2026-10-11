@@ -59,7 +59,7 @@ pub struct MultiPatchEdit {
     #[serde(default)]
     pub old: Option<String>,
     #[serde(default)]
-    pub content: String,
+    pub content: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -105,7 +105,7 @@ pub fn parse_line_range(raw: &str) -> Result<(i64, i64), String> {
     let m = RANGE_RE.captures(raw.trim()).ok_or_else(|| {
         format!(
             "range must be 'A-B' with non-negative integers, got {}",
-            crate::pyjson::repr_str(raw)
+            crate::pystr::repr(raw)
         )
     })?;
     let start: i64 = m[1].parse().map_err(|e| format!("{e}"))?;
@@ -390,9 +390,6 @@ pub fn apply_multi_patch(
     force: bool,
     diff_context: usize,
 ) -> MultiPatchResult {
-    if edits.is_empty() {
-        return MultiPatchResult::error(file, "invalid_argument", "edits list is empty".into());
-    }
     let canonical_root = project_root
         .canonicalize()
         .unwrap_or_else(|_| project_root.to_owned());
@@ -419,6 +416,13 @@ pub fn apply_multi_patch(
         .strip_prefix(&canonical_root)
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|_| file.to_owned());
+    if edits.is_empty() {
+        return MultiPatchResult::error(
+            &file_rel,
+            "invalid_argument",
+            "edits list is empty".into(),
+        );
+    }
     let source = match std::fs::read(&file_abs) {
         Ok(source) => source,
         Err(error) => {
@@ -440,6 +444,13 @@ pub fn apply_multi_patch(
     let mut resolved = Vec::with_capacity(edits.len());
     let mut unconfirmed = Vec::new();
     for (index, edit) in edits.iter().enumerate() {
+        let Some(content) = edit.content.as_deref() else {
+            return MultiPatchResult::error(
+                &file_rel,
+                "invalid_argument",
+                format!("edit {index}: missing content"),
+            );
+        };
         let has_range = edit.range.is_some();
         let has_old = edit.old.is_some();
         if has_range == has_old {
@@ -452,12 +463,20 @@ pub fn apply_multi_patch(
         if let Some(raw_range) = &edit.range {
             let line_range = match parse_line_range(raw_range) {
                 Ok(range) => range,
-                Err(error) => {
+                Err(_) => {
+                    // Same wording as writes/patch.py: malformed vs. inverted.
+                    let shape_ok = raw_range
+                        .split_once('-')
+                        .is_some_and(|(a, b)| a.parse::<u64>().is_ok() && b.parse::<u64>().is_ok());
+                    let what = if shape_ok { "invalid" } else { "bad" };
                     return MultiPatchResult::error(
                         &file_rel,
                         "invalid_argument",
-                        format!("edit {index}: {error}"),
-                    )
+                        format!(
+                            "edit {index}: {what} range {}",
+                            crate::pystr::repr(raw_range)
+                        ),
+                    );
                 }
             };
             if line_range.1 > count_lines(&source) {
@@ -484,7 +503,7 @@ pub fn apply_multi_patch(
                 index,
                 start,
                 end,
-                content: normalize_trailing_newline(edit.content.as_bytes(), &source, start, end),
+                content: normalize_trailing_newline(content.as_bytes(), &source, start, end),
                 addressed_by: "range",
                 line_range,
             });
@@ -531,7 +550,7 @@ pub fn apply_multi_patch(
                 index,
                 start,
                 end,
-                content: normalize_trailing_newline(edit.content.as_bytes(), &source, start, end),
+                content: normalize_trailing_newline(content.as_bytes(), &source, start, end),
                 addressed_by: "old",
                 line_range: (start_line, end_line),
             });
@@ -716,12 +735,11 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
 /// Full-file unified diff with each line prefixed by its absolute line
 /// number — ports patch.py `_unified_diff` + `_number_diff_lines`.
 pub fn unified_diff(file_rel: &str, old: &[u8], new: &[u8], context: usize) -> String {
-    use crate::writes::difflib::{splitlines_keepends, unified_diff as difflib_unified};
     let old_text = String::from_utf8_lossy(old);
     let new_text = String::from_utf8_lossy(new);
-    let raw = difflib_unified(
-        &splitlines_keepends(&old_text),
-        &splitlines_keepends(&new_text),
+    let raw = crate::writes::difflib::unified_diff(
+        &crate::pystr::splitlines(&old_text, true),
+        &crate::pystr::splitlines(&new_text, true),
         &format!("{file_rel} (before)"),
         &format!("{file_rel} (after)"),
         context,
@@ -736,7 +754,7 @@ fn number_diff_lines(diff: &str) -> String {
     let mut out = String::with_capacity(diff.len() * 2);
     let mut old_line = 0i64;
     let mut new_line = 0i64;
-    for line in crate::writes::difflib::splitlines_keepends(diff) {
+    for line in crate::pystr::splitlines(diff, true) {
         if line.starts_with("@@") {
             if let Some(m) = HUNK_RE.captures(line.trim_end()) {
                 old_line = m[1].parse().unwrap_or(0);
@@ -847,12 +865,12 @@ mod tests {
                 MultiPatchEdit {
                     range: None,
                     old: Some("alpha = 1".into()),
-                    content: "alpha = 10".into(),
+                    content: Some("alpha = 10".into()),
                 },
                 MultiPatchEdit {
                     range: None,
                     old: Some("gamma = 3".into()),
-                    content: "gamma = 30".into(),
+                    content: Some("gamma = 30".into()),
                 },
             ],
             temp.path(),
@@ -882,12 +900,12 @@ mod tests {
                 MultiPatchEdit {
                     range: None,
                     old: Some("alpha = 1\nbeta".into()),
-                    content: "first".into(),
+                    content: Some("first".into()),
                 },
                 MultiPatchEdit {
                     range: None,
                     old: Some("beta = 2".into()),
-                    content: "second".into(),
+                    content: Some("second".into()),
                 },
             ],
             temp.path(),

@@ -434,6 +434,11 @@ impl Adapter {
     }
 
     pub fn preview(&self, body: &str, signature: &str, max_lines: usize) -> Result<String> {
+        if self.language == "go" {
+            // go-scan has no preview method; go_ast/__init__.py computes it
+            // client-side, so this mirrors that.
+            return Ok(go_preview(body, signature, max_lines));
+        }
         let result = self.daemon.call(
             "preview",
             serde_json::json!({ "body": body, "signature": signature, "max_lines": max_lines }),
@@ -698,6 +703,34 @@ impl DaemonUnavailable {
             "message": self.to_string(),
         })
     }
+}
+
+/// GoAstAdapter.preview: the first `max_lines` body lines after the
+/// signature, skipping blank lines and `//` comments.
+fn go_preview(body: &str, signature: &str, max_lines: usize) -> String {
+    let lines = crate::pystr::splitlines(body, false);
+    let sig_compact = signature.replace(' ', "");
+    let mut consumed = 0;
+    let mut joined = String::new();
+    for (i, line) in lines.iter().enumerate() {
+        joined = format!("{joined} {}", line.trim()).trim().to_owned();
+        if !sig_compact.is_empty() && joined.replace(' ', "").ends_with(&sig_compact) {
+            consumed = i + 1;
+            break;
+        }
+    }
+    let mut out: Vec<&str> = vec![];
+    for line in &lines[consumed..] {
+        let stripped = line.trim();
+        if stripped.is_empty() || stripped.starts_with("//") {
+            continue;
+        }
+        out.push(line);
+        if out.len() >= max_lines {
+            break;
+        }
+    }
+    out.join("\n")
 }
 
 /// Structured form of an adapter/index error for JSON-reporting callers.

@@ -122,6 +122,16 @@ fn linguist() -> &'static LinguistCtx {
     })
 }
 
+/// Where the persisted index lives under a project root.
+pub fn index_path(project_root: &Path) -> PathBuf {
+    project_root.join(INDEX_REL_PATH)
+}
+
+/// Registry.supports: the language key of `path` when an adapter handles it.
+pub fn supported_language(path: &Path, reg: &Registry) -> Option<String> {
+    classify(path).filter(|key| reg.has_adapter(key))
+}
+
 /// Classify one file the way ASTCache/_git_tracked_sources does:
 /// linguist detect → lang.key (name lowercased), None for Unknown/gated.
 pub(crate) fn classify(path: &Path) -> Option<String> {

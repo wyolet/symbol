@@ -668,16 +668,7 @@ def rename_symbol(
     return _capture_text(_render_rename_agent, result)
 
 
-@mcp.tool(
-    name="Refresh",
-    description=(
-        "Reindex the project (incremental: only changed files are re-parsed) "
-        "and clear .symbol/transactions/. Use as an escape hatch when state "
-        "feels stale or when you've made out-of-band changes (e.g. via plain "
-        "Edit/Write or git operations). full=true forces a full rebuild from "
-        "scratch. keep_transactions=true preserves the undo log."
-    ),
-)
+@mcp.tool(name="Refresh", description=descriptions.REFRESH)
 def refresh(full: bool = False, keep_transactions: bool = False) -> dict:
     root = _State.require_root()
     if full:
@@ -703,15 +694,7 @@ def refresh(full: bool = False, keep_transactions: bool = False) -> dict:
     }
 
 
-@mcp.tool(
-    name="Undo",
-    description=(
-        "Revert the most recent RenameSymbol or ReplaceSymbol transaction. "
-        "Restores every file in that op from its captured pre-image (atomic). "
-        "Operates on the persisted transaction log in .symbol/transactions/. "
-        "Returns the op name, subject, and list of files restored."
-    ),
-)
+@mcp.tool(name="Undo", description=descriptions.UNDO)
 def undo() -> dict:
     root = _State.require_root()
     result = _undo_last(root)

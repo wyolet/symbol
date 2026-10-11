@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use crate::adapters::{error_json, Adapter, Registry};
 use crate::index::{Index, S_EBYTE, S_SBYTE};
-use crate::pyjson::repr_str;
+use crate::pystr::repr;
 use crate::writes::content::{indent_at_byte, normalize_content};
 use crate::writes::patch::{apply_patch, line_end_byte, line_start_byte, PatchRequest};
 use crate::writes::read_cache::ReadCache;
@@ -35,7 +35,7 @@ pub(crate) fn resolve_single(
     if rows.is_empty() {
         return Err(serde_json::json!({
             "status": "error", "error_code": "symbol_not_found",
-            "message": format!("no symbol at {}", repr_str(qualified_path)),
+            "message": format!("no symbol at {}", repr(qualified_path)),
         }));
     }
     if rows.len() > 1 {
@@ -52,7 +52,7 @@ pub(crate) fn resolve_single(
             .collect();
         return Err(serde_json::json!({
             "status": "error", "error_code": "symbol_ambiguous",
-            "message": format!("{} symbols match {}", rows.len(), repr_str(qualified_path)),
+            "message": format!("{} symbols match {}", rows.len(), repr(qualified_path)),
             "candidates": candidates,
         }));
     }
@@ -70,7 +70,7 @@ pub(crate) fn resolve_single(
         if rows.is_empty() {
             return Err(serde_json::json!({
                 "status": "error", "error_code": "symbol_not_found",
-                "message": format!("symbol {} no longer exists after refresh", repr_str(qualified_path)),
+                "message": format!("symbol {} no longer exists after refresh", repr(qualified_path)),
             }));
         }
         row = rows[0];
@@ -113,17 +113,30 @@ pub fn delete_symbol(
     force: bool,
     dry_run: bool,
 ) -> serde_json::Value {
-    delete_symbol_with_context(index, qualified_path, project_root, reg, force, dry_run, 5)
+    let cache = ReadCache::for_session(project_root);
+    delete_symbol_with_cache(
+        index,
+        qualified_path,
+        project_root,
+        reg,
+        force,
+        dry_run,
+        &cache,
+        5,
+    )
 }
 
-/// `delete_symbol` with `diff_context` lines around the edit in the diff.
-pub fn delete_symbol_with_context(
+/// `delete_symbol` against a caller-owned read cache (the MCP session's),
+/// with `diff_context` lines around the edit in the diff.
+#[allow(clippy::too_many_arguments)]
+pub fn delete_symbol_with_cache(
     index: &mut Index,
     qualified_path: &str,
     project_root: &Path,
     reg: &Registry,
     force: bool,
     dry_run: bool,
+    cache: &ReadCache,
     diff_context: usize,
 ) -> serde_json::Value {
     let row = match resolve_single(index, qualified_path, reg) {
@@ -172,7 +185,6 @@ pub fn delete_symbol_with_context(
         });
     }
 
-    let cache = ReadCache::for_session(project_root);
     let patch_req = PatchRequest {
         file_abs: file_abs.clone(),
         file_rel: file_rel.clone(),
@@ -181,7 +193,7 @@ pub fn delete_symbol_with_context(
         content: vec![],
         force: true, // delete-symbol bypasses the cache check by design
     };
-    let result = apply_patch(&patch_req, &cache, dry_run, diff_context);
+    let result = apply_patch(&patch_req, cache, dry_run, diff_context);
     if result.status == "applied" {
         normalize_blank_gaps_via_adapter(&file_abs, &language, reg);
         cache.invalidate(&file_rel);
@@ -229,7 +241,8 @@ pub fn insert_symbol(
     reg: &Registry,
     dry_run: bool,
 ) -> serde_json::Value {
-    insert_symbol_with_context(
+    let cache = ReadCache::for_session(project_root);
+    insert_symbol_with_cache(
         index,
         anchor_path,
         position,
@@ -238,13 +251,15 @@ pub fn insert_symbol(
         project_root,
         reg,
         dry_run,
+        &cache,
         5,
     )
 }
 
-/// `insert_symbol` with `diff_context` lines around the edit in the diff.
+/// `insert_symbol` against a caller-owned read cache (the MCP session's),
+/// with `diff_context` lines around the edit in the diff.
 #[allow(clippy::too_many_arguments)]
-pub fn insert_symbol_with_context(
+pub fn insert_symbol_with_cache(
     index: &mut Index,
     anchor_path: &str,
     position: &str,
@@ -253,6 +268,7 @@ pub fn insert_symbol_with_context(
     project_root: &Path,
     reg: &Registry,
     dry_run: bool,
+    cache: &ReadCache,
     diff_context: usize,
 ) -> serde_json::Value {
     let row = match resolve_single(index, anchor_path, reg) {
@@ -280,8 +296,8 @@ pub fn insert_symbol_with_context(
             "invalid_argument",
             format!(
                 "position {} requires a symbol with a body; {anchor_path} is {}",
-                repr_str(position),
-                repr_str(&kind)
+                repr(position),
+                repr(&kind)
             ),
         );
     }
@@ -336,7 +352,7 @@ pub fn insert_symbol_with_context(
                 "invalid_argument",
                 format!(
                     "position must be one of before/after/start/end, got {}",
-                    repr_str(other)
+                    repr(other)
                 ),
             );
         }
@@ -348,7 +364,6 @@ pub fn insert_symbol_with_context(
         content.as_bytes().to_vec()
     };
 
-    let cache = ReadCache::for_session(project_root);
     let patch_req = PatchRequest {
         file_abs: file_abs.clone(),
         file_rel: file_rel.clone(),
@@ -357,7 +372,7 @@ pub fn insert_symbol_with_context(
         content: payload,
         force: true,
     };
-    let result = apply_patch(&patch_req, &cache, dry_run, diff_context);
+    let result = apply_patch(&patch_req, cache, dry_run, diff_context);
     if result.status == "applied" {
         normalize_blank_gaps_via_adapter(&file_abs, &language, reg);
         cache.invalidate(&file_rel);
@@ -525,7 +540,7 @@ pub fn replace_symbol(
             "invalid_argument",
             format!(
                 "new symbol name {} is not a valid identifier",
-                repr_str(&new_leaf)
+                repr(&new_leaf)
             ),
         );
     }
@@ -534,8 +549,8 @@ pub fn replace_symbol(
             "invalid_argument",
             format!(
                 "kind mismatch: old symbol is {}, new content defines a {}",
-                repr_str(&old_kind),
-                repr_str(&new_sym.kind)
+                repr(&old_kind),
+                repr(&new_sym.kind)
             ),
         );
     }
@@ -550,7 +565,7 @@ pub fn replace_symbol(
     if name_changed && index.by_path.contains_key(&new_qpath) {
         return err(
             "name_collision",
-            format!("{} already exists", repr_str(&new_qpath)),
+            format!("{} already exists", repr(&new_qpath)),
         );
     }
 
