@@ -101,8 +101,8 @@ enum Cmd {
     /// Run the MCP server (stdio) exposing symbol as agent tools
     Mcp {
         /// Project root to serve (same as --root)
-        #[arg(short = 'r', id = "mcp_root", value_name = "ROOT")]
-        root: Option<PathBuf>,
+        #[arg(short = 'r', id = "mcp_root", value_name = "ROOT", default_value = ".")]
+        root: PathBuf,
     },
     /// Narrow candidates by name. Returns signatures, no bodies.
     Search {
@@ -487,8 +487,14 @@ fn run(cli: Cli) -> Result<()> {
         return index(&root, native_json);
     }
     if let Cmd::Mcp { root } = &cmd {
-        let root = root.clone().unwrap_or(cli.root.clone()).canonicalize()?;
-        return symbol_core::mcp::serve(&root);
+        // Python's `mcp -r` and the global --root name the same root; an
+        // explicit -r wins.
+        let root = if root == Path::new(".") {
+            &cli.root
+        } else {
+            root
+        };
+        return symbol_core::mcp::serve(&root.canonicalize()?);
     }
     let root = cli.root.canonicalize()?;
     let reg = default_registry(&root);

@@ -10,7 +10,7 @@ use super::Cli;
 const SURFACE: &str = include_str!("../../../tests/fixtures/python_cli_surface.json");
 
 /// Python options this binary does not implement yet.
-const NOT_YET: &[(&str, &str)] = &[("refresh", "--full"), ("refresh", "--keep-transactions")];
+const NOT_YET: &[(&str, &str)] = &[];
 
 fn surface() -> Value {
     serde_json::from_str(SURFACE).unwrap()

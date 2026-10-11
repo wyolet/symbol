@@ -899,6 +899,21 @@
         "default": "rich"
       }
     ],
+    "mcp": [
+      {
+        "name": "root",
+        "kind": "option",
+        "opts": [
+          "--root",
+          "-r"
+        ],
+        "required": false,
+        "multiple": false,
+        "flag": false,
+        "type": "text",
+        "default": "."
+      }
+    ],
     "hook": [
       {
         "name": "enforce",

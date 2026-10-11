@@ -20,7 +20,7 @@ SNAPSHOT = Path(__file__).parent / "fixtures" / "python_cli_surface.json"
 DELEGATED = [
     "index", "refresh", "search", "code", "outline", "callers", "patch",
     "delete-symbol", "insert-symbol", "rename-symbol", "replace-symbol",
-    "undo", "loc", "hook",
+    "undo", "loc", "mcp", "hook",
 ]
 # Typer's shell-completion installers: root-only, never reach a subcommand.
 COMPLETION = {"install_completion", "show_completion"}
