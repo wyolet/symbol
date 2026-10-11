@@ -105,6 +105,7 @@ mod tests {
         assert_eq!(repr("a'b\"c"), "'a\\'b\"c'");
         assert_eq!(repr("tab\there\n"), "'tab\\there\\n'");
         assert_eq!(repr("back\\slash"), "'back\\\\slash'");
+        assert_eq!(repr("a\nb\\"), "'a\\nb\\\\'");
         assert_eq!(repr("\x01"), "'\\x01'");
         assert_eq!(repr("→ é"), "'→ é'");
         assert_eq!(repr("\u{a0}"), "'\\xa0'");
@@ -119,6 +120,10 @@ mod tests {
         );
         assert_eq!(splitlines("a\nb\n", false), ["a", "b"]);
         assert_eq!(splitlines("a\x0cb\u{2028}c", false), ["a", "b", "c"]);
+        assert_eq!(
+            splitlines("a\r\nb\rc\x0cd\u{2028}e", true),
+            ["a\r\n", "b\r", "c\x0c", "d\u{2028}", "e"]
+        );
         assert!(splitlines("", true).is_empty());
         assert_eq!(splitlines("\n\n", true), ["\n", "\n"]);
     }

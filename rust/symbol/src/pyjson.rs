@@ -139,35 +139,6 @@ pub fn float_repr(f: f64) -> String {
     }
 }
 
-/// `repr(str)`: single quotes unless the text holds a `'` and no `"`.
-pub fn repr_str(s: &str) -> String {
-    let quote = if s.contains('\'') && !s.contains('"') {
-        '"'
-    } else {
-        '\''
-    };
-    let mut out = String::new();
-    out.push(quote);
-    for c in s.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
-                out.push_str(&format!("\\x{:02x}", c as u32));
-            }
-            c => out.push(c),
-        }
-    }
-    out.push(quote);
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,13 +178,5 @@ mod tests {
         ] {
             assert_eq!(float_repr(f), want, "{f}");
         }
-    }
-
-    #[test]
-    fn repr_picks_quotes_like_python() {
-        assert_eq!(repr_str("abc"), "'abc'");
-        assert_eq!(repr_str("it's"), "\"it's\"");
-        assert_eq!(repr_str("a'b\"c"), "'a\\'b\"c'");
-        assert_eq!(repr_str("a\nb\\"), "'a\\nb\\\\'");
     }
 }

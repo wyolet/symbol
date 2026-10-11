@@ -5,7 +5,8 @@
 
 use serde_json::{json, Value};
 
-use crate::pyjson::{dumps, dumps_indent, repr_str};
+use crate::pyjson::{dumps, dumps_indent};
+use crate::pystr::repr;
 
 // ---------------------------------------------------------- console
 
@@ -628,7 +629,7 @@ pub fn search_rich(patterns: &[String], hits: &[Value]) {
     if hits.is_empty() {
         print(&format!(
             "[yellow]No matches for[/yellow] {}",
-            repr_str(&patterns.join(" "))
+            repr(&patterns.join(" "))
         ));
         return;
     }
@@ -773,7 +774,7 @@ pub fn outline_rich(arg: &str, roots: &[Value]) {
     if roots.is_empty() {
         print(&format!(
             "[yellow]Nothing to outline for[/yellow] {}",
-            repr_str(arg)
+            repr(arg)
         ));
         return;
     }
@@ -842,7 +843,7 @@ pub fn callers_rich(name: &str, hits: &[Value]) {
     if hits.is_empty() {
         print(&format!(
             "[yellow]No references found for[/yellow] {}",
-            repr_str(name)
+            repr(name)
         ));
         return;
     }
