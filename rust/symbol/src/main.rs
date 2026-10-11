@@ -136,6 +136,26 @@ enum Cmd {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Module import graph: cycles, hotspots, fan-out, deep chains
+    Map {
+        /// Modules that import MODULE, directly or transitively
+        #[arg(long, value_name = "MODULE", conflicts_with = "deps")]
+        dependents: Option<String>,
+        /// Modules MODULE imports, directly or transitively
+        #[arg(long, value_name = "MODULE")]
+        deps: Option<String>,
+        /// Maximum import hops for --dependents / --deps
+        #[arg(long)]
+        depth: Option<usize>,
+        /// Items per section (0 = all)
+        #[arg(short = 'n', long, default_value_t = 10)]
+        limit: usize,
+        /// Leave out files matching this glob (repeatable), e.g. '*_test.go'
+        #[arg(long)]
+        exclude: Vec<String>,
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -474,6 +494,28 @@ fn run(args: Args) -> Result<()> {
                     &serde_json::json!({"source": source, "stats": idx.stats()})
                 )?
             );
+        }
+        Cmd::Map {
+            dependents,
+            deps,
+            depth,
+            limit,
+            exclude,
+            verbose,
+        } => {
+            let (idx, _) = get_or_build(&root, reg)?;
+            let options = symbol_core::map::MapOptions {
+                dependents,
+                deps,
+                depth,
+                limit,
+                exclude,
+                verbose,
+                json: args.json,
+            };
+            if !symbol_core::map::run(&idx, &options) {
+                std::process::exit(1);
+            }
         }
     }
     Ok(())

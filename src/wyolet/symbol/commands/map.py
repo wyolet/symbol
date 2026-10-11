@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.tree import Tree
 
+from wyolet.symbol.shared.ast_cache import ASTCache
 from wyolet.symbol.shared.findings import Severity
 from wyolet.symbol.shared.project_config import MapSeverityFilter, load_project_config
 
@@ -74,10 +75,16 @@ def map_cmd(
 
     # Blast radius mode — focused analysis on a single file
     if blast:
-        _run_blast(project_root, project_name, blast, inc, exc)
+        _run_blast(project_root, project_name, blast, inc, exc, format)
         return
 
     result = analyze_map(project_root, inc, exc, thresholds=config.map_thresholds, coupling_depth=coupling_depth)
+
+    # Exit 0: mixed-language CI runs must not fail just because this repo
+    # has no Python; the message makes the empty result explicit instead.
+    if result.total_files == 0:
+        _print_no_python(project_root, format)
+        return
 
     if format == "json":
         min_cycles = sev_filter.for_section("cycles")
@@ -131,6 +138,21 @@ def map_cmd(
     _print_coupling(result)
 
     console.print()
+
+
+def _no_python_message(project_root: Path) -> str:
+    return (
+        f"No Python sources found in {project_root}. This map covers Python imports only; "
+        "the import graph for other languages comes from the Rust `symbol map`."
+    )
+
+
+def _print_no_python(project_root: Path, format: str) -> None:
+    message = _no_python_message(project_root)
+    if format == "json":
+        print(json.dumps({"total_files": 0, "total_edges": 0, "python_sources": False, "message": message}, indent=2))
+    else:
+        console.print(f"{I1}{message}", highlight=False)
 
 
 def _at_least(item_sev: Severity, min_sev: Severity) -> bool:
@@ -292,10 +314,18 @@ def _print_coupling(result: MapResult) -> None:
 
 
 def _run_blast(
-    project_root: Path, project_name: str, target: str, inc: list[str] | None, exc: list[str] | None
+    project_root: Path,
+    project_name: str,
+    target: str,
+    inc: list[str] | None,
+    exc: list[str] | None,
+    format: str = "rich",
 ) -> None:
     """Run blast radius analysis for a single file."""
     result = analyze_blast(project_root, target, inc, exc)
+    if not result.direct and not result.transitive and not ASTCache(project_root, include=inc, exclude=exc).files:
+        _print_no_python(project_root, format)
+        return
 
     console.print()
     console.print(Panel(Text(f"{I1}symbol map --blast — {project_name}/", style="bold"), style="dim", expand=False))

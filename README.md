@@ -33,9 +33,10 @@ Static analysis only — `symbol` never imports or executes the target code.
 > project. Its core — the symbol index, the read surface, the write surface,
 > and `loc` — is differentially verified **byte-for-byte** against the mature
 > Python implementation across real corpora (flask, gin, this repo). The Python
-> version is being wound down as the Rust surface reaches parity. `audit`, `map`
-> (import graph), and the MCP server still live in Python today and will be
-> ported to Rust after the core lands — nothing is being dropped.
+> version is being wound down as the Rust surface reaches parity. `audit` and
+> the MCP server still live in Python today and will be ported to Rust after
+> the core lands — nothing is being dropped. `map` exists in both: the Rust one
+> works over the index for every indexed language.
 
 ## How it works
 
@@ -150,6 +151,28 @@ symbol undo           # revert the most recent transaction
 `insert-symbol` positions are `before` / `after` / `start` / `end` (relative to
 the anchor symbol). Range edits run a read-cache preflight so an agent can't
 patch a stale view of a file; `--force` skips it.
+
+### Import graph
+
+```bash
+symbol map                                  # cycles, hotspots, fan-out, deep chains
+symbol map -v                               # plus every import site and coverage detail
+symbol map --exclude '*_test.go'            # leave files out of the graph
+symbol map --dependents pkg/gateway/client  # everything that imports it, by depth
+symbol map --deps cmd/server --depth 2      # what it imports, two hops out
+```
+
+Nodes are modules — a Go package, a Python module — derived from the
+qualified paths in the index; edges are imports whose source names a module in
+the project, including across Go modules in one tree. A module can be named in
+full, by an indexed file path, or by a unique trailing part of its name. Cycle
+edges list their import sites, so cycles that exist only through test files are
+visible as such.
+
+The index records each file's module only through its symbols and keeps
+Python import sources as written. A file with no symbols (such as a
+re-export-only `__init__.py`) has no node, and relative imports are not
+resolved; `map` reports both as notes rather than counting them as edges.
 
 ### Lines of code
 
