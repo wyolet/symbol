@@ -420,6 +420,7 @@ class PythonAstAdapter(LanguageAdapter):
             is_declaring_file=is_declaring_file,
             decl_byte_range=decl_byte_range,
             module_prefix=self.module_prefix(path, project_root),
+            is_package=_is_package(path),
         )
 
     def rename_field(
@@ -445,6 +446,7 @@ class PythonAstAdapter(LanguageAdapter):
             is_declaring_file=is_declaring_file,
             decl_byte_range=decl_byte_range,
             module_prefix=self.module_prefix(path, project_root),
+            is_package=_is_package(path),
         )
 
     def rename_parameter(
@@ -472,6 +474,7 @@ class PythonAstAdapter(LanguageAdapter):
             decl_byte_range=decl_byte_range,
             module_prefix=self.module_prefix(path, project_root),
             kwargs_only=kwargs_only,
+            is_package=_is_package(path),
         )
 
     def function_parameters(
@@ -509,6 +512,7 @@ class PythonAstAdapter(LanguageAdapter):
             is_declaring_file=is_declaring_file,
             decl_byte_range=decl_byte_range,
             module_prefix=self.module_prefix(path, project_root),
+            is_package=_is_package(path),
         )
 
     # ---------------------------------------------------------- internals
@@ -662,6 +666,11 @@ def _slice(source: bytes, node: ast.AST, line_offsets: list[int]) -> str:
 def _module_name(path: Path) -> str:
     """Best-effort module name from a path (no project-root awareness yet)."""
     return path.stem
+
+
+def _is_package(path: Path) -> bool:
+    """`__init__.py` is its package's module: relative imports resolve from it."""
+    return path.name == "__init__.py"
 
 
 def _stmt_symbol(

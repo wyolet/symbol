@@ -163,18 +163,18 @@ fn rename_via_engine(
     let owner_qpath = prefix.trim_end_matches('.').to_owned();
     let decl_byte_range = index.byte_range_of(row);
 
-    // _candidate_files: declaring + in-body refs + module-level import aliases.
+    // _candidate_files: declaring + in-body refs + module-level import aliases
+    // (+ imports that may name the target module, for module bindings).
+    let module_qpath = (method == "rename_module_binding").then_some(owner_qpath.as_str());
     let mut candidates: std::collections::BTreeSet<String> =
         std::collections::BTreeSet::from([declaring_file_rel.to_owned()]);
     for (src_row, _line, _kind) in index.callers_of(old_leaf) {
         candidates.insert(index.file_of(src_row).to_owned());
     }
     for file_id in 0..index.files.len() as i64 {
-        if index
-            .imports_for(file_id)
-            .iter()
-            .any(|(local, _, _)| *local == old_leaf)
-        {
+        if index.imports_for(file_id).iter().any(|(local, source, _)| {
+            *local == old_leaf || module_qpath.is_some_and(|m| may_import_from(source, m))
+        }) {
             candidates.insert(index.files[file_id as usize].clone());
         }
     }
@@ -296,6 +296,15 @@ fn rename_via_engine(
         "unresolved": unresolved_out,
         "transaction_id": tx.transaction_id,
     })
+}
+
+/// renamer._may_import_from: the import source names `module_qpath` itself,
+/// a relative spelling of it, or a parent package that may re-export it.
+fn may_import_from(source: &str, module_qpath: &str) -> bool {
+    !source.is_empty()
+        && (source == module_qpath
+            || module_qpath.ends_with(&format!(".{source}"))
+            || module_qpath.starts_with(&format!("{source}.")))
 }
 
 // ---------------------------------------------------------- go v2 engine path

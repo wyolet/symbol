@@ -71,15 +71,38 @@ def _receiver_text(source: bytes, line_starts: list[int], node: ast.expr) -> str
     return source[s:e].decode("utf-8", errors="replace")
 
 
+def _from_module(stmt: ast.ImportFrom, module_prefix: str, is_package: bool) -> str:
+    """Absolute module qpath of a `from ... import` statement.
+
+    Relative forms resolve against the importing module: `.` is its package
+    (the module itself for an `__init__.py`), each extra dot one level up.
+    A relative import that climbs past the top level stays unresolved ("").
+    """
+    if not stmt.level:
+        return stmt.module or ""
+    parts = module_prefix.split(".") if module_prefix else []
+    drop = stmt.level - 1 if is_package else stmt.level
+    if drop > len(parts):
+        return ""
+    base = parts[:len(parts) - drop]
+    if stmt.module:
+        base.append(stmt.module)
+    return ".".join(base)
+
+
 # ──────────────────────────────────────────────────────────────────────
 # per-file resolver
 
 class _PerFileResolver:
     """Resolves receiver expressions to class or module qpaths within one file."""
 
-    def __init__(self, tree: ast.Module, module_prefix: str, index: IndexQuery):
+    def __init__(
+        self, tree: ast.Module, module_prefix: str, index: IndexQuery,
+        is_package: bool = False,
+    ):
         self.tree = tree
         self.module_prefix = module_prefix
+        self.is_package = is_package
         self.index = index
 
         # Parent links — AST nodes don't carry them by default.
@@ -110,7 +133,7 @@ class _PerFileResolver:
     def _build_name_table(self) -> None:
         for stmt in self.tree.body:
             if isinstance(stmt, ast.ImportFrom):
-                src = stmt.module or ""
+                src = self.from_module(stmt)
                 for alias in stmt.names:
                     local = alias.asname or alias.name
                     qpath = f"{src}.{alias.name}" if src else alias.name
@@ -141,6 +164,9 @@ class _PerFileResolver:
                     # Map only the leaf class name to its qpath. Nested
                     # classes shadow outer ones — last writer wins.
                     self.name_to_qpath[stmt.name] = qpath
+
+    def from_module(self, stmt: ast.ImportFrom) -> str:
+        return _from_module(stmt, self.module_prefix, self.is_package)
 
     def _class_chain(self, node: ast.ClassDef) -> list[str]:
         chain: list[str] = []
@@ -417,7 +443,7 @@ class _PerFileResolver:
                 out[local] = alias.name
             return
         if isinstance(stmt, ast.ImportFrom):
-            from_module = stmt.module or ""
+            from_module = self.from_module(stmt)
             for alias in stmt.names:
                 local = alias.asname or alias.name
                 # Record the from-module so shadowing analysis can tell
@@ -495,7 +521,7 @@ class _PerFileResolver:
         for stmt in self.tree.body:
             if not isinstance(stmt, ast.ImportFrom):
                 continue
-            from_module = stmt.module or ""
+            from_module = self.from_module(stmt)
             if not from_module:
                 continue
             is_direct = from_module == target_module_qpath
@@ -631,6 +657,7 @@ def rename_member(
     is_declaring_file: bool,
     decl_byte_range: tuple[int, int] | None,
     module_prefix: str,
+    is_package: bool = False,
 ) -> RenameAnalysis:
     line_starts = line_byte_offsets(source)
     try:
@@ -653,7 +680,7 @@ def rename_member(
     attr_rewrites, skipped, unresolved = _classify_attr_sites(
         source=source, line_starts=line_starts, tree=tree, leaf=leaf,
         new_name=new_name, target_owner_qpath=target_owner_qpath,
-        index=index, module_prefix=module_prefix,
+        index=index, module_prefix=module_prefix, is_package=is_package,
     )
     rewrites.extend(attr_rewrites)
 
@@ -674,6 +701,7 @@ def _classify_attr_sites(
     target_owner_qpath: SymbolPath,
     index: IndexQuery,
     module_prefix: str,
+    is_package: bool,
 ) -> tuple[list[ByteRewrite], list[SkippedMismatchSite], list[UnresolvedSite]]:
     """Walk every `Attribute(attr==leaf)` site and bucket it as
     rewrite / skipped_mismatch / unresolved against `target_owner_qpath`'s
@@ -685,7 +713,7 @@ def _classify_attr_sites(
     skipped: list[SkippedMismatchSite] = []
 
     fast_path = len(index.owners_of_leaf(leaf)) <= 1
-    resolver = None if fast_path else _PerFileResolver(tree, module_prefix, index)
+    resolver = None if fast_path else _PerFileResolver(tree, module_prefix, index, is_package)
 
     for node in ast.walk(tree):
         if not (isinstance(node, ast.Attribute) and node.attr == leaf):
@@ -824,6 +852,7 @@ def rename_field(
     is_declaring_file: bool,
     decl_byte_range: tuple[int, int] | None,
     module_prefix: str,
+    is_package: bool = False,
 ) -> RenameAnalysis:
     """Per-file rename for a class field / instance attribute.
 
@@ -856,7 +885,7 @@ def rename_field(
     attr_rewrites, skipped, unresolved = _classify_attr_sites(
         source=source, line_starts=line_starts, tree=tree, leaf=leaf,
         new_name=new_name, target_owner_qpath=target_owner_qpath,
-        index=index, module_prefix=module_prefix,
+        index=index, module_prefix=module_prefix, is_package=is_package,
     )
     rewrites.extend(attr_rewrites)
 
@@ -1222,6 +1251,7 @@ def rename_parameter(
     decl_byte_range: tuple[int, int] | None,
     module_prefix: str,
     kwargs_only: bool = False,
+    is_package: bool = False,
 ) -> RenameAnalysis:
     """Per-file parameter rename analysis.
 
@@ -1248,7 +1278,7 @@ def rename_parameter(
             ),),
         )
 
-    resolver = _PerFileResolver(tree, module_prefix, index)
+    resolver = _PerFileResolver(tree, module_prefix, index, is_package)
     owner_qpath = func_qpath.rsplit(".", 1)[0] if "." in func_qpath else ""
     owner_decl = index.find_declaration(owner_qpath) if owner_qpath else None
     owner_is_class = owner_decl is not None and owner_decl[3] == "class"
@@ -1311,6 +1341,7 @@ def rename_module_binding(
     is_declaring_file: bool,
     decl_byte_range: tuple[int, int] | None,
     module_prefix: str,
+    is_package: bool = False,
 ) -> RenameAnalysis:
     """Per-file rename for module-level bindings.
 
@@ -1348,7 +1379,7 @@ def rename_module_binding(
         if decl is not None:
             rewrites.append(decl)
 
-    resolver = _PerFileResolver(tree, module_prefix, index)
+    resolver = _PerFileResolver(tree, module_prefix, index, is_package)
     leaf_b = leaf.encode("utf-8")
     file_imports = resolver.file_imports_target(leaf, target_module_qpath)
 
@@ -1418,7 +1449,7 @@ def rename_module_binding(
         elif isinstance(node, ast.alias) and node.name == leaf:
             parent = resolver.parent.get(id(node))
             if isinstance(parent, ast.ImportFrom):
-                from_module = parent.module or ""
+                from_module = resolver.from_module(parent)
                 # Accept the alias when:
                 #  (a) the from-module is exactly the target module, OR
                 #  (b) the target module is a submodule of from_module
