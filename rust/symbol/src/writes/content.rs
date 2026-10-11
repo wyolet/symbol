@@ -1,5 +1,4 @@
-//! Port of writes/_content.py — normalize agent-supplied content, plus the
-//! indent probe from replace_symbol.py.
+//! Normalize agent-supplied content and probe target indentation for replace-symbol.
 
 /// normalize_content: strip leading/trailing blank lines, dedent by the
 /// minimum indent of non-blank lines, re-indent to `target_indent`, single

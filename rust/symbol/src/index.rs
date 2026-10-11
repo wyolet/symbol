@@ -1,6 +1,4 @@
-//! Port of shared/symbol_index.py — the columnar symbol lookup table.
-//! Persisted format is BYTE-COMPATIBLE with Python's v8 index
-//! (.symbol/symbol_index.msgpack.zst): either side can read the other's.
+//! Columnar symbol lookup table, persisted as `.symbol/symbol_index.msgpack.zst` (v8).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -27,7 +25,7 @@ const REBUILD_THRESHOLD: usize = 200;
 const COMPACT_RATIO: f64 = 0.30;
 const COMPACT_MIN: i64 = 100;
 
-// Symbol row positions (shared/symbol.py).
+// Symbol row positions within a serialized row tuple.
 pub const S_PATH: usize = 0;
 pub const S_FILE: usize = 1;
 pub const S_SLINE: usize = 2;

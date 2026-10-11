@@ -1,4 +1,4 @@
-//! Port of commands/hook.py — the Claude Code hook entry point.
+//! Claude Code hook entry point.
 //!
 //! PreToolUse (Read / Grep / Edit / Write) on an indexed project nudges
 //! toward the symbol tools via `additionalContext`, or with `enforce` blocks

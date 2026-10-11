@@ -1,5 +1,5 @@
-//! Port of commands/refresh.py — reindex (incremental or full) and clear
-//! the transaction log. Shared by `symbol refresh` and the MCP Refresh tool.
+//! Reindex (incremental or full) and clear the transaction log.
+//! Shared by `symbol refresh` and the MCP Refresh tool.
 
 use std::path::Path;
 

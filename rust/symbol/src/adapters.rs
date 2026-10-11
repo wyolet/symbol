@@ -636,7 +636,7 @@ impl Adapter {
 
     /// insert-symbol: topmost decorator line of the def/class at `def_line`,
     /// or `def_line` itself when there are no decorators / no match / parse
-    /// failure. Port of insert_symbol.py `_first_decorator_line`.
+    /// failure.
     pub fn first_decorator_line(&self, path: &Path, def_line: i64) -> Result<i64> {
         let result = self.daemon.call(
             "first_decorator_line",

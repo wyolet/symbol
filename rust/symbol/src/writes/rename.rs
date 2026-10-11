@@ -1,8 +1,6 @@
-//! Port of writes/rename_symbol.py + writes/rename/renamer.py.
-//!
-//! Engine routing mirrors Python: supported Python and Go symbol kinds go
-//! through their v2 receiver-aware daemon analysis. Unsupported kinds take
-//! the tier-1 textual fallback. Results carry "engine": "v2" | "tier1".
+//! Symbol rename: supported Python and Go symbol kinds go through receiver-aware
+//! daemon analysis (v2); unsupported kinds take the tier-1 textual fallback.
+//! Results carry "engine": "v2" | "tier1".
 
 use std::path::Path;
 

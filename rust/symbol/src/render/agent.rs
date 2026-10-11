@@ -78,7 +78,7 @@ fn pair(value: &Value, i: usize) -> String {
     py(&value[i])
 }
 
-/// commands/patch.py `_render_error(code, message, agent=True)`.
+/// Patch error response: status, error_code, message.
 pub fn patch_error(code: &Value, message: &Value) -> String {
     let mut out = Out::default();
     out.line("status: error");
@@ -87,7 +87,7 @@ pub fn patch_error(code: &Value, message: &Value) -> String {
     out.finish()
 }
 
-/// commands/patch.py `_render_needs_confirmation_agent`.
+/// Patch preflight failure: file, range, and current content for the agent to review.
 pub fn patch_needs_read(
     file_rel: &str,
     line_range: (i64, i64),
@@ -113,7 +113,7 @@ pub fn patch_needs_read(
     out.finish()
 }
 
-/// commands/patch.py `_render_result_agent`.
+/// Patch result response: status, file, before/after line ranges, and diff.
 pub fn patch_result(result: &Value) -> String {
     let status = s(result, "status");
     let verb = if status == "dry_run" {
@@ -140,7 +140,7 @@ pub fn patch_result(result: &Value) -> String {
     out.finish()
 }
 
-/// mcp/server.py `_format_multi_patch_result`.
+/// Multi-patch result: status per edit with unconfirmed list and optional diff.
 pub fn multi_patch_result(result: &Value) -> String {
     let mut lines = vec![
         format!("status: {}", s(result, "status")),
@@ -200,7 +200,7 @@ fn caller_line(c: &Value) -> String {
     )
 }
 
-/// commands/delete_symbol.py `_render_error(agent=True)` / `_render_agent`.
+/// Delete-symbol response: error or success with diff and broken-callers warning.
 pub fn delete_symbol(result: &Value) -> String {
     let mut out = Out::default();
     let callers = list(result, "callers");
@@ -260,7 +260,7 @@ pub fn delete_symbol(result: &Value) -> String {
     out.finish()
 }
 
-/// commands/insert_symbol.py `_render(format="rich", agent=True)`.
+/// Insert-symbol response: error or success with insertion location and diff.
 pub fn insert_symbol(result: &Value) -> String {
     let mut out = Out::default();
     let status = s(result, "status");
@@ -313,7 +313,7 @@ fn candidate_error(result: &Value) -> String {
     out.finish()
 }
 
-/// commands/rename_symbol.py `_render_error` / `_render_agent`.
+/// Rename-symbol response: error or success with per-file ref counts and unresolved sites.
 pub fn rename_symbol(result: &Value) -> String {
     let status = s(result, "status");
     if status == "error" {
@@ -408,7 +408,7 @@ pub fn rename_symbol(result: &Value) -> String {
     out.finish()
 }
 
-/// commands/replace_symbol.py `_render_error` / `_render_agent`.
+/// Replace-symbol response: error or success with diff.
 pub fn replace_symbol(result: &Value) -> String {
     let status = s(result, "status");
     if status == "error" {
