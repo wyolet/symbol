@@ -169,7 +169,7 @@ Rules:
 - Never invent a qualified path, file, range, or content. Derive them from the diff and module_context.
 - expected_files must contain only candidate files and must be the exact files the operation should change.
 - pre_reads are symbol paths or file:A-B reads an agent should perform before the write.
-- args must match exactly one of these symbol-rs CLI contracts:
+- args must match exactly one of these symbol CLI contracts:
   rename-symbol: {{"qualified_path": string, "new_name": string}}
   replace-symbol: {{"qualified_path": string, "content": string}}
   insert-symbol: {{"anchor_path": string, "position": "before"|"after", "content": string}}

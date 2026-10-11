@@ -65,7 +65,7 @@ enum Commands {
         #[arg(long)]
         require_hint: Option<String>,
     },
-    /// Let Grok execute natural tasks through a Rust-mediated symbol-rs loop
+    /// Let Grok execute natural tasks through a Rust-mediated symbol loop
     Exercise {
         manifest: PathBuf,
         input: PathBuf,

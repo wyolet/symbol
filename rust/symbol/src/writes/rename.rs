@@ -8,7 +8,7 @@ use std::path::Path;
 
 use crate::adapters::Registry;
 use crate::index::Index;
-use crate::writes::ops::resolve_single as resolve_symbol_row;
+use crate::writes::ops::{require_adapter, resolve_single as resolve_symbol_row};
 use crate::writes::tx::{commit_edits, FileEdit};
 
 const MEMBER_KINDS: [&str; 2] = ["method", "async_method"];
@@ -149,32 +149,26 @@ fn rename_via_engine(
     reg: &Registry,
     dry_run: bool,
 ) -> serde_json::Value {
-    // The daemon resolves against the ON-DISK index; make sure it reflects
-    // any in-memory refresh resolve_single may have done.
-    let _ = index.save();
-
-    let Ok(adapter) = reg.for_language("python") else {
-        return serde_json::json!({
-            "status": "error", "error_code": "no_adapter",
-            "message": "pyscan daemon unavailable",
-        });
+    let adapter = match require_adapter(reg, "python") {
+        Ok(adapter) => adapter,
+        Err(e) => return e,
     };
 
     let owner_qpath = prefix.trim_end_matches('.').to_owned();
     let decl_byte_range = index.byte_range_of(row);
 
-    // _candidate_files: declaring + in-body refs + module-level import aliases.
+    // _candidate_files: declaring + in-body refs + module-level import aliases
+    // (+ imports that may name the target module, for module bindings).
+    let module_qpath = (method == "rename_module_binding").then_some(owner_qpath.as_str());
     let mut candidates: std::collections::BTreeSet<String> =
         std::collections::BTreeSet::from([declaring_file_rel.to_owned()]);
     for (src_row, _line, _kind) in index.callers_of(old_leaf) {
         candidates.insert(index.file_of(src_row).to_owned());
     }
     for file_id in 0..index.files.len() as i64 {
-        if index
-            .imports_for(file_id)
-            .iter()
-            .any(|(local, _, _)| *local == old_leaf)
-        {
+        if index.imports_for(file_id).iter().any(|(local, source, _)| {
+            *local == old_leaf || module_qpath.is_some_and(|m| may_import_from(source, m))
+        }) {
             candidates.insert(index.files[file_id as usize].clone());
         }
     }
@@ -205,6 +199,7 @@ fn rename_via_engine(
             is_declaring,
             is_declaring.then_some(decl_byte_range),
             new_name,
+            index,
         ) {
             Ok(a) => a,
             Err(e) => {
@@ -298,6 +293,15 @@ fn rename_via_engine(
     })
 }
 
+/// renamer._may_import_from: the import source names `module_qpath` itself,
+/// a relative spelling of it, or a parent package that may re-export it.
+fn may_import_from(source: &str, module_qpath: &str) -> bool {
+    !source.is_empty()
+        && (source == module_qpath
+            || module_qpath.ends_with(&format!(".{source}"))
+            || module_qpath.starts_with(&format!("{source}.")))
+}
+
 // ---------------------------------------------------------- go v2 engine path
 
 /// Go rename via the go-scan daemon: a single project-wide RPC (the daemon
@@ -320,11 +324,9 @@ fn rename_via_go_engine(
     reg: &Registry,
     dry_run: bool,
 ) -> serde_json::Value {
-    let Ok(adapter) = reg.for_language("go") else {
-        return serde_json::json!({
-            "status": "error", "error_code": "no_adapter",
-            "message": "go-scan daemon unavailable",
-        });
+    let adapter = match require_adapter(reg, "go") {
+        Ok(adapter) => adapter,
+        Err(e) => return e,
     };
 
     let container_qpath = prefix.trim_end_matches('.').to_owned();

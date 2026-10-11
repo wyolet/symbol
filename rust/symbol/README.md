@@ -4,17 +4,62 @@ Rust port of symbol's language-neutral core: the symbol index, the read
 surface (search / code / outline / callers), and the write surface (patch /
 multi-patch / delete-symbol / insert-symbol / replace-symbol / rename-symbol /
 undo), plus
-LOC counting, behind the `symbol-rs` binary. Language analysis never happens
+LOC counting, behind the `symbol` binary. Language analysis never happens
 in-process — it runs in native-AST daemons speaking newline-delimited JSON-RPC
 2.0 over stdio (`schemas/symbol.rpc.schema.json`):
 
-- **Python** → `wyolet.symbol.adapters.pyscan` (new; ~150-line stdio socket
-  around the existing `PythonAstAdapter` — Python code is analyzed by
-  Python's own `ast`, exactly as before)
+- **Python** → `wyolet.symbol.adapters.pyscan`, a stdio socket around the
+  existing `PythonAstAdapter` (Python code is analyzed by Python's own `ast`,
+  exactly as in the Python CLI). Embedded in the binary; see below.
 - **Go** → the `daemon/go-scan` binary
 
-Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
-`SYMBOL_REPO` (checkout providing both), else the crate's own repo (dev mode).
+Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override).
+go-scan is otherwise looked up in order: `go-scan` or `go-scan-<os>-<arch>`
+next to the running executable (symlinks resolved), the dev builds under
+`SYMBOL_REPO` (else the crate's own repo), then that checkout's
+wheel-bundled `src/wyolet/symbol/bin/go-scan-<os>-<arch>`.
+
+Go renames also need the Go toolchain (`go`) on `PATH`: go-scan's rename
+loads the project with `packages.Load`, which shells out to `go`. Indexing
+and reads only parse files and work without it.
+
+A daemon that can't start is an error, not a filter. Python's registry
+reports such a language as unsupported and indexes around it; the Rust
+index build and refresh instead stop with `daemon_unavailable` (language,
+daemon, env var) before saving, so an existing index is never replaced by
+one missing that language. Symbol-level writes that need the daemon
+refuse with the same error before touching files. Reads on an index that
+needs no refresh still fall back to first-line signatures and previews.
+
+### Embedded pyscan
+
+`src/pyscan.rs` embeds pyscan's import closure with `include_str!`, using the
+same files the Python package imports, so there is a single source.
+`adapters/__init__.py` is left out because it eagerly registers every adapter;
+without it the directory imports as a namespace package. The closure is
+stdlib-only. On first use the files are written to
+`<user cache>/symbol/pyscan-<content hash>/`, one atomic rename per file, and
+run as:
+
+```
+<python> -I -S -X utf8 -c "<bootstrap>" <cache dir>
+```
+
+`-I -S` keeps the user's environment, cwd and site-packages from shadowing
+the embedded modules.
+
+The interpreter is `SYMBOL_PYTHON` if set, else the first of `python3` /
+`python` on `PATH` that reports Python >= 3.10. 3.10 is the floor because the
+code evaluates PEP 604 `X | None` annotations at runtime. If nothing qualifies,
+the index build fails with a JSON error (`error_code: python_unavailable`,
+`required_python`, `override_env`, and each interpreter tried) rather than
+indexing zero Python files.
+
+pyscan never reads the on-disk index (that needs msgpack/zstd). During rename
+analysis it asks the caller `index/find_declaration`, `index/class_bases` and
+`index/owners_of_leaf` over the same stdio stream. `rpc.rs`
+(`Daemon::call_serving`) answers these from the in-memory index via
+`writes/index_query.rs`, a port of `writes/rename/index_query.py`.
 
 ## Interop guarantees (verified end-to-end)
 
@@ -23,8 +68,8 @@ Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
   `index.rs`: Python's `zstandard.decompress()` requires the frame content
   size, so saves use `zstd::bulk::compress`.)
 - **Transactions**: `.symbol/transactions/<id>/manifest.json` matches
-  Python's format — `symbol undo` (Python) rolls back Rust-committed writes
-  and `symbol-rs undo` rolls back Python's.
+  Python's format — Python `symbol undo` rolls back Rust-committed writes
+  and Rust `symbol undo` rolls back Python's.
 - **Read cache**: `.symbol/cache/sessions/<SYMBOL_SESSION_ID>.json`, same
   JSON shape as caches/disk.py, so patch preflight works across both CLIs
   in one agent session.
@@ -55,10 +100,12 @@ Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` (full command override),
 ```
 src/rpc.rs        JSON-RPC stdio client (go_ast transport, reused)
 src/adapters.rs   registry + daemon adapters + wire types (protocols/types.py)
+src/pyscan.rs     embedded pyscan: interpreter probe, cache materialization
 src/index.rs      shared/symbol_index.py — v8 format, staleness, refresh
 src/reads.rs      reads/ — search, code, outline, callers
-src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename
-src/main.rs       clap CLI (symbol-rs)
+src/writes/       writes/ — patch, tx+undo, read_cache, content, ops, rename,
+                  index_query (daemon index/* queries)
+src/main.rs       clap CLI (the `symbol` binary)
 ```
 
 ## Differential verification
@@ -121,7 +168,7 @@ All fixed and re-swept to zero:
 
 Timing medians per op (seconds; write ops are fair CLI-vs-CLI comparisons;
 read ops are not — Python reads run in-process on a pre-loaded index while
-`symbol-rs` pays full process startup per invocation):
+the Rust binary pays full process startup per invocation):
 
 | op | flask py / rs | gin py / rs | self py / rs |
 |---|---|---|---|

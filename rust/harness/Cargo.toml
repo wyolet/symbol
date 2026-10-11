@@ -2,7 +2,7 @@
 name = "symbol-harness"
 version = "0.1.0"
 edition = "2021"
-description = "Stateful black-box feature harness for symbol-rs"
+description = "Stateful black-box feature harness for the symbol binary"
 license = "Apache-2.0"
 
 [[bin]]

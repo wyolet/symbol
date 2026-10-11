@@ -10,7 +10,7 @@ name = "symbol_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "symbol-rs"
+name = "symbol"
 path = "src/main.rs"
 
 [dependencies]

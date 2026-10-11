@@ -16,7 +16,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          # go-scan type-checks projects only up to the Go it was built with
+          go-version: stable
       - name: Cross-compile go-scan for every shipped platform
         # The wheel's ``artifacts`` glob (pyproject.toml) picks up everything
         # under src/wyolet/symbol/bin/, so binaries built here get bundled

@@ -1,5 +1,5 @@
 //! `symbol loc` as a library — shared by the standalone `symbol-linguist`
-//! binary and the `symbol-rs loc` subcommand (one product, one code path).
+//! binary and the `symbol loc` subcommand (one product, one code path).
 
 use std::collections::HashMap;
 use std::path::PathBuf;

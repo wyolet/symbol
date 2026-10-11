@@ -29,13 +29,14 @@ unfamiliar codebase:
 
 Static analysis only — `symbol` never imports or executes the target code.
 
-> **Status.** This is the Rust rewrite (`symbol-rs`), the future of the
+> **Status.** This is the Rust rewrite (`rust/`), the future of the
 > project. Its core — the symbol index, the read surface, the write surface,
 > and `loc` — is differentially verified **byte-for-byte** against the mature
 > Python implementation across real corpora (flask, gin, this repo). The Python
-> version is being wound down as the Rust surface reaches parity. `audit`, `map`
-> (import graph), and the MCP server still live in Python today and will be
-> ported to Rust after the core lands — nothing is being dropped.
+> version is being wound down as the Rust surface reaches parity. `audit` and
+> the MCP server still live in Python today and will be ported to Rust after
+> the core lands — nothing is being dropped. `map` exists in both: the Rust one
+> works over the index for every indexed language.
 
 ## How it works
 
@@ -52,8 +53,22 @@ The Rust core owns everything neutral — the on-disk index, staleness and
 incremental refresh, search/read/write orchestration, transactions, the read
 cache, and LOC. A new language is a new daemon, not new branches in the engine.
 
-Daemon discovery is by environment: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` override
-the full command; `SYMBOL_REPO` points at a checkout that provides both.
+`pyscan` is compiled into the binary. Its modules are stdlib-only and are
+unpacked once into the user cache dir (`~/Library/Caches/symbol` on macOS,
+`$XDG_CACHE_HOME/symbol` or `~/.cache/symbol` elsewhere). They then run on the
+first Python >= 3.10 found as `python3` or `python` on `PATH`; set
+`SYMBOL_PYTHON` to choose the interpreter. Parity with the Python CLI is
+verified with both on the same Python minor version. An older interpreter
+can't parse newer syntax, and files that fail to parse are skipped.
+
+Daemon discovery: `SYMBOL_PYSCAN` / `SYMBOL_GOSCAN` override the full command.
+Without an override, `go-scan` (or `go-scan-<os>-<arch>`) is taken from the
+directory holding the `symbol` executable, then from a source checkout
+(`SYMBOL_REPO`, else the one the binary was built from). If the project has
+files in a language whose daemon can't start, `index`, `refresh`, symbol-level
+writes, and reads that need a refresh exit non-zero
+(`daemon_unavailable`, or `python_unavailable` naming the required version)
+and leave the index and files untouched.
 
 ## Install
 
@@ -63,19 +78,21 @@ the full command; `SYMBOL_REPO` points at a checkout that provides both.
 ```bash
 git clone https://github.com/wyolet/symbol
 cd symbol/rust
-cargo build --release          # → target/release/symbol-rs
+cargo build --release          # → target/release/symbol
 ```
 
-The built binary is `symbol-rs`; it takes the canonical `symbol` name once
-packaged. Alias it while building from source:
+Put `target/release` on your `PATH`, or alias it while building from source:
 
 ```bash
-alias symbol="$PWD/target/release/symbol-rs"
+alias symbol="$PWD/target/release/symbol"
 ```
 
 The Go daemon (`go-scan`) is cross-compiled per platform in CI; a Go toolchain
-lets you build it locally via `make build-go-scan`. Python analysis uses the
-`pyscan` adapter from this repo — no separate build.
+lets you build it locally via `make build-go-scan`. For Go projects without
+Python, place a `go-scan` binary next to `symbol`. Go renames also need the Go
+toolchain (`go`) on `PATH`, since go-scan's rename loads packages through
+`packages.Load`; indexing and reads don't. Python analysis needs only a
+Python >= 3.10 interpreter: no pip install and no repo checkout.
 
 ## Usage
 
@@ -107,6 +124,8 @@ symbol code src/services/user.py:120-145  # body by explicit line range
 
 symbol outline src/services/user.py       # parent-child symbol tree of a file
 symbol callers UserService                # tier-1 textual reference scan
+symbol refs store.Store.Save              # type-resolved references (Go)
+symbol implementers net/http.Handler      # implementers of an interface, or interfaces a type implements (Go)
 ```
 
 ### Write
@@ -134,6 +153,28 @@ symbol undo           # revert the most recent transaction
 `insert-symbol` positions are `before` / `after` / `start` / `end` (relative to
 the anchor symbol). Range edits run a read-cache preflight so an agent can't
 patch a stale view of a file; `--force` skips it.
+
+### Import graph
+
+```bash
+symbol map                                  # cycles, hotspots, fan-out, deep chains
+symbol map -v                               # plus every import site and coverage detail
+symbol map --exclude '*_test.go'            # leave files out of the graph
+symbol map --dependents pkg/gateway/client  # everything that imports it, by depth
+symbol map --deps cmd/server --depth 2      # what it imports, two hops out
+```
+
+Nodes are modules — a Go package, a Python module — derived from the
+qualified paths in the index; edges are imports whose source names a module in
+the project, including across Go modules in one tree. A module can be named in
+full, by an indexed file path, or by a unique trailing part of its name. Cycle
+edges list their import sites, so cycles that exist only through test files are
+visible as such.
+
+The index records each file's module only through its symbols and keeps
+Python import sources as written. A file with no symbols (such as a
+re-export-only `__init__.py`) has no node, and relative imports are not
+resolved; `map` reports both as notes rather than counting them as edges.
 
 ### Lines of code
 
@@ -171,7 +212,7 @@ state, so a mixed agent session is safe:
 
 ```
 rust/
-├── symbol/     symbol-core → the `symbol-rs` binary (index, reads, writes, loc)
+├── symbol/     symbol-core → the `symbol` binary (index, reads, writes, loc)
 ├── linguist/   symbol-linguist → GitHub-Linguist port + LOC counting
 ├── dataset/    differential-test dataset mining and verification
 └── harness/    black-box feature harness

@@ -1,4 +1,4 @@
-//! Integration tests for `symbol-rs insert-symbol` (WP6). Each test drives the
+//! Integration tests for `symbol insert-symbol` (WP6). Each test drives the
 //! compiled binary against a throwaway project, so the real pyscan daemon runs
 //! (index build + first_decorator_line). Placement and indentation are checked
 //! by reading the file back after the splice.
@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::Command;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_symbol-rs")
+    env!("CARGO_BIN_EXE_symbol")
 }
 
 /// A fresh project with a decorated function, a plain function, and a class
@@ -54,12 +54,12 @@ fn run(root: &Path, args: &[&str]) -> serde_json::Value {
         .arg("--json")
         .args(args)
         .output()
-        .expect("spawn symbol-rs");
+        .expect("spawn symbol");
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
     serde_json::from_str(&stdout).unwrap_or_else(|e| {
         panic!(
-            "invalid symbol-rs JSON (status {})\nerror: {e}\nstdout: {stdout}\nstderr: {stderr}",
+            "invalid symbol JSON (status {})\nerror: {e}\nstdout: {stdout}\nstderr: {stderr}",
             out.status
         )
     })

@@ -26,15 +26,15 @@ cargo run --manifest-path rust/Cargo.toml -p symbol-dataset -- \
 # 4. Reject plans that cannot deterministically reproduce child commits.
 cargo run --manifest-path rust/Cargo.toml -p symbol-dataset -- \
   verify scripts/feature_cases/corpora.json .tmp/dataset/composed.jsonl \
-  --symbol-bin rust/target/debug/symbol-rs \
+  --symbol-bin rust/target/debug/symbol \
   --out .tmp/dataset/verified.jsonl
 
 # 5. Give only deterministic exact tasks to Grok. Rust mediates every model
-# turn and executes only structured symbol-rs argv; no shell or file tools are
+# turn and executes only structured symbol argv; no shell or file tools are
 # available. Exact child files and undo are checked again.
 cargo run --manifest-path rust/Cargo.toml -p symbol-dataset -- \
   exercise scripts/feature_cases/corpora.json .tmp/dataset/composed.jsonl \
-  --symbol-bin rust/target/debug/symbol-rs --model grok-4.5 \
+  --symbol-bin rust/target/debug/symbol --model grok-4.5 \
   --verified-input .tmp/dataset/verified.jsonl \
   --out .tmp/dataset/exercised.jsonl --keep-failures
 
@@ -46,7 +46,7 @@ cargo run --manifest-path rust/Cargo.toml -p symbol-dataset -- \
 
 cargo run --manifest-path rust/Cargo.toml -p symbol-harness -- \
   .tmp/dataset/harness.json --repo-cache .tmp/corpora \
-  --bin rust/target/debug/symbol-rs
+  --bin rust/target/debug/symbol
 ```
 
 The model is never the correctness oracle. Git child commits, exact changed

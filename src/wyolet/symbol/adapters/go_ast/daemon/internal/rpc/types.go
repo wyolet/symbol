@@ -39,6 +39,9 @@ const (
 	ErrMethodNotFound = -32601
 	ErrInvalidParams  = -32602
 	ErrInternal       = -32603
+	// ErrAnalysis is an analysis the worker refused; Data carries
+	// {"error_code": ...} plus code-specific fields.
+	ErrAnalysis = -32000
 )
 
 // ── method params / results ────────────────────────────────────────
@@ -216,4 +219,70 @@ type RenameFileAnalysis struct {
 // the daemon analyzed but produced no hits for may be omitted.
 type RenameResult struct {
 	Files map[string]RenameFileAnalysis `json:"files"`
+}
+
+// ── references / implementers ──────────────────────────────────────
+
+// SymbolTargetParams names one declaration: where the index recorded it
+// (DeclaringFile, DeclByteRange, Leaf), or, with DeclaringFile empty, by
+// QualifiedPath alone ("import/path.Name" or "import/path.Type.Member"),
+// which also reaches declarations in dependencies.
+type SymbolTargetParams struct {
+	ProjectRoot   string `json:"project_root"`
+	QualifiedPath string `json:"qualified_path"`
+	Leaf          string `json:"leaf"`
+	DeclaringFile string `json:"declaring_file,omitempty"`
+	DeclByteRange [2]int `json:"decl_byte_range"`
+}
+
+// SourceSite is a position in a source file. File is relative to the
+// project root, or absolute for files outside it. Line and Col are 1-based;
+// Col and the byte offsets count bytes.
+type SourceSite struct {
+	File      string `json:"file"`
+	Line      int    `json:"line"`
+	Col       int    `json:"col"`
+	ByteStart int    `json:"byte_start"`
+	ByteEnd   int    `json:"byte_end"`
+}
+
+// ResolvedSymbol is a declaration as go/types sees it. Kind is one of
+// func, method, type, interface, field, var, const.
+type ResolvedSymbol struct {
+	QualifiedPath string `json:"qualified_path"`
+	Kind          string `json:"kind"`
+	External      bool   `json:"external"`
+	SourceSite
+}
+
+// NotAnalyzedFile is a project Go file no loaded package type-checks.
+// Constraint says why: its canonical build constraint, its GOOS/GOARCH
+// filename suffix, or "not in any loaded package".
+type NotAnalyzedFile struct {
+	File       string `json:"file"`
+	Constraint string `json:"constraint"`
+}
+
+// ReferencesResult lists every use of the target, declaration excluded.
+type ReferencesResult struct {
+	Target      ResolvedSymbol    `json:"target"`
+	References  []SourceSite      `json:"references"`
+	NotAnalyzed []NotAnalyzedFile `json:"not_analyzed"`
+}
+
+// Implementation is one side of an implements relation. Pointer is set
+// when only the pointer to the concrete type satisfies the interface.
+type Implementation struct {
+	ResolvedSymbol
+	Pointer bool `json:"pointer"`
+}
+
+// ImplementersResult carries Implementers for an interface target (the
+// project's concrete types satisfying it) or Interfaces for a concrete
+// target (project and dependency interfaces it satisfies).
+type ImplementersResult struct {
+	Target       ResolvedSymbol   `json:"target"`
+	Implementers []Implementation `json:"implementers"`
+	Interfaces   []Implementation  `json:"interfaces"`
+	NotAnalyzed  []NotAnalyzedFile `json:"not_analyzed"`
 }

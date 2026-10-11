@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use symbol_core::adapters::default_registry;
+use symbol_core::adapters::{default_registry, DaemonUnavailable};
 use symbol_core::index::{full_build, get_or_build, Index};
 use symbol_core::reads;
 use symbol_core::writes::ops::{delete_symbol, insert_symbol, replace_symbol};
@@ -14,7 +14,7 @@ use symbol_core::writes::read_cache::ReadCache;
 use symbol_core::writes::rename::rename_symbol;
 use symbol_core::writes::tx::undo_last;
 
-/// symbol-rs — Rust port of symbol's core (index, reads, writes).
+/// symbol — AST-native code intelligence (index, reads, writes, loc).
 /// Language analysis runs in native-AST daemons (pyscan / go-scan).
 #[derive(Parser)]
 #[command(version, about)]
@@ -59,6 +59,20 @@ enum Cmd {
     Outline { query: String },
     /// Tier-1 textual reference scan
     Callers { name: String },
+    /// Type-resolved references to one symbol (adapter-backed)
+    Refs {
+        qualified_path: String,
+        /// List every file that was not analyzed
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// Implementers of an interface, or interfaces a type implements
+    Implementers {
+        qualified_path: String,
+        /// List every file that was not analyzed
+        #[arg(short, long)]
+        verbose: bool,
+    },
     /// Byte-range edit primitive (replace / delete via empty content)
     Patch {
         file: String,
@@ -136,10 +150,46 @@ enum Cmd {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Module import graph: cycles, hotspots, fan-out, deep chains
+    Map {
+        /// Modules that import MODULE, directly or transitively
+        #[arg(long, value_name = "MODULE", conflicts_with = "deps")]
+        dependents: Option<String>,
+        /// Modules MODULE imports, directly or transitively
+        #[arg(long, value_name = "MODULE")]
+        deps: Option<String>,
+        /// Maximum import hops for --dependents / --deps
+        #[arg(long)]
+        depth: Option<usize>,
+        /// Items per section (0 = all)
+        #[arg(short = 'n', long, default_value_t = 10)]
+        limit: usize,
+        /// Leave out files matching this glob (repeatable), e.g. '*_test.go'
+        #[arg(long)]
+        exclude: Vec<String>,
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let json = args.json;
+    let Err(err) = run(args) else {
+        return Ok(());
+    };
+    let Some(unavailable) = err.downcast_ref::<DaemonUnavailable>() else {
+        return Err(err);
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&unavailable.to_json())?);
+    } else {
+        eprintln!("error [daemon_unavailable]: {unavailable}");
+    }
+    std::process::exit(1);
+}
+
+fn run(args: Args) -> Result<()> {
     let root = args.root.canonicalize()?;
     let reg = default_registry(&root);
 
@@ -218,7 +268,7 @@ fn main() -> Result<()> {
                     println!("{}", "─".repeat(78));
                 }
                 if !hits.is_empty() {
-                    println!("Use symbol-rs code <file:start-end> to fetch a body.");
+                    println!("Use symbol code <file:start-end> to fetch a body.");
                 }
             }
         }
@@ -279,6 +329,22 @@ fn main() -> Result<()> {
                     );
                 }
             }
+        }
+        Cmd::Refs {
+            qualified_path,
+            verbose,
+        } => {
+            let (idx, _) = get_or_build(&root, reg)?;
+            let result = symbol_core::xref::references(&idx, &qualified_path, reg);
+            finish_xref(&result, args.json, verbose, print_refs)?;
+        }
+        Cmd::Implementers {
+            qualified_path,
+            verbose,
+        } => {
+            let (idx, _) = get_or_build(&root, reg)?;
+            let result = symbol_core::xref::implementers(&idx, &qualified_path, reg);
+            finish_xref(&result, args.json, verbose, print_implementers)?;
         }
         Cmd::Patch {
             file,
@@ -413,8 +479,12 @@ fn main() -> Result<()> {
                 // Python command and explicitly refresh every restored file.
                 if let Some(mut idx) = Index::load(&root) {
                     let stale = result.files_restored.iter().cloned().collect();
-                    idx.refresh(&stale, &Default::default(), reg);
-                    idx.save()?;
+                    match idx.refresh(&stale, &Default::default(), reg) {
+                        Ok(()) => {
+                            idx.save()?;
+                        }
+                        Err(err) => eprintln!("warning: index not refreshed after undo: {err:#}"),
+                    }
                 }
             }
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -455,6 +525,28 @@ fn main() -> Result<()> {
                 )?
             );
         }
+        Cmd::Map {
+            dependents,
+            deps,
+            depth,
+            limit,
+            exclude,
+            verbose,
+        } => {
+            let (idx, _) = get_or_build(&root, reg)?;
+            let options = symbol_core::map::MapOptions {
+                dependents,
+                deps,
+                depth,
+                limit,
+                exclude,
+                verbose,
+                json: args.json,
+            };
+            if !symbol_core::map::run(&idx, &options) {
+                std::process::exit(1);
+            }
+        }
     }
     Ok(())
 }
@@ -484,8 +576,12 @@ fn finish_write(
             }
         }
         if !touched.is_empty() {
-            idx.refresh(&touched, &Default::default(), reg);
-            let _ = idx.save();
+            match idx.refresh(&touched, &Default::default(), reg) {
+                Ok(()) => {
+                    let _ = idx.save();
+                }
+                Err(err) => eprintln!("warning: index not refreshed after write: {err:#}"),
+            }
         }
     }
     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -527,6 +623,146 @@ fn record_read(root: &std::path::Path, _idx: &Index, payload: &serde_json::Value
             served_mtime: mt,
             tool_call_idx: 0,
         });
+    }
+}
+
+/// Print a refs/implementers result; errors print as `error [code]` (or
+/// the JSON object) and exit 1.
+fn finish_xref(
+    result: &serde_json::Value,
+    json: bool,
+    verbose: bool,
+    print: fn(&serde_json::Value),
+) -> Result<()> {
+    let failed = result["status"] == "error";
+    if json {
+        println!("{}", serde_json::to_string_pretty(result)?);
+    } else if failed {
+        eprintln!(
+            "error [{}]: {}",
+            result["error_code"].as_str().unwrap_or(""),
+            result["message"].as_str().unwrap_or("")
+        );
+        for c in result["candidates"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+        {
+            eprintln!(
+                "  {}  {}:{}-{}",
+                c["path"].as_str().unwrap_or(""),
+                c["file"].as_str().unwrap_or(""),
+                c["start_line"],
+                c["end_line"]
+            );
+        }
+        for e in result["errors"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+        {
+            eprintln!("  {}", e.as_str().unwrap_or(""));
+        }
+    } else {
+        print(result);
+        print_not_analyzed(result, verbose);
+    }
+    if failed {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+fn xref_header(result: &serde_json::Value) -> String {
+    let target = &result["target"];
+    format!(
+        "{} ({}, {}:{})",
+        result["qualified_path"].as_str().unwrap_or(""),
+        target["kind"].as_str().unwrap_or(""),
+        target["file"].as_str().unwrap_or(""),
+        target["line"],
+    )
+}
+
+/// One note line counting skipped files per reason (the adapter's string,
+/// never interpreted here); `-v` lists every file.
+fn print_not_analyzed(result: &serde_json::Value, verbose: bool) {
+    let files = result["not_analyzed"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    if files.is_empty() {
+        return;
+    }
+    let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
+    for f in files {
+        *counts
+            .entry(f["constraint"].as_str().unwrap_or(""))
+            .or_default() += 1;
+    }
+    let mut groups: Vec<(&str, usize)> = counts.into_iter().collect();
+    groups.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    let groups: Vec<String> = groups.iter().map(|(c, n)| format!("{c}: {n}")).collect();
+    println!(
+        "note: {} file(s) not analyzed: {}",
+        files.len(),
+        groups.join(", ")
+    );
+    if verbose {
+        for f in files {
+            println!(
+                "  {}  ({})",
+                f["file"].as_str().unwrap_or(""),
+                f["constraint"].as_str().unwrap_or("")
+            );
+        }
+    }
+}
+
+fn print_refs(result: &serde_json::Value) {
+    println!("{}: {} reference(s)", xref_header(result), result["count"]);
+    for r in result["references"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
+        println!(
+            "  {}:{}:{}  {}",
+            r["source_file"].as_str().unwrap_or(""),
+            r["ref_line"],
+            r["ref_col"],
+            r["source_path"].as_str().unwrap_or("<top level>"),
+        );
+    }
+}
+
+fn print_implementers(result: &serde_json::Value) {
+    let (label, items) = if result["target"]["kind"] == "interface" {
+        ("implementer(s)", &result["implementers"])
+    } else {
+        ("interface(s) implemented", &result["interfaces"])
+    };
+    let items = items.as_array().map(Vec::as_slice).unwrap_or(&[]);
+    println!("{}: {} {label}", xref_header(result), items.len());
+    for item in items {
+        let mut notes = vec![];
+        if item["pointer"] == true {
+            notes.push("pointer receiver");
+        }
+        if item["external"] == true {
+            notes.push("dependency");
+        }
+        let location = if item["external"] == true {
+            String::new()
+        } else {
+            format!("{}:{}  ", item["file"].as_str().unwrap_or(""), item["line"])
+        };
+        let notes = if notes.is_empty() {
+            String::new()
+        } else {
+            format!("  ({})", notes.join(", "))
+        };
+        println!("  {location}{}{notes}", item["path"].as_str().unwrap_or(""));
     }
 }
 

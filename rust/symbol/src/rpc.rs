@@ -38,6 +38,19 @@ impl Daemon {
     }
 
     pub fn call(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
+        self.call_serving(method, params, &|m, _| {
+            bail!("unexpected daemon request {m:?}")
+        })
+    }
+
+    /// `call`, answering any requests the daemon sends back before its
+    /// response (pyscan's `index/*` queries during rename analysis).
+    pub fn call_serving(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+        serve: &dyn Fn(&str, &serde_json::Value) -> Result<serde_json::Value>,
+    ) -> Result<serde_json::Value> {
         let mut io = self.io.lock().unwrap();
         io.2 += 1;
         let req = serde_json::json!({
@@ -48,21 +61,79 @@ impl Daemon {
         io.0.write_all(b"\n")?;
         io.0.flush()?;
 
-        let mut resp_line = String::new();
-        let n = io.1.read_line(&mut resp_line)?;
-        if n == 0 {
-            bail!("{} daemon exited mid-request ({method})", self.name);
+        loop {
+            let mut resp_line = String::new();
+            let n = io.1.read_line(&mut resp_line)?;
+            if n == 0 {
+                bail!("{} daemon exited mid-request ({method})", self.name);
+            }
+            let resp: serde_json::Value = serde_json::from_str(resp_line.trim())
+                .with_context(|| format!("{} daemon sent invalid JSON", self.name))?;
+            if let Some(query) = resp.get("method").and_then(|m| m.as_str()) {
+                let null = serde_json::Value::Null;
+                let reply = match serve(query, resp.get("params").unwrap_or(&null)) {
+                    Ok(result) => serde_json::json!({
+                        "jsonrpc": "2.0", "id": resp["id"], "result": result,
+                    }),
+                    Err(e) => serde_json::json!({
+                        "jsonrpc": "2.0", "id": resp["id"],
+                        "error": {"code": -32603, "message": e.to_string()},
+                    }),
+                };
+                io.0.write_all(serde_json::to_string(&reply)?.as_bytes())?;
+                io.0.write_all(b"\n")?;
+                io.0.flush()?;
+                continue;
+            }
+            if let Some(err) = resp.get("error") {
+                return Err(DaemonError {
+                    daemon: self.name.clone(),
+                    method: method.to_owned(),
+                    error: err.clone(),
+                }
+                .into());
+            }
+            return resp
+                .get("result")
+                .cloned()
+                .ok_or_else(|| anyhow!("{} {method}: response has no result", self.name));
         }
-        let resp: serde_json::Value = serde_json::from_str(resp_line.trim())
-            .with_context(|| format!("{} daemon sent invalid JSON", self.name))?;
-        if let Some(err) = resp.get("error") {
-            bail!("{} {method}: {err}", self.name);
-        }
-        resp.get("result")
-            .cloned()
-            .ok_or_else(|| anyhow!("{} {method}: response has no result", self.name))
     }
 }
+
+/// A JSON-RPC error response, kept whole so callers can read its code and
+/// the structured `data` a daemon attaches.
+#[derive(Debug)]
+pub struct DaemonError {
+    pub daemon: String,
+    pub method: String,
+    pub error: serde_json::Value,
+}
+
+const METHOD_NOT_FOUND: i64 = -32601;
+
+impl DaemonError {
+    pub fn is_method_not_found(&self) -> bool {
+        self.error["code"].as_i64() == Some(METHOD_NOT_FOUND)
+    }
+
+    /// `data.error_code` of a structured analysis error.
+    pub fn error_code(&self) -> Option<&str> {
+        self.error["data"]["error_code"].as_str()
+    }
+
+    pub fn message(&self) -> &str {
+        self.error["message"].as_str().unwrap_or_default()
+    }
+}
+
+impl std::fmt::Display for DaemonError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}: {}", self.daemon, self.method, self.error)
+    }
+}
+
+impl std::error::Error for DaemonError {}
 
 impl Drop for Daemon {
     fn drop(&mut self) {

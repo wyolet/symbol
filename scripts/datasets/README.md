@@ -2,7 +2,7 @@
 
 JSONL ops datasets for `scripts/diff_runner.py`, which executes each op
 against BOTH implementations of symbol (Python oracle CLI + Rust
-`symbol-rs`) and diffs the results. Authored per the rules in
+`symbol` binary) and diffs the results. Authored per the rules in
 `scripts/ops_dataset_spec.md`. **Every target is derived from a real index
 dump of the corpus — nothing is invented.** JSONL has no comment syntax, so
 provenance and composition live here.
@@ -95,7 +95,7 @@ dumps are ephemeral scratchpad artifacts:
 
 ```
 # 1. index each corpus with the Rust binary
-rust/target/release/symbol-rs --root <corpus> index
+rust/target/release/symbol --root <corpus> index
 # 2. dump index facts (qpaths, kinds, files, bases, ref/caller counts, signatures)
 uv run python enumerate.py <corpus> enum-<name>.json
 uv run python sigs.py     <corpus> sigs-<name>.json

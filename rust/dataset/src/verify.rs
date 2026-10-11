@@ -233,7 +233,7 @@ pub(crate) fn symbol(binary: &Path, project: &Path, args: &[String]) -> Result<O
         .args(args)
         .env("SYMBOL_SESSION_ID", "dataset-verifier")
         .output()
-        .with_context(|| format!("run symbol-rs {args:?}"))
+        .with_context(|| format!("run symbol {args:?}"))
 }
 
 pub(crate) fn task_cli_args(

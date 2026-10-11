@@ -7,9 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use anyhow::{bail, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::rpc::Daemon;
+use crate::index::Index;
+use crate::rpc::{Daemon, DaemonError};
 
 // ---------------------------------------------------------- wire types
 // Mirror protocols/types.py (ScannedSymbol / ScannedImport / FileScan).
@@ -134,6 +135,76 @@ pub struct RenameFileAnalysis {
     pub unresolved: Vec<UnresolvedSite>,
     #[serde(default, deserialize_with = "null_as_default")]
     pub affected_interfaces: Vec<AffectedInterface>,
+}
+
+// Mirror go-scan's references / implementers results.
+
+/// A position in a source file: `file` is root-relative inside the
+/// project, absolute outside it; line and col are 1-based.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct SourceSite {
+    pub file: String,
+    pub line: i64,
+    pub col: i64,
+    pub byte_start: i64,
+    pub byte_end: i64,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResolvedSymbol {
+    pub qualified_path: String,
+    pub kind: String,
+    #[serde(default)]
+    pub external: bool,
+    #[serde(flatten)]
+    pub site: SourceSite,
+}
+
+/// A project file the adapter could not analyze. `constraint` is the
+/// adapter's own wording of why; callers only group and display it.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct NotAnalyzedFile {
+    pub file: String,
+    pub constraint: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ReferencesResult {
+    pub target: ResolvedSymbol,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub references: Vec<SourceSite>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub not_analyzed: Vec<NotAnalyzedFile>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Implementation {
+    #[serde(flatten)]
+    pub symbol: ResolvedSymbol,
+    #[serde(default)]
+    pub pointer: bool,
+}
+
+/// `implementers` is filled for an interface target, `interfaces` for a
+/// concrete one.
+#[derive(Deserialize, Debug, Clone)]
+pub struct ImplementersResult {
+    pub target: ResolvedSymbol,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub implementers: Vec<Implementation>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub interfaces: Vec<Implementation>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub not_analyzed: Vec<NotAnalyzedFile>,
+}
+
+/// Names the declaration a cross-reference query is about: an index row
+/// (declaring file + byte range + leaf), or a bare qualified path the
+/// adapter resolves itself, which can reach dependency declarations.
+pub struct XrefTarget<'a> {
+    pub qualified_path: &'a str,
+    pub leaf: &'a str,
+    pub decl: Option<(&'a str, (i64, i64))>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -370,6 +441,19 @@ impl Adapter {
         Ok(result["preview"].as_str().unwrap_or_default().to_owned())
     }
 
+    /// Daemon call that may ask `index` questions before it answers.
+    fn call_with_index(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+        index: &Index,
+    ) -> Result<serde_json::Value> {
+        let root = &self.project_root;
+        self.daemon.call_serving(method, params, &|query, args| {
+            crate::writes::index_query::serve(index, root, query, args)
+        })
+    }
+
     /// v2 engine rename analysis for one file. `method` is one of
     /// "rename_member" / "rename_field" / "rename_module_binding";
     /// `owner_or_module_qpath` maps to target_owner_qpath (member/field) or
@@ -385,6 +469,7 @@ impl Adapter {
         is_declaring_file: bool,
         decl_byte_range: Option<(i64, i64)>,
         new_name: &str,
+        index: &Index,
     ) -> Result<RenameAnalysis> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -405,7 +490,7 @@ impl Adapter {
             }
             other => bail!("unknown rename method {other:?}"),
         }
-        let result = self.daemon.call(method, params)?;
+        let result = self.call_with_index(method, params, index)?;
         Ok(serde_json::from_value(result)?)
     }
 
@@ -427,6 +512,7 @@ impl Adapter {
         new_name: &str,
         kwargs_only: bool,
         source: Option<&str>,
+        index: &Index,
     ) -> Result<RenameAnalysis> {
         let mut params = serde_json::json!({
             "path": path.to_string_lossy(),
@@ -443,7 +529,7 @@ impl Adapter {
         if let Some(src) = source {
             params["source"] = src.into();
         }
-        let result = self.daemon.call("rename_parameter", params)?;
+        let result = self.call_with_index("rename_parameter", params, index)?;
         Ok(serde_json::from_value(result)?)
     }
 
@@ -517,6 +603,32 @@ impl Adapter {
         Ok(serde_json::from_value(files)?)
     }
 
+    /// Type-resolved uses of one declaration across the project.
+    pub fn references(&self, target: &XrefTarget) -> Result<ReferencesResult> {
+        let result = self.daemon.call("references", self.xref_params(target))?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    /// Implements relation of one type: implementers of an interface, or
+    /// the interfaces a concrete type satisfies.
+    pub fn implementers(&self, target: &XrefTarget) -> Result<ImplementersResult> {
+        let result = self.daemon.call("implementers", self.xref_params(target))?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    fn xref_params(&self, target: &XrefTarget) -> serde_json::Value {
+        let mut params = serde_json::json!({
+            "project_root": self.project_root.to_string_lossy(),
+            "qualified_path": target.qualified_path,
+            "leaf": target.leaf,
+        });
+        if let Some((file, (start, end))) = target.decl {
+            params["declaring_file"] = file.into();
+            params["decl_byte_range"] = serde_json::json!([start, end]);
+        }
+        params
+    }
+
     /// insert-symbol: topmost decorator line of the def/class at `def_line`,
     /// or `def_line` itself when there are no decorators / no match / parse
     /// failure. Port of insert_symbol.py `_first_decorator_line`.
@@ -539,12 +651,89 @@ impl Adapter {
 
 // ---------------------------------------------------------- registry
 
+/// A language's daemon could not be started. Indexing stops on it rather
+/// than dropping that language's files and saving a hollow index.
+#[derive(Debug)]
+pub struct DaemonUnavailable {
+    pub language: String,
+    pub daemon: &'static str,
+    pub env_var: &'static str,
+    pub reason: String,
+}
+
+impl std::fmt::Display for DaemonUnavailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} files found but the {} daemon is unavailable ({}); set {} to its command",
+            self.language, self.daemon, self.reason, self.env_var
+        )
+    }
+}
+
+impl std::error::Error for DaemonUnavailable {}
+
+impl DaemonUnavailable {
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "status": "error",
+            "error_code": "daemon_unavailable",
+            "language": self.language,
+            "daemon": self.daemon,
+            "env_var": self.env_var,
+            "message": self.to_string(),
+        })
+    }
+}
+
+/// Structured form of an adapter/index error for JSON-reporting callers.
+/// A daemon's own `data.error_code` (with its other data fields) wins, an
+/// unknown method is `unsupported`, anything else gets `fallback_code`.
+pub fn error_json(err: &anyhow::Error, fallback_code: &str) -> serde_json::Value {
+    if let Some(unavailable) = err.downcast_ref::<DaemonUnavailable>() {
+        return unavailable.to_json();
+    }
+    if let Some(unavailable) = err.downcast_ref::<crate::pyscan::PythonUnavailable>() {
+        return unavailable.to_json();
+    }
+    if let Some(daemon_err) = err.downcast_ref::<DaemonError>() {
+        if daemon_err.is_method_not_found() {
+            return serde_json::json!({
+                "status": "error",
+                "error_code": "unsupported",
+                "daemon": daemon_err.daemon,
+                "message": format!("the {} daemon does not support {}", daemon_err.daemon, daemon_err.method),
+            });
+        }
+        if let Some(code) = daemon_err.error_code() {
+            let mut out = serde_json::json!({
+                "status": "error",
+                "error_code": code,
+                "message": daemon_err.message(),
+            });
+            if let Some(data) = daemon_err.error["data"].as_object() {
+                for (key, value) in data {
+                    if key != "error_code" {
+                        out[key] = value.clone();
+                    }
+                }
+            }
+            return out;
+        }
+    }
+    serde_json::json!({
+        "status": "error",
+        "error_code": fallback_code,
+        "message": format!("{err:#}"),
+    })
+}
+
 pub struct Registry {
     project_root: PathBuf,
     adapters: std::sync::Mutex<HashMap<String, &'static Adapter>>,
 }
 
-/// The symbol repo checkout that provides pyscan (via uv) and go-scan.
+/// A symbol checkout providing dev or wheel-bundled go-scan builds.
 /// Override with SYMBOL_REPO; defaults to this crate's own repo (dev mode).
 fn symbol_repo() -> PathBuf {
     std::env::var("SYMBOL_REPO")
@@ -557,50 +746,53 @@ fn symbol_repo() -> PathBuf {
         })
 }
 
-fn pyscan_argv() -> Vec<String> {
-    if let Ok(cmd) = std::env::var("SYMBOL_PYSCAN") {
-        return cmd.split_whitespace().map(str::to_owned).collect();
-    }
-    let repo = symbol_repo();
-    vec![
-        "uv".into(),
-        "run".into(),
-        "--project".into(),
-        repo.to_string_lossy().into_owned(),
-        "python".into(),
-        "-m".into(),
-        "wyolet.symbol.adapters.pyscan".into(),
-    ]
+fn pyscan_argv() -> Result<Vec<String>> {
+    crate::pyscan::argv()
 }
 
-fn goscan_argv() -> Option<Vec<String>> {
-    if let Ok(cmd) = std::env::var("SYMBOL_GOSCAN") {
-        return Some(cmd.split_whitespace().map(str::to_owned).collect());
-    }
-    let repo = symbol_repo();
-    // Dev binaries a contributor may have `go build`'t. Mirrors the Python
-    // adapter's dev path (adapters/go_ast/daemon/go-scan) so both engines
-    // pick up the same freshly-built daemon before falling back to the
-    // (CI-built, possibly older) bundled binaries below.
-    for dev in [
-        repo.join("daemon/go-scan"),
-        repo.join("src/wyolet/symbol/adapters/go_ast/daemon/go-scan"),
-    ] {
-        if dev.is_file() {
-            return Some(vec![dev.to_string_lossy().into_owned()]);
-        }
-    }
-    let system = std::env::consts::OS; // "macos" → python platform says "darwin"
-    let system = if system == "macos" { "darwin" } else { system };
+/// `go-scan-<os>-<arch>`, the per-platform name CI cross-compiles to.
+fn goscan_platform_name() -> String {
+    let system = match std::env::consts::OS {
+        "macos" => "darwin",
+        other => other,
+    };
     let arch = match std::env::consts::ARCH {
         "x86_64" => "amd64",
         "aarch64" => "arm64",
         other => other,
     };
-    let bundled = repo.join(format!("src/wyolet/symbol/bin/go-scan-{system}-{arch}"));
-    bundled
-        .is_file()
-        .then(|| vec![bundled.to_string_lossy().into_owned()])
+    format!("go-scan-{system}-{arch}{}", std::env::consts::EXE_SUFFIX)
+}
+
+/// Resolved through symlinks so a `symbol` linked onto PATH still finds
+/// the go-scan shipped beside it.
+fn executable_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?.canonicalize().ok()?;
+    exe.parent().map(Path::to_owned)
+}
+
+/// SYMBOL_GOSCAN, then go-scan beside the executable (release archive
+/// layout), then a checkout's dev build, then its wheel-bundled binary.
+fn goscan_argv() -> Option<Vec<String>> {
+    if let Ok(cmd) = std::env::var("SYMBOL_GOSCAN") {
+        return Some(cmd.split_whitespace().map(str::to_owned).collect());
+    }
+    let platform_name = goscan_platform_name();
+    let mut candidates = vec![];
+    if let Some(dir) = executable_dir() {
+        candidates.push(dir.join(format!("go-scan{}", std::env::consts::EXE_SUFFIX)));
+        candidates.push(dir.join(&platform_name));
+    }
+    // Dev builds come before the (CI-built, possibly older) bundled
+    // binaries, matching the Python adapter's lookup.
+    let repo = symbol_repo();
+    candidates.push(repo.join("daemon/go-scan"));
+    candidates.push(repo.join("src/wyolet/symbol/adapters/go_ast/daemon/go-scan"));
+    candidates.push(repo.join("src/wyolet/symbol/bin").join(&platform_name));
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .map(|path| vec![path.to_string_lossy().into_owned()])
 }
 
 impl Registry {
@@ -611,13 +803,11 @@ impl Registry {
         }
     }
 
-    /// Languages with a registered adapter — mirrors registry.has_adapter.
+    /// Languages with a registered adapter. Unlike Python's registry this
+    /// does not probe the daemon: a missing one surfaces as
+    /// DaemonUnavailable from for_language instead of skipping files.
     pub fn has_adapter(&self, lang_key: &str) -> bool {
-        match lang_key {
-            "python" => true,
-            "go" => goscan_argv().is_some(),
-            _ => false,
-        }
+        matches!(lang_key, "python" | "go")
     }
 
     /// Get (spawning lazily) the daemon adapter for a language key.
@@ -630,20 +820,28 @@ impl Registry {
                 return Ok(a);
             }
         }
-        let (name, argv) = match lang_key {
-            "python" => ("pyscan", pyscan_argv()),
-            "go" => (
-                "go-scan",
-                goscan_argv().ok_or_else(|| anyhow::anyhow!("go-scan binary not found"))?,
-            ),
+        let (name, env_var, argv) = match lang_key {
+            "python" => ("pyscan", "SYMBOL_PYSCAN", Some(pyscan_argv()?)),
+            "go" => ("go-scan", "SYMBOL_GOSCAN", goscan_argv()),
             other => bail!("no adapter for language {other:?}"),
+        };
+        let unavailable = |reason: String| DaemonUnavailable {
+            language: lang_key.to_owned(),
+            daemon: name,
+            env_var,
+            reason,
+        };
+        let Some(argv) = argv.filter(|argv| !argv.is_empty()) else {
+            return Err(unavailable(format!("no {name} binary found")).into());
         };
         let init = serde_json::json!({
             "protocol_version": "1",
             "project_root": self.project_root.to_string_lossy(),
         });
+        let daemon =
+            Daemon::spawn(name, &argv, init).map_err(|err| unavailable(format!("{err:#}")))?;
         let adapter: &'static Adapter = Box::leak(Box::new(Adapter {
-            daemon: Daemon::spawn(name, &argv, init)?,
+            daemon,
             language: lang_key.to_owned(),
             project_root: self.project_root.clone(),
         }));

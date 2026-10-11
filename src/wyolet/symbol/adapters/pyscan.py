@@ -15,6 +15,14 @@ Methods:
   function_parameters -> {parameters: [str] | null}
   shutdown         (notification) -> exits
 
+Rename analysis asks the client index questions mid-call (the IndexQuery
+protocol): the daemon writes `index/find_declaration` {qpath},
+`index/class_bases` {qpath} or `index/owners_of_leaf` {leaf} requests and
+reads each reply before continuing. The daemon never loads the index itself.
+
+Stdlib only, Python 3.10+: the Rust core embeds this module's import closure
+and runs it with whatever `python3` is on PATH.
+
 Run: python -m wyolet.symbol.adapters.pyscan
 """
 
@@ -29,10 +37,57 @@ from wyolet.symbol.adapters.python_ast import PythonAstAdapter
 _PROTOCOL_VERSION = "1"
 
 
+class _ClientIndexQuery:
+    """IndexQuery answered by the RPC client over the daemon's own stdio.
+    One instance per request: answers are memoized while the index can't change."""
+
+    def __init__(self, stdin, stdout) -> None:
+        self._stdin = stdin
+        self._stdout = stdout
+        self._seq = 0
+        self._memo: dict[tuple[str, str], object] = {}
+
+    def _ask(self, method: str, key: str, value: str):
+        memo_key = (method, value)
+        if memo_key in self._memo:
+            return self._memo[memo_key]
+        self._seq += 1
+        req_id = f"q{self._seq}"
+        self._stdout.write(json.dumps({
+            "jsonrpc": "2.0", "id": req_id, "method": method, "params": {key: value},
+        }) + "\n")
+        self._stdout.flush()
+        line = self._stdin.readline()
+        if not line:
+            raise RuntimeError(f"client closed stdin during {method}")
+        reply = json.loads(line)
+        if reply.get("id") != req_id:
+            raise RuntimeError(f"{method}: reply id {reply.get('id')!r} != {req_id!r}")
+        if "error" in reply:
+            raise RuntimeError(f"{method}: {reply['error'].get('message')}")
+        result = reply.get("result")
+        self._memo[memo_key] = result
+        return result
+
+    def find_declaration(self, qpath):
+        found = self._ask("index/find_declaration", "qpath", qpath)
+        if found is None:
+            return None
+        return Path(found["path"]), found["file"], tuple(found["byte_range"]), found["kind"]
+
+    def class_bases(self, class_qpath):
+        return tuple(self._ask("index/class_bases", "qpath", class_qpath))
+
+    def owners_of_leaf(self, leaf):
+        return tuple(self._ask("index/owners_of_leaf", "leaf", leaf))
+
+
 class _Daemon:
-    def __init__(self) -> None:
+    def __init__(self, stdin=None, stdout=None) -> None:
         self.adapter = PythonAstAdapter()
         self.project_root: Path | None = None
+        self.stdin = stdin or sys.stdin
+        self.stdout = stdout or sys.stdout
 
     # ---------------------------------------------------------- methods
 
@@ -68,24 +123,13 @@ class _Daemon:
         }
 
     # ------------------------------------------------------ v2 rename engine
-    # The daemon loads the on-disk symbol index (format is shared with the
-    # Rust core) and runs the real receiver-aware rename analysis, so a
-    # non-Python caller gets engine-quality renames, not tier-1 regex.
+    # Real receiver-aware rename analysis, so a non-Python caller gets
+    # engine-quality renames, not tier-1 regex. Index lookups go back to
+    # the caller (see module docstring).
 
-    def _index_query(self):
-        from wyolet.symbol.shared.symbol_index import SymbolIndex
-        from wyolet.symbol.writes.rename.index_query import RenamerIndexQuery
-
+    def _index_query(self) -> _ClientIndexQuery:
         assert self.project_root is not None, "initialize with project_root first"
-        idx_path = self.project_root / ".symbol" / "symbol_index.msgpack.zst"
-        mtime = idx_path.stat().st_mtime if idx_path.exists() else None
-        if getattr(self, "_iq_mtime", "unset") != mtime:
-            index = SymbolIndex.load(self.project_root)
-            if index is None:
-                raise RuntimeError("no loadable symbol index on disk")
-            self._iq = RenamerIndexQuery(index, self.project_root)
-            self._iq_mtime = mtime
-        return self._iq
+        return _ClientIndexQuery(self.stdin, self.stdout)
 
     def _rename_common(self, params: dict) -> dict:
         path = Path(params["path"])
@@ -196,9 +240,9 @@ class _Daemon:
 
 
 def main() -> None:
-    daemon = _Daemon()
     stdin = sys.stdin
     stdout = sys.stdout
+    daemon = _Daemon(stdin, stdout)
     while True:
         line = stdin.readline()
         if not line:

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::adapters::Registry;
+use crate::adapters::{error_json, Adapter, Registry};
 use crate::index::{Index, S_EBYTE, S_SBYTE};
 use crate::writes::content::{indent_at_byte, normalize_content};
 use crate::writes::patch::{apply_patch, line_end_byte, line_start_byte, PatchRequest};
@@ -57,7 +57,10 @@ pub(crate) fn resolve_single(
     }
     let mut row = rows[0];
     let file_rel = index.file_of(row).to_owned();
-    if index.ensure_fresh(&file_rel, reg) {
+    if index
+        .ensure_fresh(&file_rel, reg)
+        .map_err(|err| error_json(&err, "index_error"))?
+    {
         let rows: Vec<i64> = index
             .by_path
             .get(qualified_path)
@@ -72,6 +75,16 @@ pub(crate) fn resolve_single(
         row = rows[0];
     }
     Ok(row)
+}
+
+/// The language's daemon adapter, or the structured error a write returns
+/// (`daemon_unavailable` when the daemon can't start).
+pub(crate) fn require_adapter(
+    reg: &Registry,
+    language: &str,
+) -> Result<&'static Adapter, serde_json::Value> {
+    reg.for_language(language)
+        .map_err(|err| error_json(&err, "no_adapter"))
 }
 
 fn normalize_blank_gaps_via_adapter(file_abs: &Path, language: &str, reg: &Registry) {
@@ -112,6 +125,11 @@ pub fn delete_symbol(
     );
     let kind = index.kind_of(row).to_owned();
     let language = index.language_of(row).to_owned();
+    // Blank-gap normalization after the splice needs the daemon; refuse up
+    // front rather than leave an unnormalized edit behind.
+    if let Err(e) = require_adapter(reg, &language) {
+        return e;
+    }
 
     let leaf = qualified_path.rsplit('.').next().unwrap_or(qualified_path);
     let callers: Vec<serde_json::Value> = index
@@ -206,6 +224,11 @@ pub fn insert_symbol(
     let (start_line, end_line) = index.range_of(row);
     let kind = index.kind_of(row).to_owned();
     let language = index.language_of(row).to_owned();
+    // Decorator lookup and blank-gap normalization need the daemon.
+    let adapter = match require_adapter(reg, &language) {
+        Ok(adapter) => adapter,
+        Err(e) => return e,
+    };
 
     // Shared error shape for the resolution/argument phase (before we have a
     // patch result). Mirrors InsertSymbolResult's error fields.
@@ -245,9 +268,8 @@ pub fn insert_symbol(
             // languages/kinds the daemon call is skipped (matches the Python
             // ast walk falling through to def_line).
             let anchor_top = if language == "python" && has_body {
-                reg.for_language(&language)
-                    .ok()
-                    .and_then(|a| a.first_decorator_line(&file_abs, start_line).ok())
+                adapter
+                    .first_decorator_line(&file_abs, start_line)
                     .unwrap_or(start_line)
             } else {
                 start_line
@@ -419,8 +441,9 @@ pub fn replace_symbol(
 
     let err = |code: &str, msg: String| serde_json::json!({ "status": "error", "error_code": code, "message": msg });
 
-    let Ok(adapter) = reg.for_language(&language) else {
-        return err("no_adapter", format!("no adapter for {language}"));
+    let adapter = match require_adapter(reg, &language) {
+        Ok(adapter) => adapter,
+        Err(e) => return e,
     };
     let parse_text = dedent(content);
     match adapter.validate_syntax(&parse_text) {
@@ -595,9 +618,6 @@ pub fn replace_symbol(
                     }
                 }
                 Some(renames) if !renames.is_empty() => {
-                    // The daemon resolves against the ON-DISK index; sync it.
-                    let _ = index.save();
-
                     let mut candidates: std::collections::BTreeSet<String> =
                         std::collections::BTreeSet::from([declaring_file_rel.clone()]);
                     for (src_row, _l, _k) in index.callers_of(&old_leaf) {
@@ -651,6 +671,7 @@ pub fn replace_symbol(
                                 n,
                                 true,
                                 Some(&src_str),
+                                index,
                             ) {
                                 Ok(a) => a,
                                 Err(e) => {

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from click.core import ParameterSource
 from rich.console import Console
 
 from .commands.analyze import analyze_cmd, analyze_dump
@@ -83,6 +84,7 @@ def _version_callback(value: bool) -> None:
 
 @app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     verbose: Annotated[bool, typer.Option("-v", "--verbose", help="Show full detail")] = False,
     format: Annotated[str, typer.Option("--format", help="Output format: rich or json")] = "rich",
     version: Annotated[
@@ -100,6 +102,15 @@ def main(
         raise typer.BadParameter(f"Invalid format '{format}'. Choose from: rich, json")
     state["verbose"] = verbose
     state["format"] = format
+    if ctx.get_parameter_source("format") == ParameterSource.COMMANDLINE and ctx.invoked_subcommand:
+        # Subcommands own their --format; hand the global value down as their
+        # default so an explicit subcommand --format still wins.
+        sub = ctx.command.get_command(ctx, ctx.invoked_subcommand)
+        if sub is None or not any(p.name == "format" for p in sub.params):
+            raise typer.BadParameter(
+                f"'{ctx.invoked_subcommand}' has no --format option", param_hint="--format"
+            )
+        ctx.default_map = {ctx.invoked_subcommand: {"format": format}}
 
 
 @app.command()
