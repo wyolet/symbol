@@ -137,7 +137,7 @@ self = this repo at `5f82bcce` (`git archive` copy), fixture-proj
 | corpus | index assertions | dataset ops | match | both_refused | known_divergence | MISMATCH |
 |---|---|---|---|---|---|---|
 | flask | 1787 / 1787 | 425 (316r/109w) | 588 | 1 | 0 | **0** |
-| gin | 1614 / 1614 | 383 (290r/93w) | 432 | 37 | 0 | **0** |
+| gin | 1614 / 1614 | 383 (290r/93w) | 501 | 14 | 0 | **0** |
 | self | 2284 / 2284 | 384 (319r/65w) | 494 | 0 | 0 | **0** |
 | fixture-proj (smoke ×2) | 16 / 16 | 3 + 9 | 20 | 0 | 0 | 0 |
 
@@ -146,11 +146,13 @@ datasets as tool calls against the reference's and this binary's `symbol mcp`
 and compares whole tool results byte-for-byte; `tools/list` is identical for
 the tools both serve, and Rust-only tools are reported as `rust_only`.
 
-| corpus | compared calls | match | both_refused | known_divergence | MISMATCH |
-|---|---|---|---|---|---|
-| flask | 1459 | 1458 | 1 | 0 | **0** |
-| gin | 1240 | 1216 | 14 | 10 | **0** |
-| self | 1089 | 1089 | 0 | 0 | **0** |
+| corpus | compared calls | match | both_refused | known_divergence | rust_only | MISMATCH |
+|---|---|---|---|---|---|---|
+| flask | 1461 | 1458 | 1 | 0 | 2 | **0** |
+| gin | 1242 | 1216 | 14 | 10 | 2 | **0** |
+| self | 1091 | 1089 | 0 | 0 | 2 | **0** |
+
+`rust_only` is `SymbolRefs` and `SymbolImplementers` in `tools/list`.
 
 The gin `known_divergence` calls are Go renames repeated in one session,
 where the Python server omits the affected interface contracts (see
