@@ -8,6 +8,7 @@ the Python CLI's and are compared against it live.
 """
 
 import json
+import re
 from pathlib import Path
 
 import typer
@@ -53,5 +54,7 @@ def test_help_lists_delegated_commands():
     assert {name for name in DELEGATED_COMMANDS if group.commands[name].hidden} == {"hook"}
     result = CliRunner().invoke(app, ["--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
+    # Rich colors and boxes the help in CI; compare whole words of the plain text.
+    words = set(re.sub(r"[│╭╮╰╯─]", " ", re.sub(r"\x1b\[[0-9;]*m", "", result.output)).split())
     for name in DELEGATED_COMMANDS.keys() - {"hook"}:
-        assert f" {name} " in result.output, name
+        assert name in words, name
