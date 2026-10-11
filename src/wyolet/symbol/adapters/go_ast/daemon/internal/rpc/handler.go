@@ -112,7 +112,7 @@ func (s *Server) handleLine(line []byte) {
 	if err != nil {
 		var rpcErr *JSONRPCError
 		if errors.As(err, &rpcErr) {
-			s.writeError(req.ID, rpcErr.Code, rpcErr.Message)
+			s.writeErrorData(req.ID, rpcErr.Code, rpcErr.Message, rpcErr.Data)
 			return
 		}
 		s.writeError(req.ID, ErrInternal, err.Error())
@@ -129,12 +129,16 @@ func (s *Server) writeResult(id json.RawMessage, result any) {
 }
 
 func (s *Server) writeError(id json.RawMessage, code int, message string) {
+	s.writeErrorData(id, code, message, nil)
+}
+
+func (s *Server) writeErrorData(id json.RawMessage, code int, message string, data any) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	resp := Response{
 		JSONRPC: JSONRPCVersion,
 		ID:      id,
-		Error:   &Error{Code: code, Message: message},
+		Error:   &Error{Code: code, Message: message, Data: data},
 	}
 	s.encode(&resp)
 }

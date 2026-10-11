@@ -86,7 +86,12 @@ impl Daemon {
                 continue;
             }
             if let Some(err) = resp.get("error") {
-                bail!("{} {method}: {err}", self.name);
+                return Err(DaemonError {
+                    daemon: self.name.clone(),
+                    method: method.to_owned(),
+                    error: err.clone(),
+                }
+                .into());
             }
             return resp
                 .get("result")
@@ -95,6 +100,40 @@ impl Daemon {
         }
     }
 }
+
+/// A JSON-RPC error response, kept whole so callers can read its code and
+/// the structured `data` a daemon attaches.
+#[derive(Debug)]
+pub struct DaemonError {
+    pub daemon: String,
+    pub method: String,
+    pub error: serde_json::Value,
+}
+
+const METHOD_NOT_FOUND: i64 = -32601;
+
+impl DaemonError {
+    pub fn is_method_not_found(&self) -> bool {
+        self.error["code"].as_i64() == Some(METHOD_NOT_FOUND)
+    }
+
+    /// `data.error_code` of a structured analysis error.
+    pub fn error_code(&self) -> Option<&str> {
+        self.error["data"]["error_code"].as_str()
+    }
+
+    pub fn message(&self) -> &str {
+        self.error["message"].as_str().unwrap_or_default()
+    }
+}
+
+impl std::fmt::Display for DaemonError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}: {}", self.daemon, self.method, self.error)
+    }
+}
+
+impl std::error::Error for DaemonError {}
 
 impl Drop for Daemon {
     fn drop(&mut self) {

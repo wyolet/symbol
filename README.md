@@ -124,6 +124,8 @@ symbol code src/services/user.py:120-145  # body by explicit line range
 
 symbol outline src/services/user.py       # parent-child symbol tree of a file
 symbol callers UserService                # tier-1 textual reference scan
+symbol refs store.Store.Save              # type-resolved references (Go)
+symbol implementers net/http.Handler      # implementers of an interface, or interfaces a type implements (Go)
 ```
 
 ### Write

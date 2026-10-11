@@ -15,14 +15,12 @@ package rename
 
 import (
 	"cmp"
-	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
-	"path/filepath"
 	"slices"
-	"strings"
 
+	"github.com/wyolet/symbol/go-scan/internal/project"
 	"github.com/wyolet/symbol/go-scan/internal/rpc"
 	"golang.org/x/tools/go/packages"
 )
@@ -30,19 +28,19 @@ import (
 // Member runs project-wide rename analysis for a method (or other
 // receiver-attached member).
 func Member(params rpc.RenameMemberParams) (rpc.RenameResult, error) {
-	pkgs, err := loadPackages(params.ProjectRoot)
+	proj, err := loadProject(params.ProjectRoot)
 	if err != nil {
 		return rpc.RenameResult{}, err
 	}
 	result := rpc.RenameResult{Files: map[string]rpc.RenameFileAnalysis{}}
 
-	decl := findDecl(pkgs, params.ProjectRoot, params.DeclaringFile, params.DeclByteRange, params.Leaf, isMethod)
+	decl := proj.FindDecl(params.DeclaringFile, params.DeclByteRange, params.Leaf, isMethod)
 	if decl == nil {
 		return result, nil
 	}
-	target := newDeclSite(pkgs[0].Fset, decl)
+	target := project.SiteOf(proj.Fset, decl)
 
-	forEachFile(pkgs, params.ProjectRoot, params.CandidateFiles, func(pkg *packages.Package, file *ast.File, rel string) {
+	proj.ForEachFile(params.CandidateFiles, func(pkg *packages.Package, file *ast.File, rel string) {
 		mergeFile(result.Files, rel, analyzeMember(pkg, file, params, target))
 	})
 	finalize(result.Files)
@@ -50,7 +48,7 @@ func Member(params rpc.RenameMemberParams) (rpc.RenameResult, error) {
 	// Project-wide check: which interfaces does the target type satisfy
 	// that have a method with the same leaf? Renaming the method leaves
 	// those contracts unsatisfied. We surface but never auto-rename.
-	affected := findAffectedInterfaces(pkgs, decl.(*types.Func), params.Leaf, params.ProjectRoot)
+	affected := findAffectedInterfaces(proj, decl.(*types.Func), params.Leaf)
 	if len(affected) > 0 {
 		// Stamp on the declaring file so the per-file protocol surfaces
 		// them; the Python engine deduplicates across files.
@@ -65,126 +63,36 @@ func Member(params rpc.RenameMemberParams) (rpc.RenameResult, error) {
 // ModuleBinding runs project-wide rename analysis for a top-level
 // binding (function, type, var, const).
 func ModuleBinding(params rpc.RenameModuleBindingParams) (rpc.RenameResult, error) {
-	pkgs, err := loadPackages(params.ProjectRoot)
+	proj, err := loadProject(params.ProjectRoot)
 	if err != nil {
 		return rpc.RenameResult{}, err
 	}
 	result := rpc.RenameResult{Files: map[string]rpc.RenameFileAnalysis{}}
 
-	decl := findDecl(pkgs, params.ProjectRoot, params.DeclaringFile, params.DeclByteRange, params.Leaf, isPackageLevel)
+	decl := proj.FindDecl(params.DeclaringFile, params.DeclByteRange, params.Leaf, isPackageLevel)
 	if decl == nil {
 		return result, nil
 	}
-	target := newDeclSite(pkgs[0].Fset, decl)
+	target := project.SiteOf(proj.Fset, decl)
 
-	forEachFile(pkgs, params.ProjectRoot, params.CandidateFiles, func(pkg *packages.Package, file *ast.File, rel string) {
+	proj.ForEachFile(params.CandidateFiles, func(pkg *packages.Package, file *ast.File, rel string) {
 		mergeFile(result.Files, rel, analyzeModuleBinding(pkg, file, params, target))
 	})
 	finalize(result.Files)
 	return result, nil
 }
 
-// ─── package loading ──────────────────────────────────────────────
-
-func loadPackages(projectRoot string) ([]*packages.Package, error) {
-	cfg := &packages.Config{
-		Mode: packages.NeedName |
-			packages.NeedFiles |
-			packages.NeedCompiledGoFiles |
-			packages.NeedImports |
-			packages.NeedTypes |
-			packages.NeedTypesInfo |
-			packages.NeedSyntax |
-			packages.NeedTypesSizes,
-		Dir:   projectRoot,
-		Tests: true,
-	}
-	pkgs, err := packages.Load(cfg, "./...")
+// loadProject tolerates ordinary type errors, which surface per site as
+// unresolved, but not a version failure that leaves nothing type-checked.
+func loadProject(root string) (*project.Project, error) {
+	proj, err := project.Load(root)
 	if err != nil {
-		return nil, fmt.Errorf("packages.Load: %w", err)
+		return nil, err
 	}
-	return slices.DeleteFunc(pkgs, isTestMain), nil
-}
-
-// isTestMain reports the synthesized `p.test` main package, whose only
-// file is a generated _testmain.go outside the project.
-func isTestMain(pkg *packages.Package) bool {
-	return pkg.Name == "main" && strings.HasSuffix(pkg.ID, ".test")
-}
-
-// forEachFile visits every type-checked project file once per package
-// variant that compiles it.
-func forEachFile(
-	pkgs []*packages.Package, projectRoot string, candidates []string,
-	visit func(pkg *packages.Package, file *ast.File, rel string),
-) {
-	candidateSet := stringSet(candidates)
-	for _, pkg := range pkgs {
-		if pkg.TypesInfo == nil {
-			continue
-		}
-		for _, file := range pkg.Syntax {
-			rel := relTo(projectRoot, pkg.Fset.File(file.Pos()).Name())
-			if rel == "" {
-				continue
-			}
-			if len(candidateSet) > 0 && !candidateSet[rel] {
-				continue
-			}
-			visit(pkg, file, rel)
-		}
+	if err := proj.VersionErr(); err != nil {
+		return nil, err
 	}
-}
-
-// ─── target identity ──────────────────────────────────────────────
-
-// declSite is where a declaration is written. Every package variant
-// that type-checks the declaring file yields its own types.Object for
-// it, but all of them share this position.
-type declSite struct {
-	file   string
-	offset int
-}
-
-func newDeclSite(fset *token.FileSet, obj types.Object) declSite {
-	p := fset.Position(obj.Pos())
-	return declSite{p.Filename, p.Offset}
-}
-
-func (d declSite) matches(fset *token.FileSet, obj types.Object) bool {
-	if obj == nil || !obj.Pos().IsValid() {
-		return false
-	}
-	return newDeclSite(fset, obj) == d
-}
-
-// findDecl returns the object declared as `leaf` inside `span` of the
-// declaring file, as type-checked by the first variant that compiles it.
-func findDecl(
-	pkgs []*packages.Package, projectRoot, declaringFile string, span [2]int, leaf string,
-	accept func(types.Object) bool,
-) types.Object {
-	var found types.Object
-	forEachFile(pkgs, projectRoot, []string{declaringFile}, func(pkg *packages.Package, file *ast.File, _ string) {
-		if found != nil {
-			return
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			id, ok := n.(*ast.Ident)
-			if found != nil || !ok || id.Name != leaf {
-				return found == nil
-			}
-			offset := pkg.Fset.Position(id.Pos()).Offset
-			if offset < span[0] || offset >= span[1] {
-				return true
-			}
-			if obj := pkg.TypesInfo.Defs[id]; obj != nil && accept(obj) {
-				found = obj
-			}
-			return true
-		})
-	})
-	return found
+	return proj, nil
 }
 
 func isMethod(obj types.Object) bool {
@@ -198,7 +106,7 @@ func isPackageLevel(obj types.Object) bool {
 
 // ─── member analysis ──────────────────────────────────────────────
 
-func analyzeMember(pkg *packages.Package, file *ast.File, params rpc.RenameMemberParams, target declSite) rpc.RenameFileAnalysis {
+func analyzeMember(pkg *packages.Package, file *ast.File, params rpc.RenameMemberParams, target project.DeclSite) rpc.RenameFileAnalysis {
 	fset := pkg.Fset
 	leaf := params.Leaf
 	var out rpc.RenameFileAnalysis
@@ -212,7 +120,7 @@ func analyzeMember(pkg *packages.Package, file *ast.File, params rpc.RenameMembe
 			if x.Recv == nil || x.Name == nil || x.Name.Name != leaf {
 				return true
 			}
-			if target.matches(fset, pkg.TypesInfo.Defs[x.Name]) {
+			if target.Matches(fset, pkg.TypesInfo.Defs[x.Name]) {
 				out.Rewrites = append(out.Rewrites, identRewrite(fset, file, x.Name, params.NewName, ""))
 			}
 
@@ -244,7 +152,7 @@ func analyzeMember(pkg *packages.Package, file *ast.File, params rpc.RenameMembe
 				ownerQpath = qpathOfType(sel.Recv())
 			}
 
-			if target.matches(fset, sel.Obj()) {
+			if target.Matches(fset, sel.Obj()) {
 				out.Rewrites = append(out.Rewrites, rpc.ByteRewrite{
 					ByteStart: byteStart, ByteEnd: byteEnd,
 					NewText: params.NewName,
@@ -274,7 +182,7 @@ func analyzeMember(pkg *packages.Package, file *ast.File, params rpc.RenameMembe
 
 // ─── module-binding analysis ──────────────────────────────────────
 
-func analyzeModuleBinding(pkg *packages.Package, file *ast.File, params rpc.RenameModuleBindingParams, target declSite) rpc.RenameFileAnalysis {
+func analyzeModuleBinding(pkg *packages.Package, file *ast.File, params rpc.RenameModuleBindingParams, target project.DeclSite) rpc.RenameFileAnalysis {
 	fset := pkg.Fset
 	var out rpc.RenameFileAnalysis
 
@@ -291,7 +199,7 @@ func analyzeModuleBinding(pkg *packages.Package, file *ast.File, params rpc.Rena
 		switch {
 		case !isDef && !isUse:
 			out.Unresolved = append(out.Unresolved, unresolvedSite(fset, x, ""))
-		case target.matches(fset, use) || target.matches(fset, def):
+		case target.Matches(fset, use) || target.Matches(fset, def):
 			out.Rewrites = append(out.Rewrites, identRewrite(fset, file, x, params.NewName, ""))
 		}
 		return true
@@ -306,25 +214,25 @@ func analyzeModuleBinding(pkg *packages.Package, file *ast.File, params rpc.Rena
 // means the rename will leave a contract unsatisfied — we surface but
 // never silently extend the rename to cover them.
 func findAffectedInterfaces(
-	pkgs []*packages.Package, method *types.Func, leaf, projectRoot string,
+	proj *project.Project, method *types.Func, leaf string,
 ) []rpc.AffectedInterface {
 	owner := receiverNamed(method)
 	if owner == nil {
 		return nil
 	}
-	ownerSite := newDeclSite(pkgs[0].Fset, owner.Obj())
+	ownerSite := project.SiteOf(proj.Fset, owner.Obj())
 
 	var out []rpc.AffectedInterface
 	seen := map[string]bool{}
 
-	for _, pkg := range pkgs {
+	for _, pkg := range proj.Packages {
 		if pkg.Types == nil {
 			continue
 		}
 		// Each test variant has its own copy of the owner type; mixing
 		// variants makes Implements fail on otherwise identical methods.
 		// Packages that never import the owner see the declared one.
-		targetType := namedInImports(pkg, owner.Obj().Name(), ownerSite)
+		targetType := project.NamedInImports(pkg, owner.Obj().Name(), ownerSite)
 		if targetType == nil {
 			targetType = owner
 		}
@@ -359,7 +267,7 @@ func findAffectedInterfaces(
 			out = append(out, rpc.AffectedInterface{
 				InterfaceQpath: ifaceQpath,
 				MethodQpath:    ifaceQpath + "." + leaf,
-				File:           relTo(projectRoot, pos.Filename),
+				File:           project.Rel(proj.Root, pos.Filename),
 				Line:           pos.Line,
 			})
 		}
@@ -379,33 +287,6 @@ func receiverNamed(method *types.Func) *types.Named {
 		return nil
 	}
 	return named.Origin()
-}
-
-// namedInImports finds the type declared at `site` within pkg or its
-// transitive imports, i.e. the variant of that type pkg compiles against.
-func namedInImports(pkg *packages.Package, name string, site declSite) *types.Named {
-	visited := map[*packages.Package]bool{}
-	var walk func(p *packages.Package) *types.Named
-	walk = func(p *packages.Package) *types.Named {
-		if visited[p] {
-			return nil
-		}
-		visited[p] = true
-		if p.Types != nil {
-			if tn, ok := p.Types.Scope().Lookup(name).(*types.TypeName); ok && site.matches(pkg.Fset, tn) {
-				if named, ok := tn.Type().(*types.Named); ok {
-					return named
-				}
-			}
-		}
-		for _, imp := range p.Imports {
-			if named := walk(imp); named != nil {
-				return named
-			}
-		}
-		return nil
-	}
-	return walk(pkg)
 }
 
 func interfaceHasMethod(iface *types.Interface, leaf string) bool {
@@ -505,24 +386,6 @@ func nodeText(fset *token.FileSet, file *ast.File, n ast.Node) string {
 	// Returning empty is acceptable — receiver_source is informational.
 	_ = file
 	return ""
-}
-
-// relTo returns abs relative to root, or "" when abs lies outside root
-// (generated files in the build cache, e.g. cgo or test mains).
-func relTo(root, abs string) string {
-	rel, err := filepath.Rel(root, abs)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return ""
-	}
-	return rel
-}
-
-func stringSet(xs []string) map[string]bool {
-	out := map[string]bool{}
-	for _, x := range xs {
-		out[x] = true
-	}
-	return out
 }
 
 // mergeFile folds one variant's analysis of a file into the result.

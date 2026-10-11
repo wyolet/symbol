@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use anyhow::{bail, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::index::Index;
-use crate::rpc::Daemon;
+use crate::rpc::{Daemon, DaemonError};
 
 // ---------------------------------------------------------- wire types
 // Mirror protocols/types.py (ScannedSymbol / ScannedImport / FileScan).
@@ -135,6 +135,68 @@ pub struct RenameFileAnalysis {
     pub unresolved: Vec<UnresolvedSite>,
     #[serde(default, deserialize_with = "null_as_default")]
     pub affected_interfaces: Vec<AffectedInterface>,
+}
+
+// Mirror go-scan's references / implementers results.
+
+/// A position in a source file: `file` is root-relative inside the
+/// project, absolute outside it; line and col are 1-based.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct SourceSite {
+    pub file: String,
+    pub line: i64,
+    pub col: i64,
+    pub byte_start: i64,
+    pub byte_end: i64,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ResolvedSymbol {
+    pub qualified_path: String,
+    pub kind: String,
+    #[serde(default)]
+    pub external: bool,
+    #[serde(flatten)]
+    pub site: SourceSite,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ReferencesResult {
+    pub target: ResolvedSymbol,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub references: Vec<SourceSite>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub not_analyzed: Vec<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Implementation {
+    #[serde(flatten)]
+    pub symbol: ResolvedSymbol,
+    #[serde(default)]
+    pub pointer: bool,
+}
+
+/// `implementers` is filled for an interface target, `interfaces` for a
+/// concrete one.
+#[derive(Deserialize, Debug, Clone)]
+pub struct ImplementersResult {
+    pub target: ResolvedSymbol,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub implementers: Vec<Implementation>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub interfaces: Vec<Implementation>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub not_analyzed: Vec<String>,
+}
+
+/// Names the declaration a cross-reference query is about: an index row
+/// (declaring file + byte range + leaf), or a bare qualified path the
+/// adapter resolves itself, which can reach dependency declarations.
+pub struct XrefTarget<'a> {
+    pub qualified_path: &'a str,
+    pub leaf: &'a str,
+    pub decl: Option<(&'a str, (i64, i64))>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -533,6 +595,32 @@ impl Adapter {
         Ok(serde_json::from_value(files)?)
     }
 
+    /// Type-resolved uses of one declaration across the project.
+    pub fn references(&self, target: &XrefTarget) -> Result<ReferencesResult> {
+        let result = self.daemon.call("references", self.xref_params(target))?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    /// Implements relation of one type: implementers of an interface, or
+    /// the interfaces a concrete type satisfies.
+    pub fn implementers(&self, target: &XrefTarget) -> Result<ImplementersResult> {
+        let result = self.daemon.call("implementers", self.xref_params(target))?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    fn xref_params(&self, target: &XrefTarget) -> serde_json::Value {
+        let mut params = serde_json::json!({
+            "project_root": self.project_root.to_string_lossy(),
+            "qualified_path": target.qualified_path,
+            "leaf": target.leaf,
+        });
+        if let Some((file, (start, end))) = target.decl {
+            params["declaring_file"] = file.into();
+            params["decl_byte_range"] = serde_json::json!([start, end]);
+        }
+        params
+    }
+
     /// insert-symbol: topmost decorator line of the def/class at `def_line`,
     /// or `def_line` itself when there are no decorators / no match / parse
     /// failure. Port of insert_symbol.py `_first_decorator_line`.
@@ -590,20 +678,46 @@ impl DaemonUnavailable {
     }
 }
 
-/// Structured form of an adapter/index error for JSON-reporting callers;
-/// errors other than DaemonUnavailable get `fallback_code`.
+/// Structured form of an adapter/index error for JSON-reporting callers.
+/// A daemon's own `data.error_code` (with its other data fields) wins, an
+/// unknown method is `unsupported`, anything else gets `fallback_code`.
 pub fn error_json(err: &anyhow::Error, fallback_code: &str) -> serde_json::Value {
     if let Some(unavailable) = err.downcast_ref::<DaemonUnavailable>() {
         return unavailable.to_json();
     }
-    match err.downcast_ref::<crate::pyscan::PythonUnavailable>() {
-        Some(unavailable) => unavailable.to_json(),
-        None => serde_json::json!({
-            "status": "error",
-            "error_code": fallback_code,
-            "message": format!("{err:#}"),
-        }),
+    if let Some(unavailable) = err.downcast_ref::<crate::pyscan::PythonUnavailable>() {
+        return unavailable.to_json();
     }
+    if let Some(daemon_err) = err.downcast_ref::<DaemonError>() {
+        if daemon_err.is_method_not_found() {
+            return serde_json::json!({
+                "status": "error",
+                "error_code": "unsupported",
+                "daemon": daemon_err.daemon,
+                "message": format!("the {} daemon does not support {}", daemon_err.daemon, daemon_err.method),
+            });
+        }
+        if let Some(code) = daemon_err.error_code() {
+            let mut out = serde_json::json!({
+                "status": "error",
+                "error_code": code,
+                "message": daemon_err.message(),
+            });
+            if let Some(data) = daemon_err.error["data"].as_object() {
+                for (key, value) in data {
+                    if key != "error_code" {
+                        out[key] = value.clone();
+                    }
+                }
+            }
+            return out;
+        }
+    }
+    serde_json::json!({
+        "status": "error",
+        "error_code": fallback_code,
+        "message": format!("{err:#}"),
+    })
 }
 
 pub struct Registry {

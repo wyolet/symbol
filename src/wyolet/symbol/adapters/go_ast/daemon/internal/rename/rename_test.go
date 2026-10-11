@@ -215,6 +215,28 @@ func TestMemberCoversAllTestVariants(t *testing.T) {
 	}
 }
 
+func TestModuleBindingCoversNestedModule(t *testing.T) {
+	files := map[string]string{
+		"tool/go.mod": "module example.com/tool\n\ngo 1.22\n\nrequire example.com/m v0.0.0\n\nreplace example.com/m => ../\n",
+		"tool/main.go": `package main
+
+import "example.com/m/lib"
+
+func main() { _ = lib.Exported() }
+`,
+	}
+	for rel, src := range testFixture {
+		files[rel] = src
+	}
+	root := writeProject(t, files)
+	got := rewrittenLines(t, renameBinding(t, root, "lib/lib.go", "Exported"))
+	assertLines(t, got, map[string][]int{
+		"lib/lib.go":      {5},
+		"lib/ext_test.go": {14},
+		"tool/main.go":    {5},
+	})
+}
+
 func TestUnresolvableReferenceIsReported(t *testing.T) {
 	files := map[string]string{
 		"go.mod":     testFixture["go.mod"],

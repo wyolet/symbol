@@ -10,3 +10,4 @@ pub mod pyscan;
 pub mod reads;
 pub mod rpc;
 pub mod writes;
+pub mod xref;

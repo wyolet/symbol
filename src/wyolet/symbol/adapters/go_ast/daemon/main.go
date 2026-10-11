@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -13,21 +14,23 @@ import (
 	"go/scanner"
 	"go/token"
 	"os"
+	"runtime"
 	"strings"
 
+	"github.com/wyolet/symbol/go-scan/internal/project"
 	"github.com/wyolet/symbol/go-scan/internal/rename"
 	"github.com/wyolet/symbol/go-scan/internal/rpc"
 	"github.com/wyolet/symbol/go-scan/internal/scan"
+	"github.com/wyolet/symbol/go-scan/internal/xref"
 )
 
 // Bumped when the worker implementation changes in user-visible ways
 // (new fields, behavior). Independent of the JSON-RPC protocol version.
-const workerVersion = "0.2.1"
+const workerVersion = "0.3.0"
 
-// Capabilities this worker advertises beyond the v1 minimum.
-// Empty for now — scan_file + validate_syntax are required of every
-// worker and aren't listed in capabilities.
-var capabilities = []string{}
+// Capabilities this worker advertises beyond the v1 minimum
+// (scan_file + validate_syntax, required of every worker).
+var capabilities = []string{"references", "implementers"}
 
 func main() {
 	srv := rpc.NewServer(os.Stdin, os.Stdout)
@@ -38,6 +41,8 @@ func main() {
 	srv.Register("signature", handleSignature)
 	srv.Register("rename_member", handleRenameMember)
 	srv.Register("rename_module_binding", handleRenameModuleBinding)
+	srv.Register("references", handleReferences)
+	srv.Register("implementers", handleImplementers)
 	srv.Register("shutdown", func(params json.RawMessage) (any, error) {
 		srv.Stop()
 		return nil, nil
@@ -106,7 +111,8 @@ func handleRenameMember(params json.RawMessage) (any, error) {
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &rpc.JSONRPCError{Code: rpc.ErrInvalidParams, Message: err.Error()}
 	}
-	return rename.Member(p)
+	res, err := rename.Member(p)
+	return res, analysisError(err)
 }
 
 func handleRenameModuleBinding(params json.RawMessage) (any, error) {
@@ -114,7 +120,50 @@ func handleRenameModuleBinding(params json.RawMessage) (any, error) {
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &rpc.JSONRPCError{Code: rpc.ErrInvalidParams, Message: err.Error()}
 	}
-	return rename.ModuleBinding(p)
+	res, err := rename.ModuleBinding(p)
+	return res, analysisError(err)
+}
+
+func handleReferences(params json.RawMessage) (any, error) {
+	var p rpc.SymbolTargetParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, &rpc.JSONRPCError{Code: rpc.ErrInvalidParams, Message: err.Error()}
+	}
+	res, err := xref.References(p)
+	return res, analysisError(err)
+}
+
+func handleImplementers(params json.RawMessage) (any, error) {
+	var p rpc.SymbolTargetParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, &rpc.JSONRPCError{Code: rpc.ErrInvalidParams, Message: err.Error()}
+	}
+	res, err := xref.Implementers(p)
+	return res, analysisError(err)
+}
+
+// analysisError turns load and query failures into ErrAnalysis responses
+// whose data carries a stable error_code for the host to report.
+func analysisError(err error) error {
+	var loadErr *project.LoadError
+	var queryErr *xref.QueryError
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &loadErr):
+		data := map[string]any{"error_code": loadErr.Code, "errors": loadErr.Errors}
+		if loadErr.RequiredGo != "" {
+			data["required_go"] = loadErr.RequiredGo
+			data["goscan_go"] = runtime.Version()
+		}
+		return &rpc.JSONRPCError{Code: rpc.ErrAnalysis, Message: loadErr.Message, Data: data}
+	case errors.As(err, &queryErr):
+		return &rpc.JSONRPCError{
+			Code: rpc.ErrAnalysis, Message: queryErr.Message,
+			Data: map[string]any{"error_code": queryErr.Code},
+		}
+	}
+	return err
 }
 
 // signatureFromSource parses ``source`` as a partial Go file (synthesizing
