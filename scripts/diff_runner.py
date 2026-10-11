@@ -784,6 +784,8 @@ def main():
                     help="compare the MCP servers (tools/list + dataset as tool calls)")
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
+    # `uv run symbol` is the Python side; never let it delegate to a bundled binary.
+    os.environ["SYMBOL_IMPL"] = "python"
 
     if args.mcp:
         runner = McpRunner(Path(args.target).resolve())
