@@ -108,7 +108,7 @@ Inserts `content` relative to the `anchor_path` symbol:
   async_function/class/constant (Python) or type/var/const (Go), back when
   the Python side ran a receiver-aware v2 engine and the Rust side was
   tier-1 textual. **That divergence no longer exists**: both implementations
-  now run the same engine (Rust core ported WP5–WP6; Go renames run the
+  now run the same engine (Rust core ported; Go renames run the
   `go/types` engine project-wide), so tagged renames are expected to match
   byte-for-byte. Keep tagging the qualifying kinds — the tag is now a
   safety net: IF a residual engine-vs-engine difference ever appears, the

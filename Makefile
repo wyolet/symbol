@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install sync test test-fast test-rust test-features test-real-world lint validate \
+.PHONY: help install sync test test-fast test-rust lint-rust test-features test-real-world lint validate \
         validate-specs audit clean build-go-scan build-go-scan-all
 
 UV ?= uv
@@ -31,6 +31,10 @@ test-fast: ## Run pytest with -x (fail fast) and verbose names
 
 test-rust: ## Run the Rust workspace tests
 	cargo test --manifest-path rust/Cargo.toml --workspace
+
+lint-rust: ## Check Rust formatting and clippy warnings
+	cargo fmt --manifest-path rust/Cargo.toml --all --check
+	cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 
 test-features: ## Run configured black-box scenarios against symbol-rs
 	cargo build --manifest-path rust/Cargo.toml -p symbol-core

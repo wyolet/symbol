@@ -28,7 +28,8 @@ Optional per-op keys:
   expect_error: true — both sides are expected to refuse; verdict compares
         the refusal (error_code) instead of tree state.
 
-Verdicts: match | known_divergence | MISMATCH. Exit 1 if any MISMATCH.
+Verdicts: match | both_refused | known_divergence | MISMATCH. Exit 1 if any
+MISMATCH. both_refused marks a non-expect_error write neither side applied.
 Ground truth is the Python implementation — the runner never invents
 expectations of its own.
 """
@@ -343,6 +344,9 @@ class Runner:
             self.verdict("match" if both_refused else "MISMATCH", op_id, op,
                          "" if both_refused else
                          f"expected refusal; py_changed={py_changed} rs_changed={rs_changed}")
+        elif not py_changed and not rs_changed:
+            # agreeing refusals, but no write path was exercised
+            self.verdict("both_refused", op_id, op)
         elif after_py == after_rs:
             self.verdict("match", op_id, op)
         elif "engine-kind" in tags and op == "rename-symbol":
@@ -412,6 +416,8 @@ def main():
         runner.run_ops(ops)
 
     report = runner.report()
+    if hasattr(runner, "read_copy"):
+        shutil.rmtree(runner.read_copy, ignore_errors=True)
     print(json.dumps({"verdicts": report["verdicts"],
                       "timing_median_s": report["timing_median_s"]}, indent=2))
     for f in report["failures"][:15]:
