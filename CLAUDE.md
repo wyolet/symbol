@@ -8,7 +8,7 @@ CLI command is `symbol`; PyPI distribution is `wyolet-symbol` (the bare `symbol`
 
 **Language-specific code lives in `adapters/<lang>/` and never leaks out.**
 
-- `import ast`, `tree_sitter`, `go/ast`, `pyright`, or any other language-specific parser/runtime is allowed **only** inside `adapters/<lang>/`. Never in `shared/`, `writes/`, `reads/`, `checkers/`, `commands/`, `mcp/`, or any other neutral layer.
+- `import ast`, `tree_sitter`, `go/ast`, `pyright`, or any other language-specific parser/runtime is allowed **only** inside `adapters/<lang>/`. Never in `shared/`, `checkers/`, `commands/`, or any other neutral layer.
 - Neutral layers operate on the index and on the `Hit`/`Ref`/`Symbol` records the adapter produces. They never branch on language and never parse source.
 - Multi-language tools (rename, callers, search, patch) are written **once** against the adapter protocol. Adding a language is a new adapter, not new branches in the engine.
 - Language-aware behavior (receiver resolution, scope walking, ref discovery) is a method on the adapter protocol, implemented per-language — never an `if lang == "python"` in a neutral layer.
@@ -16,19 +16,21 @@ CLI command is `symbol`; PyPI distribution is `wyolet-symbol` (the bare `symbol`
 
 If you catch yourself writing `import ast` outside `adapters/`, stop — the right move is a method on the adapter protocol.
 
+The Rust core (`rust/symbol`) follows the same rule: language analysis runs only in the language daemons (pyscan from `adapters/`, go-scan from `adapters/go_ast/daemon`); index, reads, writes, MCP, and hook never branch on language.
+
 ## Architecture layering — never violate
 
 - **Checker registry** (`shared/registry.py`) — `@register(name, kind, ...)` + `views(...)`. `kind="file"` runs per file; `kind="project"` runs once. Commands are thin views, not owners.
 - **AnalysisContext** (`shared/context.py`) — built once via `build_context()`, shared across audit/map/analyze. Never rebuilt per-checker.
 - **ASTCache** (`shared/ast_cache.py`) — each file parsed once, passed to all consumers.
-- **Symbol index** (`shared/symbol_index.py`) — qualified-path → location/signature/body; backs search/code/outline/callers and the MCP tools.
+- **Symbol index** (`rust/symbol/src/index.rs`) — qualified-path → location/signature/body; backs the Rust binary's reads, writes, and MCP tools.
 - **Spec system** (`shared/spec.py`, `shared/config_resolver.py`) — global baseline (`data/spec.toml`) → per-package specs (`data/specs/NAME/`, loaded only when the package is a project dep) → project config (`symbol.toml` or `[tool.symbol]` in pyproject). Namespaces: `[checkers.orphan]`, `[checkers.side_effects.*]`, `[checker]`, `[scanner]`.
 - **Pipeline hooks** (`shared/pipeline.py`) — `@hook(pipeline, priority)` for DEPS/SKIP_ORPHAN/ENTRYPOINTS/IMPORTS. Framework-specific logic lives in package specs, not core checkers.
 
 ## Conventions
 
 - Python 3.13. **Never** `from __future__ import annotations` — native annotations only.
-- CLI: Typer. Package manager: uv. Format + lint: ruff (handles import sorting).
+- CLI: Typer (Python commands), clap (Rust binary). Package manager: uv. Format + lint: ruff (handles import sorting).
 - **Never hand-edit `pyproject.toml` for deps** — use `uv add` / `uv remove` / `uv sync --all-groups`.
 - **No inline scripts** — save to `.tmp/<name>.py` and run `uv run .tmp/<name>.py`.
 - Terminology: **checker** (matches ruff/pylint), not "detector".
