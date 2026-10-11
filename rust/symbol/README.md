@@ -88,7 +88,7 @@ analysis it asks the caller `index/find_declaration`, `index/class_bases` and
   as `patch`; exact-old edits must match once and prove their own context.
 - **audit / analyze not ported** — out of scope by design; they're the
   Python-specific engine documented in CLAUDE.md.
-- **`symbol mcp`** serves the Python server's twelve tools over stdio with
+- **`symbol mcp`** serves the Python server's tools over stdio with
   the same schemas, descriptions (embedded from
   `src/wyolet/symbol/data/mcp_tools.toml`), result payloads and session
   read-cache rules, and honors the same `SYMBOL_MCP_*` resource-bound env
@@ -98,7 +98,9 @@ analysis it asks the caller `index/find_declaration`, `index/class_bases` and
   `Patch` resolves relative paths against the project root rather than the
   working directory; `MultiPatch` range edits also require the covering read
   to be mtime-fresh and refuse ranges past end of file; argument validation
-  errors omit pydantic's documentation link.
+  errors omit pydantic's documentation link. It adds `SymbolRefs` and
+  `SymbolImplementers`, which render `refs` / `implementers` results as
+  agent text (Go; other adapters report `unsupported`).
 - Index build applies linguist classification (heuristics off = Python
   chain), the adapter gate, and global/project `[checker]` excludes, plus
   the per-package spec excludes of each dependency the adapters report.
@@ -143,7 +145,8 @@ self = this repo at `5f82bcce` (`git archive` copy), fixture-proj
 
 MCP mode (`--mcp`, see `scripts/datasets/README.md`) replays the same
 datasets as tool calls against `uv run symbol mcp` and `symbol mcp` and
-compares whole tool results byte-for-byte; `tools/list` is identical.
+compares whole tool results byte-for-byte; `tools/list` is identical for the
+tools both serve, and Rust-only tools are reported as `rust_only`.
 
 | corpus | compared calls | match | both_refused | known_divergence | MISMATCH |
 |---|---|---|---|---|---|
